@@ -5,6 +5,7 @@ architecture extensible pour les langues ivoiriennes (dioula, baoulé...).
 """
 
 import os
+import json
 import uuid
 import tempfile
 import threading
@@ -18,6 +19,8 @@ WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")   # tiny/base/small/medium/l
 COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "int8")      # int8 = CPU Railway
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "200"))
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+ANALYSE_MODEL = os.getenv("ANALYSE_MODEL", "claude-sonnet-5")
 
 app = FastAPI(title="Djeliya API", version="0.1.0")
 app.add_middleware(
@@ -41,6 +44,22 @@ def get_model():
         return _model
 
 
+_anthropic_client = None
+
+
+def get_anthropic():
+    global _anthropic_client
+    if not ANTHROPIC_API_KEY:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY n'est pas configurée sur le serveur — "
+            "ajoute-la dans les variables d'environnement Railway pour activer l'analyse."
+        )
+    if _anthropic_client is None:
+        from anthropic import Anthropic
+        _anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
+    return _anthropic_client
+
+
 # Stockage des tâches en mémoire (remplacer par PostgreSQL/Redis en production —
 # Railway fournit les deux en un clic)
 JOBS: dict[str, dict] = {}
@@ -58,7 +77,12 @@ LANGUES_SUPPORTEES = {
 # ----------------------------------------------------------------- routes
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": WHISPER_MODEL, "time": datetime.now(timezone.utc).isoformat()}
+    return {
+        "status": "ok",
+        "model": WHISPER_MODEL,
+        "analyse_disponible": bool(ANTHROPIC_API_KEY),
+        "time": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @app.get("/api/languages")
@@ -106,6 +130,22 @@ def get_transcription(job_id: str):
     return job
 
 
+@app.post("/api/transcriptions/{job_id}/analyser")
+def lancer_analyse(job_id: str, contexte: str = Form("")):
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Transcription introuvable")
+    if job["statut"] != "termine":
+        raise HTTPException(409, "La transcription doit être terminée avant de lancer l'analyse.")
+    if not job.get("segments"):
+        raise HTTPException(422, "Aucune parole détectée : rien à analyser.")
+
+    job["analyse_statut"] = "en_cours"
+    job["analyse_erreur"] = None
+    threading.Thread(target=_run_analyse, args=(job_id, contexte), daemon=True).start()
+    return {"analyse_statut": "en_cours"}
+
+
 # ----------------------------------------------------------------- moteur
 def _run_job(job_id: str, path: str, langue: str, vocabulaire: str):
     job = JOBS[job_id]
@@ -148,6 +188,69 @@ def _run_job(job_id: str, path: str, langue: str, vocabulaire: str):
             os.unlink(path)
         except OSError:
             pass
+
+
+# ----------------------------------------------------------------- analyse qualitative
+SCHEMA_ANALYSE = """{
+  "premier_ordre": [{"concept": "libellé proche du verbatim", "verbatims": [{"texte": "citation exacte", "debut": 12.4}]}],
+  "second_ordre": [{"theme": "libellé du thème", "concepts_lies": ["concept 1", "concept 2"], "description": "1-2 phrases"}],
+  "dimensions_agregees": [{"dimension": "libellé de la dimension théorique", "themes_lies": ["thème 1", "thème 2"]}],
+  "synthese": "synthèse interprétative de 4-6 phrases reliant les dimensions à la question de recherche",
+  "limites": "limites méthodologiques de ce codage automatique, en 2-3 phrases"
+}"""
+
+
+def _construire_prompt(job: dict, contexte: str) -> str:
+    lignes = []
+    for s in job.get("segments", []):
+        lignes.append(f"[{s['debut']:.1f}s] {s['texte']}")
+    transcription = "\n".join(lignes)
+
+    return f"""Tu es méthodologue qualitatif spécialisé en sciences de gestion et organisation.
+
+Effectue un codage thématique inductif de la transcription d'entretien ci-dessous, en suivant \
+la méthode de structuration des données de Gioia, Corley & Hamilton (2013), largement utilisée \
+dans les revues de recherche en management (Academy of Management Journal, Organization Science) :
+1. Premier ordre : concepts proches du langage des participants (in vivo), chacun appuyé par un \
+ou plusieurs verbatims exacts avec leur horodatage de début.
+2. Second ordre : thèmes plus abstraits regroupant les concepts de premier ordre.
+3. Dimensions agrégées : catégories théoriques regroupant les thèmes de second ordre.
+
+Contexte / question de recherche fournie par le chercheur : {contexte or "non précisée"}
+
+Transcription horodatée :
+{transcription}
+
+Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma, sans texte autour, \
+sans balises markdown, en français :
+{SCHEMA_ANALYSE}"""
+
+
+def _run_analyse(job_id: str, contexte: str):
+    job = JOBS[job_id]
+    try:
+        client = get_anthropic()
+        prompt = _construire_prompt(job, contexte)
+        resp = client.messages.create(
+            model=ANALYSE_MODEL,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+        texte = texte.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        analyse = json.loads(texte)
+
+        for cle in ("premier_ordre", "second_ordre", "dimensions_agregees", "synthese", "limites"):
+            if cle not in analyse:
+                raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
+
+        job["analyse"] = analyse
+        job["analyse_statut"] = "termine"
+        job["analyse_contexte"] = contexte
+        job["analyse_modele"] = ANALYSE_MODEL
+    except Exception as e:  # noqa: BLE001
+        job["analyse_statut"] = "erreur"
+        job["analyse_erreur"] = str(e)
 
 
 if __name__ == "__main__":
