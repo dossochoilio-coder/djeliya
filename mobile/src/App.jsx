@@ -16,7 +16,7 @@ import {
   loadCorpus, saveCorpus, loadGlossaire, saveGlossaire,
   putAudioBlob, getAudioBlob, deleteAudioBlob, newId,
 } from "./lib/db.js";
-import { checkHealth, createTranscription, getTranscription } from "./lib/api.js";
+import { checkHealth, createTranscription, getTranscription, lancerAnalyse } from "./lib/api.js";
 import { fmtTime } from "./lib/constants.js";
 
 export default function App() {
@@ -75,11 +75,15 @@ export default function App() {
   /* Sondage global des entretiens en cours de traitement */
   const pollingRef = useRef(false);
   useEffect(() => {
-    const enAttente = interviews.some((i) => i.statut === "en_attente" || i.statut === "en_cours");
+    const enAttente = interviews.some((i) =>
+      i.statut === "en_attente" || i.statut === "en_cours" || i.analyse_statut === "en_cours"
+    );
     if (!enAttente || pollingRef.current) return;
     pollingRef.current = true;
     const it = setInterval(async () => {
-      const cibles = interviews.filter((i) => i.statut === "en_attente" || i.statut === "en_cours");
+      const cibles = interviews.filter((i) =>
+        i.statut === "en_attente" || i.statut === "en_cours" || i.analyse_statut === "en_cours"
+      );
       if (cibles.length === 0) { clearInterval(it); pollingRef.current = false; return; }
       for (const i of cibles) {
         try {
@@ -87,6 +91,7 @@ export default function App() {
           setInterviews((prev) => prev.map((x) => x.id === i.id ? {
             ...x, statut: job.statut, segments: job.segments || [],
             langueDetectee: job.langue_detectee, note: job.note, erreur: job.erreur,
+            analyse_statut: job.analyse_statut, analyse: job.analyse, analyse_erreur: job.analyse_erreur,
           } : x));
         } catch (e) {
           if (e.introuvable) {
@@ -145,6 +150,16 @@ export default function App() {
     }
   };
 
+  const lancerAnalyseEntretien = async (interview, contexte) => {
+    setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "en_cours", analyse_erreur: null } : x));
+    try {
+      await lancerAnalyse(settings.backendUrl, interview.jobId, contexte);
+    } catch (e) {
+      setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "erreur", analyse_erreur: e.message } : x));
+      showToast("Échec du lancement de l'analyse : " + e.message);
+    }
+  };
+
   const supprimerEntretien = async (id) => {
     await deleteAudioBlob(id).catch(() => {});
     setInterviews((prev) => prev.filter((x) => x.id !== id));
@@ -187,6 +202,7 @@ export default function App() {
         onUpdate={majEntretien}
         onSupprimer={supprimerEntretien}
         onRelancer={() => relancerEntretien(interview)}
+        onLancerAnalyse={(contexte) => lancerAnalyseEntretien(interview, contexte)}
         showToast={showToast}
       />
     ) : (
