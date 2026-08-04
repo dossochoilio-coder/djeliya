@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { STATUTS, fmtDate } from "../lib/constants.js";
 import logo from "../assets/logo-full.png";
 
-export default function Accueil({ interviews, onOpen, onNouveau, onReglages, backendOk }) {
+export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
   const [query, setQuery] = useState("");
 
   const filtres = useMemo(() => {
@@ -15,20 +15,15 @@ export default function Accueil({ interviews, onOpen, onNouveau, onReglages, bac
 
   return (
     <div className="screen accueil">
-      <header className="topbar">
+      <header className="topbar hero">
+        <span className="kora-cordes" aria-hidden="true">
+          {Array.from({ length: 7 }).map((_, i) => <span key={i} />)}
+        </span>
         <img src={logo} alt="Djeliya" className="brand-logo" />
-        <button className="icon-btn" onClick={onReglages} aria-label="Réglages">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M10 12.6a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M16.6 12.2a1.3 1.3 0 0 0 .26 1.44l.05.05a1.58 1.58 0 1 1-2.23 2.23l-.05-.05a1.3 1.3 0 0 0-1.44-.26 1.3 1.3 0 0 0-.79 1.19v.14a1.58 1.58 0 1 1-3.15 0v-.07a1.3 1.3 0 0 0-.85-1.19 1.3 1.3 0 0 0-1.44.26l-.05.05a1.58 1.58 0 1 1-2.23-2.23l.05-.05a1.3 1.3 0 0 0 .26-1.44 1.3 1.3 0 0 0-1.19-.79h-.14a1.58 1.58 0 1 1 0-3.15h.07a1.3 1.3 0 0 0 1.19-.85 1.3 1.3 0 0 0-.26-1.44l-.05-.05a1.58 1.58 0 1 1 2.23-2.23l.05.05a1.3 1.3 0 0 0 1.44.26h.06a1.3 1.3 0 0 0 .79-1.19v-.14a1.58 1.58 0 1 1 3.15 0v.07a1.3 1.3 0 0 0 .79 1.19h.06a1.3 1.3 0 0 0 1.44-.26l.05-.05a1.58 1.58 0 1 1 2.23 2.23l-.05.05a1.3 1.3 0 0 0-.26 1.44v.06a1.3 1.3 0 0 0 1.19.79h.14a1.58 1.58 0 1 1 0 3.15h-.07a1.3 1.3 0 0 0-1.19.79Z" stroke="currentColor" strokeWidth="1.1" />
-          </svg>
-        </button>
       </header>
 
-      {!backendOk && (
-        <button className="warn-bar" onClick={onReglages}>
-          Serveur non connecté — touche ici pour le configurer
-        </button>
+      {backendOk === false && (
+        <p className="warn-bar">Serveur non connecté — configure-le dans l'onglet Réglages</p>
       )}
 
       <div className="list-tools">
