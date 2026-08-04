@@ -1,0 +1,21 @@
+# Node / web
+node_modules/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Android
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/local.properties
+*.keystore
+*.jks
+
+# Système
+.DS_Store
