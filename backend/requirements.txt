@@ -4,3 +4,4 @@ python-multipart==0.0.20
 faster-whisper==1.1.1
 requests==2.32.3
 huggingface-hub==0.27.1
+anthropic==0.120.2
