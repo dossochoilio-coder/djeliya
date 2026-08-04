@@ -6,7 +6,6 @@ architecture extensible pour les langues ivoiriennes (dioula, baoulé...).
 
 import os
 import uuid
-import shutil
 import tempfile
 import threading
 from datetime import datetime, timezone
