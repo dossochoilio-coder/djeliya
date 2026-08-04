@@ -3,7 +3,7 @@ import { checkHealth } from "../lib/api.js";
 import { LANGS } from "../lib/constants.js";
 import logo from "../assets/logo-full.png";
 
-export default function Reglages({ settings, onSave, onRetour, showToast }) {
+export default function Reglages({ settings, onSave, showToast }) {
   const [form, setForm] = useState(settings);
   const [test, setTest] = useState(null); // null | "en_cours" | {ok, ...}
 
@@ -18,17 +18,12 @@ export default function Reglages({ settings, onSave, onRetour, showToast }) {
   const enregistrer = () => {
     onSave(form);
     showToast("Réglages enregistrés");
-    onRetour();
   };
 
   return (
     <div className="screen">
       <header className="topbar">
-        <button className="icon-btn" onClick={onRetour} aria-label="Retour">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15 7 10l5.5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
-        <h1 className="topbar-title">Réglages</h1>
-        <span style={{ width: 36 }} />
+        <h1 className="topbar-title left">Réglages</h1>
       </header>
 
       <div className="content">
