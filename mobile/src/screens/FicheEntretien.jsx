@@ -5,7 +5,7 @@ import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 
-export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, showToast }) {
+export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, onRelancer, showToast }) {
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -206,7 +206,12 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
 
         {interview.note && <p className="note-banner">⚑ {interview.note}</p>}
         {interview.statut === "erreur" && (
-          <p className="note-banner err">Échec de la transcription : {interview.erreur || "erreur inconnue"}</p>
+          <div className="note-banner err">
+            <p style={{ margin: 0 }}>Échec de la transcription : {interview.erreur || "erreur inconnue"}</p>
+            <button className="btn primary sm" style={{ marginTop: 10 }} onClick={onRelancer}>
+              Relancer la transcription
+            </button>
+          </div>
         )}
 
         {audioUrl && (
