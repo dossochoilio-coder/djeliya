@@ -6,6 +6,8 @@
 
 const LS_INTERVIEWS = "djeliya:interviews";
 const LS_SETTINGS = "djeliya:settings";
+const LS_CORPUS = "djeliya:corpus";
+const LS_GLOSSAIRE = "djeliya:glossaire";
 const IDB_NAME = "djeliya-audio";
 const IDB_STORE = "blobs";
 
@@ -47,6 +49,36 @@ export function loadSettings() {
 
 export function saveSettings(s) {
   localStorage.setItem(LS_SETTINGS, JSON.stringify(s));
+}
+
+/* ---------------- Corpus (regroupements d'entretiens) ---------------- */
+
+export function loadCorpus() {
+  try {
+    const raw = localStorage.getItem(LS_CORPUS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCorpus(list) {
+  localStorage.setItem(LS_CORPUS, JSON.stringify(list));
+}
+
+/* ---------------- Glossaire (termes locaux définis) ---------------- */
+
+export function loadGlossaire() {
+  try {
+    const raw = localStorage.getItem(LS_GLOSSAIRE);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveGlossaire(list) {
+  localStorage.setItem(LS_GLOSSAIRE, JSON.stringify(list));
 }
 
 /* ---------------- Audio (IndexedDB) ---------------- */
