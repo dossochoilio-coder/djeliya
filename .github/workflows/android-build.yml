@@ -1,0 +1,78 @@
+name: Android — APK et AAB
+
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/android-build.yml"]
+  workflow_dispatch: {}
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Java 17 (Gradle / Android)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Installer les dépendances web
+        run: npm ci
+
+      - name: Compiler l'interface (Vite)
+        run: npm run build
+
+      - name: Synchroniser Capacitor → Android
+        run: npx cap sync android
+
+      - name: Rendre gradlew exécutable
+        run: chmod +x android/gradlew
+
+      # ---------- APK de test (installable directement sur téléphone) ----------
+      - name: Compiler l'APK debug
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      # ---------- AAB de production (Google Play) ----------
+      - name: Compiler l'AAB release (non signé)
+        run: cd android && ./gradlew bundleRelease --no-daemon
+
+      - name: Signer l'AAB
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        id: sign_aab
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: mobile/android/app/build/outputs/bundle/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Publier l'APK (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: djeliya-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publier l'AAB (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: djeliya-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/*.aab
