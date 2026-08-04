@@ -5,7 +5,7 @@ import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 
-export default function FicheEntretien({ interview, onRetour, onUpdate, onSupprimer, showToast }) {
+export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, showToast }) {
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -15,6 +15,7 @@ export default function FicheEntretien({ interview, onRetour, onUpdate, onSuppri
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [corpusPicker, setCorpusPicker] = useState(false);
   const audioRef = useRef(null);
 
   const L = LANGS[interview.langueDetectee] || LANGS[interview.langue] || LANGS.auto;
@@ -162,6 +163,9 @@ export default function FicheEntretien({ interview, onRetour, onUpdate, onSuppri
             <div className="menu">
               <button className="menu-item" onClick={copier}>Copier le texte</button>
               <button className="menu-item" onClick={partager}>Partager / Exporter</button>
+              <button className="menu-item" onClick={() => { setCorpusPicker(true); setMenuOpen(false); }}>
+                Changer de corpus
+              </button>
               <button className="menu-item danger" onClick={supprimer}>Supprimer l'entretien</button>
             </div>
           )}
@@ -174,6 +178,31 @@ export default function FicheEntretien({ interview, onRetour, onUpdate, onSuppri
           <span className="lang-tag" style={{ color: L.color, borderColor: L.color }}>{L.code}</span>
           {duree > 0 && <span className="meta-item mono">{fmtTime(duree)}</span>}
         </div>
+
+        {(() => {
+          const c = corpusList.find((x) => x.id === interview.corpusId);
+          return (
+            <button className="corpus-inline" onClick={() => setCorpusPicker(true)}>
+              {c ? `Corpus : ${c.nom}` : "Aucun corpus assigné"} <span className="corpus-inline-edit">modifier</span>
+            </button>
+          );
+        })()}
+
+        {corpusPicker && (
+          <div className="picker-card">
+            <button className={"picker-opt" + (!interview.corpusId ? " picker-actif" : "")}
+              onClick={() => { onUpdate({ ...interview, corpusId: null }); setCorpusPicker(false); }}>
+              Aucun
+            </button>
+            {corpusList.map((c) => (
+              <button key={c.id} className={"picker-opt" + (interview.corpusId === c.id ? " picker-actif" : "")}
+                onClick={() => { onUpdate({ ...interview, corpusId: c.id }); setCorpusPicker(false); showToast(`Assigné à « ${c.nom} »`); }}>
+                {c.nom}
+              </button>
+            ))}
+            {corpusList.length === 0 && <p className="field-help">Crée d'abord un corpus dans l'onglet Corpus.</p>}
+          </div>
+        )}
 
         {interview.note && <p className="note-banner">⚑ {interview.note}</p>}
         {interview.statut === "erreur" && (
