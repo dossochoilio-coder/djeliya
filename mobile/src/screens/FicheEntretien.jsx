@@ -5,7 +5,7 @@ import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 
-export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, onRelancer, showToast }) {
+export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, onRelancer, onLancerAnalyse, showToast }) {
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -16,6 +16,7 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
   const [draft, setDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [corpusPicker, setCorpusPicker] = useState(false);
+  const [vue, setVue] = useState("transcription");
   const audioRef = useRef(null);
 
   const L = LANGS[interview.langueDetectee] || LANGS[interview.langue] || LANGS.auto;
@@ -214,9 +215,23 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
           </div>
         )}
 
+        {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" style={{ display: "none" }} />}
+
+        {interview.statut === "termine" && (
+          <div className="vue-switch">
+            <button className={"vue-opt" + (vue === "transcription" ? " vue-actif" : "")}
+              onClick={() => setVue("transcription")}>Transcription</button>
+            <button className={"vue-opt" + (vue === "analyse" ? " vue-actif" : "")}
+              onClick={() => setVue("analyse")}>Analyse qualitative</button>
+          </div>
+        )}
+
+        {vue === "analyse" && interview.statut === "termine" ? (
+          <AnalyseView interview={interview} onLancer={onLancerAnalyse} onSeek={seek} />
+        ) : (
+        <>
         {audioUrl && (
           <div className="player-card">
-            <audio ref={audioRef} src={audioUrl} preload="metadata" />
             <div className="player-row">
               <button className="play" onClick={togglePlay} aria-label={playing ? "Pause" : "Lecture"}>
                 {playing ? (
@@ -315,11 +330,112 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
         {interview.statut === "termine" && (interview.segments || []).length === 0 && (
           <p className="note-banner">Aucune parole détectée dans cet audio.</p>
         )}
+        </>
+        )}
       </div>
     </div>
   );
 }
 
+function AnalyseView({ interview, onLancer, onSeek }) {
+  const [contexte, setContexte] = useState("");
+  const [dimOuverte, setDimOuverte] = useState(0);
+
+  const statut = interview.analyse_statut;
+  const a = interview.analyse;
+
+  if (!statut || statut === "erreur") {
+    return (
+      <div className="analyse-intro">
+        <p className="section-intro">
+          Codage thématique inductif automatique selon la méthode de structuration des données de
+          Gioia, Corley &amp; Hamilton (2013) : concepts de premier ordre → thèmes de second ordre → dimensions agrégées.
+        </p>
+        <label className="field">
+          <span className="field-label">Question de recherche ou angle d'analyse (facultatif)</span>
+          <input className="field-input" value={contexte} onChange={(e) => setContexte(e.target.value)}
+            placeholder="Ex. Comment les commerçantes financent-elles leur activité ?" />
+        </label>
+        {statut === "erreur" && (
+          <p className="note-banner err">Échec de l'analyse : {interview.analyse_erreur || "erreur inconnue"}</p>
+        )}
+        <button className="btn primary full" onClick={() => onLancer(contexte)}>
+          Lancer l'analyse qualitative
+        </button>
+      </div>
+    );
+  }
+
+  if (statut === "en_cours") {
+    return (
+      <div className="pending-card">
+        <span className="spinner" />
+        Analyse en cours (30 à 90 secondes)…
+      </div>
+    );
+  }
+
+  if (!a) return null;
+
+  const themesParNom = Object.fromEntries((a.second_ordre || []).map((t) => [t.theme, t]));
+  const conceptsParNom = Object.fromEntries((a.premier_ordre || []).map((c) => [c.concept, c]));
+
+  return (
+    <div className="analyse">
+      <p className="analyse-methode">
+        Méthode Gioia et al. (2013) · modèle {interview.analyse_modele || "IA"}
+        {interview.analyse_contexte ? ` · angle : ${interview.analyse_contexte}` : ""}
+      </p>
+
+      {(a.dimensions_agregees || []).map((dim, di) => (
+        <div key={dim.dimension} className="dim-card">
+          <button className="dim-head" onClick={() => setDimOuverte(dimOuverte === di ? -1 : di)}>
+            <span className="dim-nom">{dim.dimension}</span>
+            <span className="dim-chevron">{dimOuverte === di ? "−" : "+"}</span>
+          </button>
+          {dimOuverte === di && (
+            <div className="dim-body">
+              {(dim.themes_lies || []).map((nomTheme) => {
+                const theme = themesParNom[nomTheme];
+                if (!theme) return null;
+                return (
+                  <div key={nomTheme} className="theme-block">
+                    <div className="theme-nom">{theme.theme}</div>
+                    {theme.description && <p className="theme-desc">{theme.description}</p>}
+                    {(theme.concepts_lies || []).map((nomConcept) => {
+                      const concept = conceptsParNom[nomConcept];
+                      if (!concept) return null;
+                      return (
+                        <div key={nomConcept} className="concept-block">
+                          <div className="concept-nom">{concept.concept}</div>
+                          {(concept.verbatims || []).map((v, vi) => (
+                            <button key={vi} className="verbatim" onClick={() => onSeek(v.debut)}>
+                              <span className="verbatim-tc mono">{fmtTime(v.debut)}</span>
+                              « {v.texte} »
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="analyse-texte-card">
+        <h3 className="subsection-title">Synthèse interprétative</h3>
+        <p className="analyse-texte">{a.synthese}</p>
+      </div>
+      <div className="analyse-texte-card limites">
+        <h3 className="subsection-title">Limites de l'analyse automatique</h3>
+        <p className="analyse-texte">{a.limites}</p>
+      </div>
+    </div>
+  );
+}
 function Mot({ m, onSave }) {
   const [edit, setEdit] = useState(false);
   const [val, setVal] = useState(m.mot);
