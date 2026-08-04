@@ -2,13 +2,14 @@ import { useRef, useState } from "react";
 import { useRecorder } from "../lib/useRecorder.js";
 import { LANGS, fmtTime } from "../lib/constants.js";
 
-export default function NouvelEntretien({ settings, onRetour, onCreer }) {
+export default function NouvelEntretien({ settings, corpusList, onRetour, onCreer }) {
   const rec = useRecorder();
   const [blob, setBlob] = useState(null);
   const [source, setSource] = useState(null); // "micro" | "fichier"
   const [titre, setTitre] = useState("");
   const [langue, setLangue] = useState(settings.langueDefaut || "auto");
   const [vocabulaire, setVocabulaire] = useState(settings.vocabulaireDefaut || "");
+  const [corpusId, setCorpusId] = useState("");
   const [envoi, setEnvoi] = useState(false);
   const fileRef = useRef(null);
 
@@ -36,7 +37,7 @@ export default function NouvelEntretien({ settings, onRetour, onCreer }) {
   const valider = async () => {
     if (!blob) return;
     setEnvoi(true);
-    await onCreer({ blob, titre: titre.trim() || "Entretien sans titre", langue, vocabulaire });
+    await onCreer({ blob, titre: titre.trim() || "Entretien sans titre", langue, vocabulaire, corpusId: corpusId || null });
     setEnvoi(false);
   };
 
@@ -127,6 +128,18 @@ export default function NouvelEntretien({ settings, onRetour, onCreer }) {
                 placeholder="Ex. tontine, pagne, Adjamé, Cocody" />
               <span className="field-help">Guide le modèle vers les termes de ton terrain.</span>
             </label>
+
+            {corpusList.length > 0 && (
+              <label className="field">
+                <span className="field-label">Corpus (facultatif)</span>
+                <select className="field-input" value={corpusId} onChange={(e) => setCorpusId(e.target.value)}>
+                  <option value="">Aucun</option>
+                  {corpusList.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nom}</option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <button className="btn primary full" onClick={valider} disabled={envoi}>
               {envoi ? "Envoi en cours…" : "Envoyer pour transcription"}
