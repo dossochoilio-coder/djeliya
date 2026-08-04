@@ -53,6 +53,11 @@ export async function createTranscription(backendUrl, { blob, filename, langue, 
 export async function getTranscription(backendUrl, jobId) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/transcriptions/${jobId}`);
+  if (res.status === 404) {
+    const err = new Error("Cet entretien n'existe plus sur le serveur (probablement redémarré depuis).");
+    err.introuvable = true;
+    throw err;
+  }
   if (!res.ok) throw new Error(`Introuvable sur le serveur (${res.status})`);
   return res.json();
 }
