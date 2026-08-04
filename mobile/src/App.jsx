@@ -14,7 +14,7 @@ import TabBar from "./components/TabBar.jsx";
 import {
   loadInterviews, saveInterviews, loadSettings, saveSettings,
   loadCorpus, saveCorpus, loadGlossaire, saveGlossaire,
-  putAudioBlob, deleteAudioBlob, newId,
+  putAudioBlob, getAudioBlob, deleteAudioBlob, newId,
 } from "./lib/db.js";
 import { checkHealth, createTranscription, getTranscription } from "./lib/api.js";
 import { fmtTime } from "./lib/constants.js";
@@ -88,7 +88,15 @@ export default function App() {
             ...x, statut: job.statut, segments: job.segments || [],
             langueDetectee: job.langue_detectee, note: job.note, erreur: job.erreur,
           } : x));
-        } catch { /* nouvel essai au prochain intervalle */ }
+        } catch (e) {
+          if (e.introuvable) {
+            setInterviews((prev) => prev.map((x) => x.id === i.id ? {
+              ...x, statut: "erreur",
+              erreur: "Le serveur a redémarré depuis l'envoi. Relance une nouvelle transcription.",
+            } : x));
+          }
+          /* autre erreur réseau : nouvel essai au prochain intervalle */
+        }
       }
     }, 4000);
     return () => { clearInterval(it); pollingRef.current = false; };
@@ -120,6 +128,21 @@ export default function App() {
 
   const majEntretien = (updated) => {
     setInterviews((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated, duree: updated.dureeSec ? fmtTime(updated.dureeSec) : x.duree } : x)));
+  };
+
+  const relancerEntretien = async (interview) => {
+    const blob = await getAudioBlob(interview.id).catch(() => null);
+    if (!blob) { showToast("Audio introuvable sur cet appareil, impossible de relancer."); return; }
+    setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, statut: "en_attente", erreur: null } : x));
+    try {
+      const { id: jobId } = await createTranscription(settings.backendUrl, {
+        blob, filename: `${interview.id}.webm`, langue: interview.langue, vocabulaire: interview.vocabulaire,
+      });
+      setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, jobId, statut: "en_attente" } : x));
+    } catch (e) {
+      setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, statut: "erreur", erreur: e.message } : x));
+      showToast("Échec de l'envoi : " + e.message);
+    }
   };
 
   const supprimerEntretien = async (id) => {
@@ -163,6 +186,7 @@ export default function App() {
         onRetour={retour}
         onUpdate={majEntretien}
         onSupprimer={supprimerEntretien}
+        onRelancer={() => relancerEntretien(interview)}
         showToast={showToast}
       />
     ) : (
