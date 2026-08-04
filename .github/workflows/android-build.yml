@@ -26,11 +26,11 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - name: Java 17 (Gradle / Android)
+      - name: Java 21 (Gradle / Android)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Installer les dépendances web
         run: npm ci
