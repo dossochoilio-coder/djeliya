@@ -52,8 +52,13 @@ jobs:
       - name: Compiler l'AAB release (non signé)
         run: cd android && ./gradlew bundleRelease --no-daemon
 
+      # ---------- Signature de l'AAB (si les secrets sont configurés) ----------
+      - name: Vérifier la présence de la clé de signature
+        id: keystore_check
+        run: echo "present=${{ secrets.KEYSTORE_BASE64 != '' }}" >> "$GITHUB_OUTPUT"
+
       - name: Signer l'AAB
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: steps.keystore_check.outputs.present == 'true'
         id: sign_aab
         uses: r0adkll/sign-android-release@v1
         with:
