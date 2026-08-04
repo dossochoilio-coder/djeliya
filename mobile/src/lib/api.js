@@ -61,3 +61,17 @@ export async function getTranscription(backendUrl, jobId) {
   if (!res.ok) throw new Error(`Introuvable sur le serveur (${res.status})`);
   return res.json();
 }
+
+export async function lancerAnalyse(backendUrl, jobId, contexte) {
+  const base = clean(backendUrl);
+  const form = new FormData();
+  form.append("contexte", contexte || "");
+  const res = await fetch(`${base}/api/transcriptions/${jobId}/analyser`, { method: "POST", body: form });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    let detail = txt;
+    try { detail = JSON.parse(txt).detail || txt; } catch { /* texte brut */ }
+    throw new Error(detail || `Échec du lancement (${res.status})`);
+  }
+  return res.json();
+}
