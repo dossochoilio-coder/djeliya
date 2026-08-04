@@ -1,0 +1,35 @@
+name: Backend — Vérification
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+  pull_request:
+    paths: ["backend/**"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Vérifier la syntaxe et les imports
+        run: |
+          pip install ruff
+          ruff check app --select E9,F
+          python -m compileall app
+
+      - name: Vérifier que l'image Docker se construit
+        run: docker build -t djeliya-backend .
+
+# Le déploiement est géré par Railway : connectez le dépôt GitHub dans
+# Railway (Deploy from GitHub repo, dossier racine = backend/) et chaque
+# poussée sur main sera déployée automatiquement.
