@@ -4,28 +4,42 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { Capacitor } from "@capacitor/core";
 
 import Accueil from "./screens/Accueil.jsx";
+import Corpus from "./screens/Corpus.jsx";
+import Glossaire from "./screens/Glossaire.jsx";
 import NouvelEntretien from "./screens/NouvelEntretien.jsx";
 import FicheEntretien from "./screens/FicheEntretien.jsx";
 import Reglages from "./screens/Reglages.jsx";
+import TabBar from "./components/TabBar.jsx";
 
-import { loadInterviews, saveInterviews, loadSettings, saveSettings, putAudioBlob, deleteAudioBlob, newId } from "./lib/db.js";
+import {
+  loadInterviews, saveInterviews, loadSettings, saveSettings,
+  loadCorpus, saveCorpus, loadGlossaire, saveGlossaire,
+  putAudioBlob, deleteAudioBlob, newId,
+} from "./lib/db.js";
 import { checkHealth, createTranscription, getTranscription } from "./lib/api.js";
 import { fmtTime } from "./lib/constants.js";
 
 export default function App() {
   const [interviews, setInterviews] = useState(() => loadInterviews());
   const [settings, setSettings] = useState(() => loadSettings());
-  const [stack, setStack] = useState([{ screen: "accueil" }]);
+  const [corpusList, setCorpusList] = useState(() => loadCorpus());
+  const [glossaire, setGlossaire] = useState(() => loadGlossaire());
+
+  const [tab, setTab] = useState("accueil");
+  const [corpusSelectionne, setCorpusSelectionne] = useState(null);
+  const [stack, setStack] = useState([]); // écrans empilés au-dessus de l'onglet courant
   const [backendOk, setBackendOk] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const current = stack[stack.length - 1];
+  const current = stack.length ? stack[stack.length - 1] : { screen: tab };
 
   /* Persistance */
   useEffect(() => saveInterviews(interviews), [interviews]);
   useEffect(() => saveSettings(settings), [settings]);
+  useEffect(() => saveCorpus(corpusList), [corpusList]);
+  useEffect(() => saveGlossaire(glossaire), [glossaire]);
 
-  /* Habillage natif : barre de statut sombre assortie au thème */
+  /* Habillage natif */
   useEffect(() => {
     if (Capacitor.getPlatform() === "android") {
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
@@ -36,12 +50,14 @@ export default function App() {
   /* Bouton retour matériel Android */
   useEffect(() => {
     const handle = CapApp.addListener("backButton", () => {
-      setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+      if (stack.length) setStack((s) => s.slice(0, -1));
+      else if (corpusSelectionne) setCorpusSelectionne(null);
+      else if (tab !== "accueil") setTab("accueil");
+      else CapApp.exitApp();
     });
     return () => { handle.then((h) => h.remove()); };
-  }, []);
+  }, [stack, corpusSelectionne, tab]);
 
-  /* Vérification silencieuse de la connexion serveur */
   const verifierServeur = useCallback(async () => {
     if (!settings.backendUrl) { setBackendOk(false); return; }
     const r = await checkHealth(settings.backendUrl);
@@ -53,7 +69,8 @@ export default function App() {
 
   /* Navigation */
   const push = (screen, id) => setStack((s) => [...s, { screen, id }]);
-  const retour = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+  const retour = () => setStack((s) => s.slice(0, -1));
+  const changerOnglet = (t) => { setStack([]); setCorpusSelectionne(null); setTab(t); };
 
   /* Sondage global des entretiens en cours de traitement */
   const pollingRef = useRef(false);
@@ -68,12 +85,8 @@ export default function App() {
         try {
           const job = await getTranscription(settings.backendUrl, i.jobId);
           setInterviews((prev) => prev.map((x) => x.id === i.id ? {
-            ...x,
-            statut: job.statut,
-            segments: job.segments || [],
-            langueDetectee: job.langue_detectee,
-            note: job.note,
-            erreur: job.erreur,
+            ...x, statut: job.statut, segments: job.segments || [],
+            langueDetectee: job.langue_detectee, note: job.note, erreur: job.erreur,
           } : x));
         } catch { /* nouvel essai au prochain intervalle */ }
       }
@@ -82,16 +95,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviews, settings.backendUrl]);
 
-  /* Création d'un entretien : enregistrement local + envoi immédiat */
-  const creerEntretien = async ({ blob, titre, langue, vocabulaire }) => {
+  /* Création d'un entretien */
+  const creerEntretien = async ({ blob, titre, langue, vocabulaire, corpusId }) => {
     const id = newId();
     await putAudioBlob(id, blob);
     const brouillon = {
-      id, titre, langue, statut: "en_attente", creeLe: new Date().toISOString(),
+      id, titre, langue, vocabulaire, corpusId: corpusId || null,
+      statut: "en_attente", creeLe: new Date().toISOString(),
       duree: null, dureeSec: 0, segments: [], jobId: null,
     };
     setInterviews((prev) => [brouillon, ...prev]);
-    setStack([{ screen: "accueil" }, { screen: "fiche", id }]);
+    setStack([{ screen: "fiche", id }]);
 
     try {
       const { id: jobId } = await createTranscription(settings.backendUrl, {
@@ -111,35 +125,41 @@ export default function App() {
   const supprimerEntretien = async (id) => {
     await deleteAudioBlob(id).catch(() => {});
     setInterviews((prev) => prev.filter((x) => x.id !== id));
-    setStack([{ screen: "accueil" }]);
+    setStack([]);
     showToast("Entretien supprimé");
   };
 
-  /* Rendu de l'écran courant */
-  let body;
-  if (current.screen === "accueil") {
-    body = (
-      <Accueil
-        interviews={interviews}
-        backendOk={backendOk}
-        onOpen={(id) => push("fiche", id)}
-        onNouveau={() => push("nouveau")}
-        onReglages={() => push("reglages")}
-      />
-    );
-  } else if (current.screen === "nouveau") {
-    body = (
+  const creerCorpus = (nom) => {
+    setCorpusList((prev) => [...prev, { id: newId(), nom, creeLe: new Date().toISOString() }]);
+    showToast("Corpus créé");
+  };
+
+  const ajouterGlossaire = ({ terme, sens }) => {
+    setGlossaire((prev) => [...prev, { id: newId(), terme, sens }]);
+    showToast("Terme ajouté au glossaire");
+  };
+
+  const supprimerGlossaire = (id) => {
+    setGlossaire((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  /* Rendu de l'écran empilé (prioritaire sur les onglets) */
+  let overlay = null;
+  if (current.screen === "nouveau") {
+    overlay = (
       <NouvelEntretien
         settings={settings}
+        corpusList={corpusList}
         onRetour={retour}
         onCreer={async (payload) => { await creerEntretien(payload); }}
       />
     );
   } else if (current.screen === "fiche") {
     const interview = interviews.find((i) => i.id === current.id);
-    body = interview ? (
+    overlay = interview ? (
       <FicheEntretien
         interview={interview}
+        corpusList={corpusList}
         onRetour={retour}
         onUpdate={majEntretien}
         onSupprimer={supprimerEntretien}
@@ -148,20 +168,55 @@ export default function App() {
     ) : (
       <div className="screen"><div className="content"><p>Entretien introuvable.</p></div></div>
     );
-  } else if (current.screen === "reglages") {
+  }
+
+  /* Rendu de l'onglet courant */
+  let body;
+  if (tab === "accueil") {
+    body = (
+      <Accueil
+        interviews={interviews}
+        backendOk={backendOk}
+        onOpen={(id) => push("fiche", id)}
+        onNouveau={() => push("nouveau")}
+      />
+    );
+  } else if (tab === "corpus") {
+    body = (
+      <Corpus
+        corpusList={corpusList}
+        interviews={interviews}
+        selectedId={corpusSelectionne}
+        onSelectCorpus={setCorpusSelectionne}
+        onCreer={creerCorpus}
+        onOpenInterview={(id) => push("fiche", id)}
+      />
+    );
+  } else if (tab === "glossaire") {
+    body = (
+      <Glossaire
+        interviews={interviews}
+        entrees={glossaire}
+        onAjouter={ajouterGlossaire}
+        onSupprimer={supprimerGlossaire}
+      />
+    );
+  } else if (tab === "reglages") {
     body = (
       <Reglages
         settings={settings}
         onSave={(s) => { setSettings(s); verifierServeur(); }}
-        onRetour={retour}
         showToast={showToast}
       />
     );
   }
 
+  const montrerTabBar = stack.length === 0;
+
   return (
     <>
-      {body}
+      <div className={montrerTabBar ? "with-tabbar" : ""}>{overlay || body}</div>
+      {montrerTabBar && <TabBar active={tab} onChange={changerOnglet} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </>
   );
