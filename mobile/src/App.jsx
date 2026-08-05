@@ -18,7 +18,7 @@ import TabBar from "./components/TabBar.jsx";
 import {
   loadInterviews, saveInterviews, loadSettings, saveSettings,
   loadGlossaire, saveGlossaire, loadAuth, saveAuth,
-  putAudioBlob, getAudioBlob, deleteAudioBlob, newId,
+  putAudioBlob, getAudioBlob, deleteAudioBlob, newId, demanderStockagePersistant,
 } from "./lib/db.js";
 import {
   checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
@@ -57,6 +57,7 @@ export default function App() {
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
       StatusBar.setBackgroundColor({ color: "#0E1226" }).catch(() => {});
     }
+    demanderStockagePersistant();
   }, []);
 
   /* Bouton retour matériel Android */

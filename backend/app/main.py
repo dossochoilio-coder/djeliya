@@ -27,7 +27,7 @@ from .db import (
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
 from .email_utils import envoyer_code_verification, envoyer_code_reinitialisation, EMAIL_CONFIGURE
 from .cgu import CGU_TEXTE, CGU_VERSION
-from .exports import generer_docx_entretien, generer_xlsx_entretien, generer_docx_corpus, generer_xlsx_corpus
+from .exports import generer_docx_entretien, generer_xlsx_entretien, generer_docx_etude, generer_xlsx_etude
 
 # ----------------------------------------------------------------- config
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
@@ -116,6 +116,14 @@ def get_diarisation():
 
 
 # ----------------------------------------------------------------- utilitaires
+def _nom_fichier(texte: str) -> str:
+    """Translittère en ASCII pur : les en-têtes HTTP n'acceptent pas les accents,
+    et un nom de fichier avec un « é » brut cassait le téléchargement."""
+    import unicodedata
+    ascii_txt = unicodedata.normalize("NFKD", texte or "").encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^\w\-]+", "_", ascii_txt).strip("_") or "export"
+
+
 def _entretien_vers_dict(e: Entretien) -> dict:
     segments = list(e.segments or [])
     if e.locuteurs:
@@ -982,7 +990,7 @@ def export_docx_entretien(entretien_id: str, user: Utilisateur = Depends(utilisa
     finally:
         session.close()
     buf = generer_docx_entretien(data)
-    nom = re.sub(r"[^\w\-]+", "_", data["titre"] or "entretien")
+    nom = _nom_fichier(data["titre"])
     return StreamingResponse(
         buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{nom}.docx"'},
@@ -1001,7 +1009,7 @@ def export_xlsx_entretien(entretien_id: str, user: Utilisateur = Depends(utilisa
     finally:
         session.close()
     buf = generer_xlsx_entretien(data)
-    nom = re.sub(r"[^\w\-]+", "_", data["titre"] or "entretien")
+    nom = _nom_fichier(data["titre"])
     return StreamingResponse(
         buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nom}.xlsx"'},
@@ -1017,13 +1025,15 @@ def export_docx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_c
         c = session.get(Corpus, corpus_id)
         if not c or not c.analyse:
             raise HTTPException(404, "Aucune analyse de corpus disponible à exporter.")
-        buf = generer_docx_corpus(c.nom, c.analyse, c.analyse_nb_entretiens or 0)
-        nom = re.sub(r"[^\w\-]+", "_", c.nom)
+        entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()]
+        fiabilite = _fiabilite_corpus(session, corpus_id)
+        buf = generer_docx_etude(_corpus_vers_dict(c), entretiens, fiabilite)
+        nom = _nom_fichier(c.nom)
     finally:
         session.close()
     return StreamingResponse(
         buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="corpus_{nom}.docx"'},
+        headers={"Content-Disposition": f'attachment; filename="rapport_{nom}.docx"'},
     )
 
 
@@ -1037,13 +1047,14 @@ def export_xlsx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_c
         if not c or not c.analyse:
             raise HTTPException(404, "Aucune analyse de corpus disponible à exporter.")
         entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()]
-        buf = generer_xlsx_corpus(c.nom, c.analyse, entretiens)
-        nom = re.sub(r"[^\w\-]+", "_", c.nom)
+        fiabilite = _fiabilite_corpus(session, corpus_id)
+        buf = generer_xlsx_etude(_corpus_vers_dict(c), entretiens, fiabilite)
+        nom = _nom_fichier(c.nom)
     finally:
         session.close()
     return StreamingResponse(
         buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="corpus_{nom}.xlsx"'},
+        headers={"Content-Disposition": f'attachment; filename="rapport_{nom}.xlsx"'},
     )
 
 
@@ -1136,11 +1147,14 @@ def fiabilite_inter_codeurs(entretien_id: str, user: Utilisateur = Depends(utili
         if not e:
             raise HTTPException(404, "Entretien introuvable.")
         _verifier_acces(session, e, user)
-        codages = session.query(Codage).filter_by(entretien_id=entretien_id).all()
+        return _fiabilite_entretien(session, entretien_id)
     finally:
         session.close()
 
-    par_codeur: dict[str, dict[int, str]] = {}
+
+def _fiabilite_entretien(session, entretien_id: str) -> dict:
+    codages = session.query(Codage).filter_by(entretien_id=entretien_id).all()
+    par_codeur: dict = {}
     for c in codages:
         par_codeur.setdefault(c.utilisateur_id, {})[c.segment_index] = c.code
 
@@ -1159,7 +1173,19 @@ def fiabilite_inter_codeurs(entretien_id: str, user: Utilisateur = Depends(utili
     return {"nb_codeurs": len(par_codeur), "paires": paires, "kappa_moyen": moyenne}
 
 
-def _kappa_cohen(a: list[str], b: list[str]) -> float:
+def _fiabilite_corpus(session, corpus_id: str) -> dict:
+    """Agrège la fiabilité inter-codeurs sur tous les entretiens terminés d'un corpus,
+    pour l'inclure dans le rapport d'étude complet."""
+    entretiens = session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()
+    details = []
+    for e in entretiens:
+        f = _fiabilite_entretien(session, e.id)
+        if f["nb_codeurs"] >= 2:
+            details.append({"titre": e.titre, "nb_codeurs": f["nb_codeurs"], "kappa_moyen": f["kappa_moyen"]})
+    return {"details": details}
+
+
+def _kappa_cohen(a: list, b: list) -> float:
     n = len(a)
     accord_observe = sum(1 for x, y in zip(a, b) if x == y) / n
     labels = set(a) | set(b)

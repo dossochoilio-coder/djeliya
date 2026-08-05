@@ -1,6 +1,12 @@
 """
-Génération des exports Word (.docx) et Excel (.xlsx) des transcriptions et
-analyses qualitatives de Djeliya, avec données statistiques dans l'Excel.
+Génération des exports Word (.docx) et Excel (.xlsx) de Djeliya.
+
+Deux niveaux :
+- Entretien seul : transcription + son analyse.
+- Étude (corpus entier) : rapport de recherche complet — page de garde,
+  sommaire, démarche méthodologique référencée (APA), structure des
+  résultats numérotée, fiabilité inter-codeurs, annexes (liste des
+  entretiens et transcriptions intégrales).
 """
 
 import io
@@ -8,16 +14,50 @@ from datetime import datetime
 
 from docx import Document
 from docx.shared import Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 OR_HEX = "E4B04A"
 
+REFERENCES_APA = {
+    "gioia": (
+        "Gioia, D. A., Corley, K. G., & Hamilton, A. L. (2013). Seeking qualitative "
+        "rigor in inductive research: Notes on the Gioia methodology. Organizational "
+        "Research Methods, 16(1), 15-31."
+    ),
+    "thematique": (
+        "Braun, V., & Clarke, V. (2006). Using thematic analysis in psychology. "
+        "Qualitative Research in Psychology, 3(2), 77-101.\n"
+        "Braun, V., & Clarke, V. (2019). Reflecting on reflexive thematic analysis. "
+        "Qualitative Research in Sport, Exercise and Health, 11(4), 589-597."
+    ),
+    "contenu": "Bardin, L. (2013). L'analyse de contenu (2e éd.). Paris : Presses Universitaires de France.",
+}
+
+METHODE_LABEL = {
+    "gioia": "Méthode de structuration des données de Gioia et al. (2013)",
+    "thematique": "Analyse thématique réflexive de Braun & Clarke (2006, 2019)",
+    "contenu": "Analyse de contenu catégorielle de Bardin (2013)",
+}
+
 
 def _fmt_temps(secondes: float) -> str:
-    m, s = divmod(int(secondes or 0), 60)
-    return f"{m:02d}:{s:02d}"
+    h, reste = divmod(int(secondes or 0), 3600)
+    m, s = divmod(reste, 60)
+    return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+
+def _fmt_date(iso: str) -> str:
+    if not iso:
+        return "—"
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+    except ValueError:
+        return iso[:10]
 
 
 def _stats_segments(segments: list) -> dict:
@@ -35,22 +75,115 @@ def _stats_segments(segments: list) -> dict:
     }
 
 
-# ----------------------------------------------------------------- Word
-def generer_docx_entretien(entretien: dict) -> io.BytesIO:
-    doc = Document()
+def _kappa_interpretation(k) -> str:
+    if k is None:
+        return "—"
+    if k < 0.20:
+        return "accord faible"
+    if k < 0.40:
+        return "accord passable"
+    if k < 0.60:
+        return "accord modéré"
+    if k < 0.80:
+        return "accord fort"
+    return "accord quasi parfait"
 
-    titre = doc.add_heading(entretien.get("titre") or "Entretien", level=0)
-    titre.runs[0].font.color.rgb = RGBColor(0x1B, 0x15, 0x03)
 
-    meta = doc.add_paragraph()
-    meta.add_run(
-        f"Langue détectée : {entretien.get('langue_detectee') or entretien.get('langue') or '—'}  ·  "
-        f"Exporté le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
-    ).italic = True
+# ----------------------------------------------------------------- utilitaires Word
+def _champ_toc(document):
+    """Insère un vrai champ de sommaire Word (à mettre à jour par l'utilisateur :
+    clic droit → Mettre à jour les champs)."""
+    paragraphe = document.add_paragraph()
+    run = paragraphe.add_run()
+    fld_begin = OxmlElement("w:fldChar"); fld_begin.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText"); instr.set(qn("xml:space"), "preserve")
+    instr.text = 'TOC \\o "1-3" \\h \\z \\u'
+    fld_sep = OxmlElement("w:fldChar"); fld_sep.set(qn("w:fldCharType"), "separate")
+    texte_repli = OxmlElement("w:t")
+    texte_repli.text = "Sommaire — clic droit puis « Mettre à jour les champs » pour l'afficher."
+    fld_sep.append(texte_repli)
+    fld_end = OxmlElement("w:fldChar"); fld_end.set(qn("w:fldCharType"), "end")
+    r = run._r
+    r.append(fld_begin); r.append(instr); r.append(fld_sep); r.append(fld_end)
 
-    doc.add_heading("Transcription", level=1)
-    for s in entretien.get("segments", []):
-        p = doc.add_paragraph()
+
+def _numero_page(document):
+    """Ajoute la pagination (Page n / total) dans le pied de page."""
+    footer = document.sections[0].footer
+    p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    def _champ(instr_text):
+        r = p.add_run()
+        b = OxmlElement("w:fldChar"); b.set(qn("w:fldCharType"), "begin"); r._r.append(b)
+        i = OxmlElement("w:instrText"); i.set(qn("xml:space"), "preserve"); i.text = instr_text; r._r.append(i)
+        s = OxmlElement("w:fldChar"); s.set(qn("w:fldCharType"), "separate"); r._r.append(s)
+        e = OxmlElement("w:fldChar"); e.set(qn("w:fldCharType"), "end"); r._r.append(e)
+
+    p.add_run("Page ")
+    _champ("PAGE")
+    p.add_run(" / ")
+    _champ("NUMPAGES")
+
+
+def _page_de_garde(document, titre, sous_titre, lignes_meta):
+    t = document.add_paragraph()
+    t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    t.paragraph_format.space_before = Pt(140)
+    run = t.add_run(titre)
+    run.font.size = Pt(30); run.font.bold = True; run.font.color.rgb = RGBColor(0x1B, 0x15, 0x03)
+
+    st = document.add_paragraph()
+    st.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    st.paragraph_format.space_after = Pt(60)
+    run2 = st.add_run(sous_titre)
+    run2.font.size = Pt(16); run2.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+
+    for ligne in lignes_meta:
+        m = document.add_paragraph()
+        m.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        m.add_run(ligne).font.size = Pt(11)
+
+    document.add_page_break()
+
+
+def _ecrire_structure_analyse(document, analyse):
+    """Écrit la hiérarchie complète (dimensions > thèmes > concepts > verbatims),
+    ou à deux niveaux si la méthode n'utilise pas de dimensions agrégées."""
+    themes_par_nom = {t["theme"]: t for t in analyse.get("second_ordre", [])}
+    concepts_par_nom = {c["concept"]: c for c in analyse.get("premier_ordre", [])}
+
+    def _ecrire_theme(theme, niveau):
+        document.add_heading(theme["theme"], level=niveau)
+        if theme.get("description"):
+            document.add_paragraph(theme["description"])
+        for nom_c in theme.get("concepts_lies", []):
+            c = concepts_par_nom.get(nom_c)
+            if not c:
+                continue
+            document.add_paragraph(c["concept"], style="List Bullet")
+            for v in c.get("verbatims", []):
+                vp = document.add_paragraph(style="List Bullet 2")
+                vp.add_run(f"« {v.get('texte', '')} » ").italic = True
+                suffixe = f" — {v['entretien']}" if v.get("entretien") else ""
+                vp.add_run(f"[{_fmt_temps(v.get('debut', 0))}{suffixe}]").font.size = Pt(9)
+
+    dimensions = analyse.get("dimensions_agregees") or []
+    if dimensions:
+        for dim in dimensions:
+            document.add_heading(dim["dimension"], level=2)
+            for nom_t in dim.get("themes_lies", []):
+                t = themes_par_nom.get(nom_t)
+                if t:
+                    _ecrire_theme(t, 3)
+    else:
+        for t in analyse.get("second_ordre", []):
+            _ecrire_theme(t, 2)
+
+
+def _ecrire_transcription(document, segments):
+    for s in segments:
+        p = document.add_paragraph()
         tc = p.add_run(f"[{_fmt_temps(s.get('debut', 0))}] ")
         tc.bold = True
         tc.font.color.rgb = RGBColor(0xB0, 0x7A, 0x1E)
@@ -59,54 +192,156 @@ def generer_docx_entretien(entretien: dict) -> io.BytesIO:
             loc.bold = True
         p.add_run(s.get("texte", ""))
 
+
+# ----------------------------------------------------------------- Word — entretien seul
+def generer_docx_entretien(entretien: dict) -> io.BytesIO:
+    doc = Document()
+    _page_de_garde(
+        doc, entretien.get("titre") or "Entretien",
+        "Transcription et analyse qualitative",
+        [
+            f"Langue détectée : {entretien.get('langue_detectee') or entretien.get('langue') or '—'}",
+            f"Document généré par Djeliya le {datetime.now().strftime('%d/%m/%Y à %H:%M')}",
+        ],
+    )
+    _champ_toc(doc)
+    doc.add_page_break()
+
+    doc.add_heading("1. Transcription", level=1)
+    _ecrire_transcription(doc, entretien.get("segments", []))
+
     analyse = entretien.get("analyse")
     if analyse:
-        doc.add_heading("Analyse qualitative", level=1)
-        methode_label = entretien.get("analyse_methode") or "—"
-        doc.add_paragraph(f"Méthode : {methode_label}  ·  Modèle : {entretien.get('analyse_modele') or '—'}").italic = True
+        doc.add_heading("2. Analyse qualitative", level=1)
+        methode = entretien.get("analyse_methode")
+        doc.add_paragraph(
+            f"Méthode : {METHODE_LABEL.get(methode, methode or '—')}  ·  "
+            f"Modèle : {entretien.get('analyse_modele') or '—'}"
+        ).italic = True
 
         if analyse.get("demarche_methodologique"):
-            doc.add_heading("Démarche méthodologique", level=2)
+            doc.add_heading("2.1. Démarche méthodologique", level=2)
             doc.add_paragraph(analyse["demarche_methodologique"])
 
-        themes_par_nom = {t["theme"]: t for t in analyse.get("second_ordre", [])}
-        concepts_par_nom = {c["concept"]: c for c in analyse.get("premier_ordre", [])}
-
-        def _ecrire_theme(theme):
-            doc.add_heading(theme["theme"], level=3)
-            if theme.get("description"):
-                doc.add_paragraph(theme["description"])
-            for nom_c in theme.get("concepts_lies", []):
-                c = concepts_par_nom.get(nom_c)
-                if not c:
-                    continue
-                doc.add_paragraph(c["concept"], style="List Bullet")
-                for v in c.get("verbatims", []):
-                    vp = doc.add_paragraph(style="List Bullet 2")
-                    vp.add_run(f"« {v.get('texte', '')} » ").italic = True
-                    vp.add_run(f"[{_fmt_temps(v.get('debut', 0))}]").font.size = Pt(9)
-
-        dimensions = analyse.get("dimensions_agregees") or []
-        if dimensions:
-            for dim in dimensions:
-                doc.add_heading(dim["dimension"], level=2)
-                for nom_t in dim.get("themes_lies", []):
-                    t = themes_par_nom.get(nom_t)
-                    if t:
-                        _ecrire_theme(t)
-        else:
-            for t in analyse.get("second_ordre", []):
-                _ecrire_theme(t)
+        doc.add_heading("2.2. Structure des résultats", level=2)
+        _ecrire_structure_analyse(doc, analyse)
 
         if analyse.get("synthese"):
-            doc.add_heading("Synthèse interprétative", level=2)
+            doc.add_heading("2.3. Synthèse interprétative", level=2)
             doc.add_paragraph(analyse["synthese"])
         if analyse.get("limites"):
-            doc.add_heading("Limites de l'analyse automatique", level=2)
+            doc.add_heading("2.4. Limites de l'analyse automatique", level=2)
             p = doc.add_paragraph(analyse["limites"])
             for run in p.runs:
                 run.italic = True
 
+        if methode and methode in REFERENCES_APA:
+            doc.add_heading("Référence", level=2)
+            doc.add_paragraph(REFERENCES_APA[methode])
+
+    _numero_page(doc)
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ----------------------------------------------------------------- Word — étude (corpus)
+def generer_docx_etude(corpus: dict, entretiens: list, fiabilite: dict = None) -> io.BytesIO:
+    doc = Document()
+    analyse = corpus.get("analyse") or {}
+    methode = corpus.get("analyse_methode")
+    duree_totale = sum(_stats_segments(e.get("segments", []))["duree_sec"] for e in entretiens)
+    langues = sorted({e.get("langue_detectee") or e.get("langue") or "—" for e in entretiens})
+
+    _page_de_garde(
+        doc, "RAPPORT D'ANALYSE QUALITATIVE", corpus.get("nom") or "Étude",
+        [
+            f"{METHODE_LABEL.get(methode, methode or '—')}",
+            f"{len(entretiens)} entretien(s) · {_fmt_temps(duree_totale)} de matériau audio",
+            f"Langue(s) : {', '.join(langues)}",
+            f"Document généré par Djeliya le {datetime.now().strftime('%d/%m/%Y à %H:%M')}",
+        ],
+    )
+    _champ_toc(doc)
+    doc.add_page_break()
+
+    doc.add_heading("1. Présentation de l'étude", level=1)
+    doc.add_paragraph(
+        f"Cette étude qualitative repose sur un corpus de {len(entretiens)} entretien(s), "
+        f"totalisant {_fmt_temps(duree_totale)} de matériau audio transcrit."
+    )
+    if corpus.get("analyse_contexte"):
+        doc.add_paragraph(f"Question de recherche / angle d'analyse : {corpus['analyse_contexte']}")
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.style = "Light Grid Accent 1"
+    for i, h in enumerate(["Entretien", "Langue", "Durée"]):
+        tbl.rows[0].cells[i].text = h
+    for e in entretiens:
+        row = tbl.add_row().cells
+        row[0].text = e.get("titre") or "—"
+        row[1].text = e.get("langue_detectee") or e.get("langue") or "—"
+        row[2].text = _fmt_temps(_stats_segments(e.get("segments", []))["duree_sec"])
+
+    doc.add_heading("2. Démarche méthodologique", level=1)
+    if analyse.get("demarche_methodologique"):
+        doc.add_paragraph(analyse["demarche_methodologique"])
+    else:
+        doc.add_paragraph("Aucune analyse transversale n'a encore été lancée sur ce corpus.")
+
+    if analyse:
+        doc.add_heading("3. Structure des résultats", level=1)
+        _ecrire_structure_analyse(doc, analyse)
+
+        doc.add_heading("4. Synthèse interprétative", level=1)
+        doc.add_paragraph(analyse.get("synthese") or "—")
+
+        doc.add_heading("5. Limites méthodologiques", level=1)
+        p = doc.add_paragraph(analyse.get("limites") or "—")
+        for run in p.runs:
+            run.italic = True
+
+    if fiabilite and fiabilite.get("details"):
+        doc.add_heading("6. Fiabilité inter-codeurs", level=1)
+        doc.add_paragraph(
+            "Le kappa de Cohen mesure l'accord entre codeurs indépendants au-delà de ce que "
+            "le hasard produirait seul (0 = accord aléatoire, 1 = accord parfait)."
+        )
+        tbl2 = doc.add_table(rows=1, cols=4)
+        tbl2.style = "Light Grid Accent 1"
+        for i, h in enumerate(["Entretien", "Codeurs", "Kappa moyen", "Interprétation"]):
+            tbl2.rows[0].cells[i].text = h
+        for d in fiabilite["details"]:
+            row = tbl2.add_row().cells
+            row[0].text = d["titre"]
+            row[1].text = str(d["nb_codeurs"])
+            row[2].text = str(d["kappa_moyen"]) if d["kappa_moyen"] is not None else "—"
+            row[3].text = _kappa_interpretation(d["kappa_moyen"])
+
+    if methode and methode in REFERENCES_APA:
+        doc.add_heading("Références", level=1)
+        doc.add_paragraph(REFERENCES_APA[methode])
+
+    doc.add_page_break()
+    doc.add_heading("Annexe A — Composition du corpus", level=1)
+    tblA = doc.add_table(rows=1, cols=4)
+    tblA.style = "Light Grid Accent 1"
+    for i, h in enumerate(["Titre", "Langue", "Durée", "Date"]):
+        tblA.rows[0].cells[i].text = h
+    for e in entretiens:
+        row = tblA.add_row().cells
+        row[0].text = e.get("titre") or "—"
+        row[1].text = e.get("langue_detectee") or e.get("langue") or "—"
+        row[2].text = _fmt_temps(_stats_segments(e.get("segments", []))["duree_sec"])
+        row[3].text = _fmt_date(e.get("cree_le"))
+
+    doc.add_page_break()
+    doc.add_heading("Annexe B — Transcriptions intégrales", level=1)
+    for e in entretiens:
+        doc.add_heading(e.get("titre") or "Entretien", level=2)
+        _ecrire_transcription(doc, e.get("segments", []))
+
+    _numero_page(doc)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -166,27 +401,7 @@ def generer_xlsx_entretien(entretien: dict) -> io.BytesIO:
 
     analyse = entretien.get("analyse")
     if analyse:
-        ws_a = wb.create_sheet("Analyse")
-        _entete(ws_a, ["Niveau", "Libellé", "Détail / verbatim", "Horodatage"])
-        r = 2
-        for c in analyse.get("premier_ordre", []):
-            for v in c.get("verbatims", []) or [{}]:
-                ws_a.cell(r, 1, "Premier ordre")
-                ws_a.cell(r, 2, c.get("concept", ""))
-                ws_a.cell(r, 3, v.get("texte", ""))
-                ws_a.cell(r, 4, _fmt_temps(v.get("debut", 0)) if v else "")
-                r += 1
-        for t in analyse.get("second_ordre", []):
-            ws_a.cell(r, 1, "Second ordre")
-            ws_a.cell(r, 2, t.get("theme", ""))
-            ws_a.cell(r, 3, t.get("description", ""))
-            r += 1
-        for d in analyse.get("dimensions_agregees", []) or []:
-            ws_a.cell(r, 1, "Dimension agrégée")
-            ws_a.cell(r, 2, d.get("dimension", ""))
-            ws_a.cell(r, 3, ", ".join(d.get("themes_lies", [])))
-            r += 1
-        ws_a.column_dimensions["C"].width = 60
+        _feuille_analyse(wb, "Analyse", analyse)
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -194,57 +409,137 @@ def generer_xlsx_entretien(entretien: dict) -> io.BytesIO:
     return buf
 
 
-# ----------------------------------------------------------------- corpus (analyse transversale)
-def generer_docx_corpus(corpus_nom: str, analyse: dict, nb_entretiens: int) -> io.BytesIO:
-    faux_entretien = {
-        "titre": f"Corpus — {corpus_nom}", "segments": [], "analyse": analyse,
-        "analyse_methode": None, "analyse_modele": None,
-    }
-    return generer_docx_entretien(faux_entretien)
+def _feuille_analyse(wb, nom, analyse):
+    ws = wb.create_sheet(nom)
+    _entete(ws, ["Niveau", "Libellé", "Détail / verbatim", "Entretien", "Horodatage"])
+    r = 2
+    for c in analyse.get("premier_ordre", []):
+        for v in c.get("verbatims", []) or [{}]:
+            ws.cell(r, 1, "Premier ordre")
+            ws.cell(r, 2, c.get("concept", ""))
+            ws.cell(r, 3, v.get("texte", ""))
+            ws.cell(r, 4, v.get("entretien", ""))
+            ws.cell(r, 5, _fmt_temps(v.get("debut", 0)) if v else "")
+            r += 1
+    for t in analyse.get("second_ordre", []):
+        ws.cell(r, 1, "Second ordre")
+        ws.cell(r, 2, t.get("theme", ""))
+        ws.cell(r, 3, t.get("description", ""))
+        r += 1
+    for d in analyse.get("dimensions_agregees", []) or []:
+        ws.cell(r, 1, "Dimension agrégée")
+        ws.cell(r, 2, d.get("dimension", ""))
+        ws.cell(r, 3, ", ".join(d.get("themes_lies", [])))
+        r += 1
+    ws.column_dimensions["C"].width = 60
+    return ws
 
 
-def generer_xlsx_corpus(corpus_nom: str, analyse: dict, entretiens: list) -> io.BytesIO:
+def _feuille_codebook(wb, analyse):
+    """Un vrai « codebook » de recherche qualitative : chaque concept avec sa
+    fréquence d'occurrence (nombre de verbatims), regroupé par thème et dimension."""
+    ws = wb.create_sheet("Codebook")
+    _entete(ws, ["Dimension", "Thème", "Concept", "Fréquence (verbatims)"])
+    themes_par_nom = {t["theme"]: t for t in analyse.get("second_ordre", [])}
+    concepts_par_nom = {c["concept"]: c for c in analyse.get("premier_ordre", [])}
+    r = 2
+    dimensions = analyse.get("dimensions_agregees") or []
+    if dimensions:
+        for dim in dimensions:
+            for nom_t in dim.get("themes_lies", []):
+                t = themes_par_nom.get(nom_t)
+                if not t:
+                    continue
+                for nom_c in t.get("concepts_lies", []):
+                    c = concepts_par_nom.get(nom_c)
+                    if not c:
+                        continue
+                    ws.cell(r, 1, dim["dimension"])
+                    ws.cell(r, 2, t["theme"])
+                    ws.cell(r, 3, c["concept"])
+                    ws.cell(r, 4, len(c.get("verbatims", [])))
+                    r += 1
+    else:
+        for t in analyse.get("second_ordre", []):
+            for nom_c in t.get("concepts_lies", []):
+                c = concepts_par_nom.get(nom_c)
+                if not c:
+                    continue
+                ws.cell(r, 1, "—")
+                ws.cell(r, 2, t["theme"])
+                ws.cell(r, 3, c["concept"])
+                ws.cell(r, 4, len(c.get("verbatims", [])))
+                r += 1
+    ws.column_dimensions["B"].width = 30
+    ws.column_dimensions["C"].width = 30
+
+
+def generer_xlsx_etude(corpus: dict, entretiens: list, fiabilite: dict = None) -> io.BytesIO:
     wb = Workbook()
-    ws_s = wb.active
-    ws_s.title = "Statistiques"
-    _entete(ws_s, ["Indicateur", "Valeur"])
+    analyse = corpus.get("analyse") or {}
     duree_totale = sum(_stats_segments(e.get("segments", []))["duree_sec"] for e in entretiens)
-    ws_s.cell(2, 1, "Corpus").font = Font(bold=True); ws_s.cell(2, 2, corpus_nom)
-    ws_s.cell(3, 1, "Nombre d'entretiens analysés").font = Font(bold=True); ws_s.cell(3, 2, len(entretiens))
-    ws_s.cell(4, 1, "Durée cumulée").font = Font(bold=True); ws_s.cell(4, 2, _fmt_temps(duree_totale))
+    tous_mots = sum(_stats_segments(e.get("segments", []))["nb_mots"] for e in entretiens)
+    confiances = [
+        st["confiance_moyenne"] for st in
+        (_stats_segments(e.get("segments", [])) for e in entretiens)
+        if st["confiance_moyenne"] is not None
+    ]
+
+    ws_v = wb.active
+    ws_v.title = "Vue d'ensemble"
+    _entete(ws_v, ["Indicateur", "Valeur"])
+    lignes = [
+        ("Étude / corpus", corpus.get("nom") or "—"),
+        ("Méthodologie", METHODE_LABEL.get(corpus.get("analyse_methode"), corpus.get("analyse_methode") or "—")),
+        ("Question de recherche", corpus.get("analyse_contexte") or "—"),
+        ("Nombre d'entretiens", len(entretiens)),
+        ("Durée cumulée", _fmt_temps(duree_totale)),
+        ("Nombre total de mots transcrits", tous_mots),
+        ("Fiabilité moyenne du corpus (%)", round(sum(confiances) / len(confiances) * 100, 1) if confiances else "—"),
+        ("Rapport généré le", datetime.now().strftime("%d/%m/%Y à %H:%M")),
+    ]
+    for i, (k, v) in enumerate(lignes, start=2):
+        ws_v.cell(i, 1, k).font = Font(bold=True)
+        ws_v.cell(i, 2, v)
+    ws_v.column_dimensions["B"].width = 60
 
     ws_e = wb.create_sheet("Entretiens")
-    _entete(ws_e, ["Titre", "Durée", "Segments", "Fiabilité moyenne (%)"])
+    _entete(ws_e, ["Titre", "Langue", "Durée", "Segments", "Mots", "Fiabilité (%)", "Date"])
     for i, e in enumerate(entretiens, start=2):
         st = _stats_segments(e.get("segments", []))
         ws_e.cell(i, 1, e.get("titre", ""))
-        ws_e.cell(i, 2, _fmt_temps(st["duree_sec"]))
-        ws_e.cell(i, 3, st["nb_segments"])
-        ws_e.cell(i, 4, round(st["confiance_moyenne"] * 100, 1) if st["confiance_moyenne"] is not None else "—")
+        ws_e.cell(i, 2, e.get("langue_detectee") or e.get("langue") or "—")
+        ws_e.cell(i, 3, _fmt_temps(st["duree_sec"]))
+        ws_e.cell(i, 4, st["nb_segments"])
+        ws_e.cell(i, 5, st["nb_mots"])
+        ws_e.cell(i, 6, round(st["confiance_moyenne"] * 100, 1) if st["confiance_moyenne"] is not None else "—")
+        ws_e.cell(i, 7, _fmt_date(e.get("cree_le")))
+
+    ws_tr = wb.create_sheet("Transcriptions")
+    _entete(ws_tr, ["Entretien", "Début", "Fin", "Locuteur", "Texte"])
+    r = 2
+    for e in entretiens:
+        for s in e.get("segments", []):
+            ws_tr.cell(r, 1, e.get("titre", ""))
+            ws_tr.cell(r, 2, _fmt_temps(s.get("debut", 0)))
+            ws_tr.cell(r, 3, _fmt_temps(s.get("fin", 0)))
+            ws_tr.cell(r, 4, (s.get("locuteur") or "").replace("SPEAKER_", "Locuteur "))
+            ws_tr.cell(r, 5, s.get("texte", ""))
+            r += 1
+    ws_tr.column_dimensions["E"].width = 70
 
     if analyse:
-        ws_a = wb.create_sheet("Analyse transversale")
-        _entete(ws_a, ["Niveau", "Libellé", "Détail / verbatim", "Entretien", "Horodatage"])
-        r = 2
-        for c in analyse.get("premier_ordre", []):
-            for v in c.get("verbatims", []) or [{}]:
-                ws_a.cell(r, 1, "Premier ordre")
-                ws_a.cell(r, 2, c.get("concept", ""))
-                ws_a.cell(r, 3, v.get("texte", ""))
-                ws_a.cell(r, 4, v.get("entretien", ""))
-                ws_a.cell(r, 5, _fmt_temps(v.get("debut", 0)) if v else "")
-                r += 1
-        for t in analyse.get("second_ordre", []):
-            ws_a.cell(r, 1, "Second ordre")
-            ws_a.cell(r, 2, t.get("theme", ""))
-            ws_a.cell(r, 3, t.get("description", ""))
-            r += 1
-        for d in analyse.get("dimensions_agregees", []) or []:
-            ws_a.cell(r, 1, "Dimension agrégée")
-            ws_a.cell(r, 2, d.get("dimension", ""))
-            ws_a.cell(r, 3, ", ".join(d.get("themes_lies", [])))
-            r += 1
-        ws_a.column_dimensions["C"].width = 60
+        _feuille_analyse(wb, "Analyse transversale", analyse)
+        _feuille_codebook(wb, analyse)
+
+    if fiabilite and fiabilite.get("details"):
+        ws_f = wb.create_sheet("Fiabilité inter-codeurs")
+        _entete(ws_f, ["Entretien", "Nombre de codeurs", "Kappa moyen", "Interprétation"])
+        for i, d in enumerate(fiabilite["details"], start=2):
+            ws_f.cell(i, 1, d["titre"])
+            ws_f.cell(i, 2, d["nb_codeurs"])
+            ws_f.cell(i, 3, d["kappa_moyen"])
+            ws_f.cell(i, 4, _kappa_interpretation(d["kappa_moyen"]))
 
     buf = io.BytesIO()
     wb.save(buf)

@@ -146,3 +146,19 @@ export function newId() {
     Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
   );
 }
+
+/**
+ * Demande au système un stockage "persistant" plutôt que "best-effort" —
+ * sans ça, Android peut évincer les données de l'app (dont l'audio des
+ * entretiens) sous pression de stockage, même sans intervention de
+ * l'utilisateur. Les données ne doivent disparaître que si l'utilisateur
+ * les supprime lui-même dans l'app.
+ */
+export async function demanderStockagePersistant() {
+  try {
+    if (navigator.storage?.persist) {
+      const dejaAccorde = await navigator.storage.persisted();
+      if (!dejaAccorde) await navigator.storage.persist();
+    }
+  } catch { /* API indisponible sur cet appareil : pas bloquant */ }
+}
