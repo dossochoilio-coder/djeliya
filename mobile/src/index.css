@@ -30,7 +30,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   outline: 2px solid var(--or); outline-offset: 2px; border-radius: 4px;
 }
 
-.screen { min-height: 100vh; display: flex; flex-direction: column; }
+.screen { min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
 
 /* ---- Barre du haut ---- */
 .topbar {
@@ -167,7 +167,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .time { font-size: 12px; min-width: 38px; }
 .time.dim { color: var(--ivoire-dim); }
-.ribbon { position: relative; flex: 1; height: 46px; display: flex; align-items: center; gap: 1.5px; }
+.ribbon { position: relative; flex: 1; min-width: 0; height: 46px; display: flex; align-items: center; gap: 1.5px; overflow: hidden; }
 .bar { flex: 1; min-width: 1px; border-radius: 2px; }
 .playhead { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ivoire); border-radius: 2px; }
 

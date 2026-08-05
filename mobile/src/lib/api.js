@@ -168,7 +168,10 @@ async function telechargerFichier(url, token) {
   if (!res.ok) throw new Error(await lireErreur(res));
   const cd = res.headers.get("content-disposition") || "";
   const m = cd.match(/filename="([^"]+)"/);
-  const nomFichier = m ? m[1] : "export";
+  // Filet de sécurité : si l'en-tête n'est pas exposé par le navigateur, on déduit
+  // quand même la bonne extension depuis l'URL demandée (/export/docx ou /export/xlsx).
+  const extension = url.endsWith("/xlsx") ? "xlsx" : "docx";
+  const nomFichier = m ? m[1] : `export.${extension}`;
   const blob = await res.blob();
   return { blob, nomFichier };
 }

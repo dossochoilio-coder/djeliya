@@ -105,7 +105,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
     const texteAvant = interview.segments[segIdx].texte;
     const segCorrige = {
       ...interview.segments[segIdx], texte: draft, corrige: true,
-      mots: (interview.segments[segIdx].mots || []).map((m) => ({ ...m, confiance: 1 })),
+      mots: draft.split(/\s+/).filter(Boolean).map((mot) => ({ mot, confiance: 1 })),
     };
     onCorrigerSegments(segIdx, segCorrige);
     setEditing(null);
