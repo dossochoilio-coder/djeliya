@@ -8,6 +8,7 @@ const LS_INTERVIEWS = "djeliya:interviews";
 const LS_SETTINGS = "djeliya:settings";
 const LS_CORPUS = "djeliya:corpus";
 const LS_GLOSSAIRE = "djeliya:glossaire";
+const LS_AUTH = "djeliya:auth";
 const IDB_NAME = "djeliya-audio";
 const IDB_STORE = "blobs";
 
@@ -79,6 +80,22 @@ export function loadGlossaire() {
 
 export function saveGlossaire(list) {
   localStorage.setItem(LS_GLOSSAIRE, JSON.stringify(list));
+}
+
+/* ---------------- Session (jeton d'authentification) ---------------- */
+
+export function loadAuth() {
+  try {
+    const raw = localStorage.getItem(LS_AUTH);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveAuth(auth) {
+  if (auth) localStorage.setItem(LS_AUTH, JSON.stringify(auth));
+  else localStorage.removeItem(LS_AUTH);
 }
 
 /* ---------------- Audio (IndexedDB) ---------------- */
