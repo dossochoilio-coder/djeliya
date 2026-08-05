@@ -6,7 +6,7 @@ import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 import AnalyseView from "../components/AnalyseView.jsx";
 
-export default function FicheEntretien({ interview, corpusList, methodes, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, showToast }) {
+export default function FicheEntretien({ interview, corpusList, methodes, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onExporterDocx, onExporterXlsx, showToast }) {
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -166,7 +166,9 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
           {menuOpen && (
             <div className="menu">
               <button className="menu-item" onClick={copier}>Copier le texte</button>
-              <button className="menu-item" onClick={partager}>Partager / Exporter</button>
+              <button className="menu-item" onClick={partager}>Partager le texte brut</button>
+              <button className="menu-item" onClick={() => { onExporterDocx?.(); setMenuOpen(false); }}>Exporter en Word</button>
+              <button className="menu-item" onClick={() => { onExporterXlsx?.(); setMenuOpen(false); }}>Exporter en Excel</button>
               <button className="menu-item" onClick={() => { setCorpusPicker(true); setMenuOpen(false); }}>
                 Changer de corpus
               </button>

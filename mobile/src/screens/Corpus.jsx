@@ -4,7 +4,7 @@ import AnalyseView from "../components/AnalyseView.jsx";
 
 const PALETTE = ["#E4B04A", "#7C9CF5", "#5FC6A8", "#D96D5F", "#C48FE0"];
 
-export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, onLancerAnalyse, showToast }) {
+export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, onLancerAnalyse, onExporterDocx, onExporterXlsx, showToast }) {
   const [creation, setCreation] = useState(false);
   const [nom, setNom] = useState("");
   const [rejoindre, setRejoindre] = useState(false);
@@ -109,11 +109,21 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
           )}
 
           {vue === "analyse" && selection.nbTermines >= 2 ? (
-            <AnalyseView
-              sujet={corpusDetail || {}}
-              methodes={methodes}
-              onLancer={onLancerAnalyse}
-            />
+            <>
+              <AnalyseView
+                sujet={corpusDetail || {}}
+                methodes={methodes}
+                onLancer={onLancerAnalyse}
+              />
+              {corpusDetail?.analyse_statut === "termine" && (
+                <div className="field-inline">
+                  <button className="btn ghost sm" style={{ flex: 1 }}
+                    onClick={() => onExporterDocx(selection.id, selection.nom)}>Exporter en Word</button>
+                  <button className="btn ghost sm" style={{ flex: 1 }}
+                    onClick={() => onExporterXlsx(selection.id, selection.nom)}>Exporter en Excel</button>
+                </div>
+              )}
+            </>
           ) : selection.membres.length === 0 ? (
             <p className="note-banner">Aucun entretien dans ce corpus pour l'instant. Assigne-le depuis la fiche d'un entretien.</p>
           ) : (

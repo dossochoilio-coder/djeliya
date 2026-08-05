@@ -51,12 +51,12 @@ export async function fetchLanguages(backendUrl) {
 
 /* ---------------- Authentification ---------------- */
 
-export async function inscription(backendUrl, { email, motDePasse, nom }) {
+export async function inscription(backendUrl, { email, motDePasse, nom, accepteCgu }) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/auth/inscription`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, mot_de_passe: motDePasse, nom: nom || "" }),
+    body: JSON.stringify({ email, mot_de_passe: motDePasse, nom: nom || "", accepte_cgu: !!accepteCgu }),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json(); // { token, utilisateur, email_envoye }
@@ -124,7 +124,67 @@ export async function reinitialiserMotDePasse(backendUrl, { email, code, nouveau
   return res.json();
 }
 
-/* ---------------- Forfaits ---------------- */
+/* ---------------- CGU ---------------- */
+
+export async function fetchCgu(backendUrl) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/cgu`);
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+/* ---------------- Gestion du compte ---------------- */
+
+export async function modifierCompte(backendUrl, token, { nom, motDePasseActuel, nouveauMotDePasse }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/moi`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({
+      nom: nom ?? null,
+      mot_de_passe_actuel: motDePasseActuel || null,
+      nouveau_mot_de_passe: nouveauMotDePasse || null,
+    }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function supprimerCompte(backendUrl, token, motDePasse) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/moi`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ mot_de_passe: motDePasse }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+/* ---------------- Exports ---------------- */
+
+async function telechargerFichier(url, token) {
+  const res = await fetch(url, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  const cd = res.headers.get("content-disposition") || "";
+  const m = cd.match(/filename="([^"]+)"/);
+  const nomFichier = m ? m[1] : "export";
+  const blob = await res.blob();
+  return { blob, nomFichier };
+}
+
+export function exporterDocxEntretien(backendUrl, token, jobId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/transcriptions/${jobId}/export/docx`, token);
+}
+export function exporterXlsxEntretien(backendUrl, token, jobId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/transcriptions/${jobId}/export/xlsx`, token);
+}
+export function exporterDocxCorpus(backendUrl, token, corpusId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/corpus/${corpusId}/export/docx`, token);
+}
+export function exporterXlsxCorpus(backendUrl, token, corpusId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/corpus/${corpusId}/export/xlsx`, token);
+}
 
 export async function listerForfaits(backendUrl) {
   const base = clean(backendUrl);
@@ -148,6 +208,26 @@ export async function adminAjusterCredits(backendUrl, token, utilisateurId, delt
     method: "POST",
     headers: { "Content-Type": "application/json", ...headersAuth(token) },
     body: JSON.stringify({ delta, motif: motif || "" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminDefinirCredits(backendUrl, token, utilisateurId, valeur, motif) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/utilisateurs/${utilisateurId}/credits/definir`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ valeur, motif: motif || "" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminSupprimerUtilisateur(backendUrl, token, utilisateurId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/utilisateurs/${utilisateurId}`, {
+    method: "DELETE", headers: headersAuth(token),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json();

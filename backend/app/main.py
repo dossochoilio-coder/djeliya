@@ -17,6 +17,7 @@ from itertools import combinations
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .db import (
@@ -25,6 +26,8 @@ from .db import (
 )
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
 from .email_utils import envoyer_code_verification, envoyer_code_reinitialisation, EMAIL_CONFIGURE
+from .cgu import CGU_TEXTE, CGU_VERSION
+from .exports import generer_docx_entretien, generer_xlsx_entretien, generer_docx_corpus, generer_xlsx_corpus
 
 # ----------------------------------------------------------------- config
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
@@ -168,6 +171,17 @@ class InscriptionIn(BaseModel):
     email: str
     mot_de_passe: str
     nom: str = ""
+    accepte_cgu: bool = False
+
+
+class ModifierCompteIn(BaseModel):
+    nom: str | None = None
+    mot_de_passe_actuel: str | None = None
+    nouveau_mot_de_passe: str | None = None
+
+
+class SupprimerCompteIn(BaseModel):
+    mot_de_passe: str
 
 
 class ConnexionIn(BaseModel):
@@ -196,6 +210,11 @@ class ReinitialiserMdpIn(BaseModel):
 
 class CreditsIn(BaseModel):
     delta: float
+    motif: str = ""
+
+
+class DefinirCreditsIn(BaseModel):
+    valeur: float
     motif: str = ""
 
 
@@ -265,6 +284,11 @@ def methodes():
     return {k: {"label": v["label"], "reference": v["reference"]} for k, v in METHODES_ANALYSE.items()}
 
 
+@app.get("/api/cgu")
+def cgu():
+    return {"version": CGU_VERSION, "texte": CGU_TEXTE}
+
+
 # ----------------------------------------------------------------- authentification
 def _generer_code() -> str:
     return f"{secrets.randbelow(1000000):06d}"
@@ -299,6 +323,9 @@ def inscription(payload: InscriptionIn):
     if len(payload.mot_de_passe) < 8:
         raise HTTPException(422, "Le mot de passe doit contenir au moins 8 caractères.")
 
+    if not payload.accepte_cgu:
+        raise HTTPException(422, "Tu dois accepter les conditions d'utilisation pour créer un compte.")
+
     session = get_session()
     try:
         if session.query(Utilisateur).filter_by(email=email).first():
@@ -310,6 +337,7 @@ def inscription(payload: InscriptionIn):
             mot_de_passe_hash=hacher_mot_de_passe(payload.mot_de_passe),
             code_verification=code,
             code_verification_expire=datetime.now(timezone.utc) + timedelta(minutes=30),
+            cgu_acceptees_le=datetime.now(timezone.utc), cgu_version=CGU_VERSION,
         )
         if email == ADMIN_EMAIL:
             user.est_admin = True
@@ -364,6 +392,62 @@ def connexion(payload: ConnexionIn):
 @app.get("/api/auth/moi")
 def moi(user: Utilisateur = Depends(utilisateur_courant)):
     return _utilisateur_public(user)
+
+
+@app.patch("/api/auth/moi")
+def modifier_compte(payload: ModifierCompteIn, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        u = session.get(Utilisateur, user.id)
+        if payload.nom is not None:
+            u.nom = payload.nom.strip()
+        if payload.nouveau_mot_de_passe:
+            if not payload.mot_de_passe_actuel or not verifier_mot_de_passe(payload.mot_de_passe_actuel, u.mot_de_passe_hash):
+                raise HTTPException(401, "Mot de passe actuel incorrect.")
+            if len(payload.nouveau_mot_de_passe) < 8:
+                raise HTTPException(422, "Le nouveau mot de passe doit contenir au moins 8 caractères.")
+            u.mot_de_passe_hash = hacher_mot_de_passe(payload.nouveau_mot_de_passe)
+        session.commit()
+        return _utilisateur_public(u)
+    finally:
+        session.close()
+
+
+def _supprimer_utilisateur_cascade(session, user_id: str):
+    """Supprime un compte et ses données associées. Les entretiens des autres membres
+    d'un corpus que ce compte possédait sont conservés, mais détachés du corpus."""
+    corpus_possedes = session.query(Corpus).filter_by(proprietaire_id=user_id).all()
+    for c in corpus_possedes:
+        session.query(Entretien).filter_by(corpus_id=c.id).update({"corpus_id": None})
+        session.query(MembreCorpus).filter_by(corpus_id=c.id).delete()
+        session.delete(c)
+
+    entretiens_possedes = session.query(Entretien).filter_by(proprietaire_id=user_id).all()
+    for e in entretiens_possedes:
+        session.query(Codage).filter_by(entretien_id=e.id).delete()
+        session.delete(e)
+
+    session.query(MembreCorpus).filter_by(utilisateur_id=user_id).delete()
+    session.query(Codage).filter_by(utilisateur_id=user_id).delete()
+    session.query(ContributionLangue).filter_by(utilisateur_id=user_id).delete()
+    session.query(MouvementCredit).filter_by(utilisateur_id=user_id).delete()
+    session.delete(session.get(Utilisateur, user_id))
+
+
+@app.delete("/api/auth/moi")
+def supprimer_compte(payload: SupprimerCompteIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if user.email == ADMIN_EMAIL:
+        raise HTTPException(403, "Le compte administrateur ne peut pas être auto-supprimé.")
+    session = get_session()
+    try:
+        u = session.get(Utilisateur, user.id)
+        if not verifier_mot_de_passe(payload.mot_de_passe, u.mot_de_passe_hash):
+            raise HTTPException(401, "Mot de passe incorrect.")
+        _supprimer_utilisateur_cascade(session, user.id)
+        session.commit()
+        return {"ok": True}
+    finally:
+        session.close()
 
 
 @app.post("/api/auth/verifier-email")
@@ -533,6 +617,41 @@ def admin_ajuster_credits(utilisateur_id: str, payload: CreditsIn, admin: Utilis
         ))
         session.commit()
         return {"credits": u.credits}
+    finally:
+        session.close()
+
+
+@app.post("/api/admin/utilisateurs/{utilisateur_id}/credits/definir")
+def admin_definir_credits(utilisateur_id: str, payload: DefinirCreditsIn, admin: Utilisateur = Depends(admin_requis)):
+    session = get_session()
+    try:
+        u = session.get(Utilisateur, utilisateur_id)
+        if not u:
+            raise HTTPException(404, "Utilisateur introuvable.")
+        delta = payload.valeur - u.credits
+        u.credits = payload.valeur
+        session.add(MouvementCredit(
+            id=uuid.uuid4().hex[:16], utilisateur_id=u.id, delta=delta,
+            motif=payload.motif or f"Solde redéfini par {admin.email}",
+        ))
+        session.commit()
+        return {"credits": u.credits}
+    finally:
+        session.close()
+
+
+@app.delete("/api/admin/utilisateurs/{utilisateur_id}")
+def admin_supprimer_utilisateur(utilisateur_id: str, admin: Utilisateur = Depends(admin_requis)):
+    session = get_session()
+    try:
+        u = session.get(Utilisateur, utilisateur_id)
+        if not u:
+            raise HTTPException(404, "Utilisateur introuvable.")
+        if u.email == ADMIN_EMAIL:
+            raise HTTPException(403, "Le compte administrateur ne peut pas être supprimé.")
+        _supprimer_utilisateur_cascade(session, utilisateur_id)
+        session.commit()
+        return {"ok": True}
     finally:
         session.close()
 
@@ -848,6 +967,83 @@ def corriger_segment(entretien_id: str, index: int, payload: dict, user: Utilisa
         return {"ok": True}
     finally:
         session.close()
+
+
+@app.get("/api/transcriptions/{entretien_id}/export/docx")
+def export_docx_entretien(entretien_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(Entretien, entretien_id)
+        if not e:
+            raise HTTPException(404, "Entretien introuvable.")
+        _verifier_acces(session, e, user)
+        data = _entretien_vers_dict(e)
+    finally:
+        session.close()
+    buf = generer_docx_entretien(data)
+    nom = re.sub(r"[^\w\-]+", "_", data["titre"] or "entretien")
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{nom}.docx"'},
+    )
+
+
+@app.get("/api/transcriptions/{entretien_id}/export/xlsx")
+def export_xlsx_entretien(entretien_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(Entretien, entretien_id)
+        if not e:
+            raise HTTPException(404, "Entretien introuvable.")
+        _verifier_acces(session, e, user)
+        data = _entretien_vers_dict(e)
+    finally:
+        session.close()
+    buf = generer_xlsx_entretien(data)
+    nom = re.sub(r"[^\w\-]+", "_", data["titre"] or "entretien")
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nom}.xlsx"'},
+    )
+
+
+@app.get("/api/corpus/{corpus_id}/export/docx")
+def export_docx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        if not session.query(MembreCorpus).filter_by(corpus_id=corpus_id, utilisateur_id=user.id).first():
+            raise HTTPException(403, "Tu n'as pas accès à ce corpus.")
+        c = session.get(Corpus, corpus_id)
+        if not c or not c.analyse:
+            raise HTTPException(404, "Aucune analyse de corpus disponible à exporter.")
+        buf = generer_docx_corpus(c.nom, c.analyse, c.analyse_nb_entretiens or 0)
+        nom = re.sub(r"[^\w\-]+", "_", c.nom)
+    finally:
+        session.close()
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="corpus_{nom}.docx"'},
+    )
+
+
+@app.get("/api/corpus/{corpus_id}/export/xlsx")
+def export_xlsx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        if not session.query(MembreCorpus).filter_by(corpus_id=corpus_id, utilisateur_id=user.id).first():
+            raise HTTPException(403, "Tu n'as pas accès à ce corpus.")
+        c = session.get(Corpus, corpus_id)
+        if not c or not c.analyse:
+            raise HTTPException(404, "Aucune analyse de corpus disponible à exporter.")
+        entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()]
+        buf = generer_xlsx_corpus(c.nom, c.analyse, entretiens)
+        nom = re.sub(r"[^\w\-]+", "_", c.nom)
+    finally:
+        session.close()
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="corpus_{nom}.xlsx"'},
+    )
 
 
 @app.post("/api/transcriptions/{entretien_id}/analyser")

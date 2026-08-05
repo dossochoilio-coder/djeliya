@@ -25,8 +25,10 @@ git push -u origin main
 
 ## Fonctionnalités de l'application
 
-- **Comptes et sécurité** : chaque chercheur a son compte (e-mail + mot de passe), avec vérification d'adresse e-mail par code et récupération de mot de passe oublié. Le compte `dosso.choilio@gmail.com` est automatiquement administrateur, avec accès illimité.
-- **Crédits et forfaits** : chaque transcription/analyse consomme des crédits (remboursés automatiquement en cas d'échec) ; un crédit d'essai gratuit est offert à l'inscription. L'administrateur peut ajuster les crédits de n'importe quel utilisateur et gérer un catalogue de forfaits payants. **Important** : aucune passerelle de paiement réelle (Stripe, Mobile Money...) n'est intégrée — le flux actuel est une confirmation manuelle par l'admin après réception d'un paiement hors application (Mobile Money, virement), ce qui est une pratique de démarrage courante mais nécessite une intégration dédiée pour un paiement automatisé.
+- **Comptes et sécurité** : chaque chercheur a son compte (e-mail + mot de passe), avec vérification d'adresse e-mail par code et récupération de mot de passe oublié. Le compte `dosso.choilio@gmail.com` est automatiquement administrateur, avec accès illimité. Chaque utilisateur peut modifier son nom/mot de passe ou supprimer définitivement son compte (Réglages).
+- **Conditions d'utilisation et confidentialité** : consentement explicite requis et horodaté à l'inscription, texte fondé sur la loi n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel (Côte d'Ivoire), accessible à tout moment depuis Réglages. **À personnaliser** : coordonnées exactes du responsable de traitement, et vérifier auprès de l'ARTCI si une déclaration/autorisation préalable est requise selon les données collectées.
+- **Crédits et forfaits** : chaque transcription/analyse consomme des crédits (remboursés automatiquement en cas d'échec) ; un crédit d'essai gratuit est offert à l'inscription. L'administrateur peut ajuster (delta) ou redéfinir (valeur absolue) les crédits de n'importe quel utilisateur, gérer un catalogue de forfaits payants, et supprimer un compte. **Important** : aucune passerelle de paiement réelle (Stripe, Mobile Money...) n'est intégrée — le flux actuel est une confirmation manuelle par l'admin après réception d'un paiement hors application.
+- **Export Word et Excel** : chaque entretien (et chaque analyse transversale de corpus) s'exporte en `.docx` (transcription + analyse structurée) et en `.xlsx` (feuilles Transcription, Statistiques — durée, fiabilité moyenne, temps de parole par locuteur —, et Analyse).
 - **Persistance réelle** : transcriptions, analyses et codages sont stockés dans PostgreSQL — ils survivent aux redémarrages et redéploiements du serveur (voir configuration Railway ci-dessous).
 - **Corpus d'équipe** : crée un corpus, partage son code d'invitation avec tes collègues, codez ensemble les mêmes entretiens.
 - **Diarisation des locuteurs** (facultative) : distingue automatiquement qui parle dans la transcription.
@@ -101,7 +103,16 @@ Chaque poussée sur `main` redéploie le serveur automatiquement.
 | `GET` | `/api/admin/utilisateurs` | *(admin)* Lister tous les comptes |
 | `POST` | `/api/admin/utilisateurs/{id}/credits` | *(admin)* Ajuster le solde de crédits d'un utilisateur |
 | `POST` | `/api/admin/utilisateurs/{id}/attribuer-forfait` | *(admin)* Activer un forfait pour un utilisateur |
+| `GET` | `/api/cgu` | Texte des conditions d'utilisation et de confidentialité |
+| `PATCH` | `/api/auth/moi` | Modifier son nom / mot de passe |
+| `DELETE` | `/api/auth/moi` | Supprimer définitivement son compte |
+| `GET` | `/api/transcriptions/{id}/export/docx` | Exporter l'entretien en Word |
+| `GET` | `/api/transcriptions/{id}/export/xlsx` | Exporter l'entretien en Excel (avec statistiques) |
+| `GET` | `/api/corpus/{id}/export/docx` | Exporter l'analyse transversale en Word |
+| `GET` | `/api/corpus/{id}/export/xlsx` | Exporter l'analyse transversale en Excel |
 | `POST` | `/api/admin/forfaits` | *(admin)* Créer un forfait |
+| `POST` | `/api/admin/utilisateurs/{id}/credits/definir` | *(admin)* Redéfinir le solde de crédits (valeur absolue) |
+| `DELETE` | `/api/admin/utilisateurs/{id}` | *(admin)* Supprimer un compte utilisateur |
 | `GET` | `/api/methodes` | Méthodologies d'analyse disponibles |
 | `POST` | `/api/corpus` | Créer un corpus (retourne un code d'invitation) |
 | `GET` | `/api/corpus` | Lister mes corpus |

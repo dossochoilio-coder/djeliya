@@ -12,6 +12,7 @@ import FicheEntretien from "./screens/FicheEntretien.jsx";
 import Reglages from "./screens/Reglages.jsx";
 import Forfaits from "./screens/Forfaits.jsx";
 import Admin from "./screens/Admin.jsx";
+import Cgu from "./screens/Cgu.jsx";
 import TabBar from "./components/TabBar.jsx";
 
 import {
@@ -23,7 +24,9 @@ import {
   checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
   creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
   enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, moi,
+  exporterDocxEntretien, exporterXlsxEntretien, exporterDocxCorpus, exporterXlsxCorpus,
 } from "./lib/api.js";
+import { partagerFichierBinaire } from "./lib/export.js";
 import { fmtTime } from "./lib/constants.js";
 
 export default function App() {
@@ -272,6 +275,26 @@ export default function App() {
     setAuth(nouvelAuth);
   };
 
+  const exporterEntretien = async (interview, format) => {
+    try {
+      const fn = format === "docx" ? exporterDocxEntretien : exporterXlsxEntretien;
+      const { blob, nomFichier } = await fn(settings.backendUrl, auth.token, interview.jobId);
+      await partagerFichierBinaire(blob, nomFichier, interview.titre);
+    } catch (e) {
+      showToast("Échec de l'export : " + e.message);
+    }
+  };
+
+  const exporterCorpus = async (corpusId, nomCorpus, format) => {
+    try {
+      const fn = format === "docx" ? exporterDocxCorpus : exporterXlsxCorpus;
+      const { blob, nomFichier } = await fn(settings.backendUrl, auth.token, corpusId);
+      await partagerFichierBinaire(blob, nomFichier, nomCorpus);
+    } catch (e) {
+      showToast("Échec de l'export : " + e.message);
+    }
+  };
+
   const rafraichirUtilisateur = async () => {
     try {
       const u = await moi(settings.backendUrl, auth.token);
@@ -329,6 +352,8 @@ export default function App() {
         onListerCodages={() => listerCodages(settings.backendUrl, auth.token, interview.jobId)}
         onFiabilite={() => fiabiliteInterCodeurs(settings.backendUrl, auth.token, interview.jobId)}
         onContribuer={(avant, apres) => contribuerCorrection(interview.langueDetectee || interview.langue, avant, apres)}
+        onExporterDocx={() => exporterEntretien(interview, "docx")}
+        onExporterXlsx={() => exporterEntretien(interview, "xlsx")}
         showToast={showToast}
       />
     ) : (
@@ -338,6 +363,8 @@ export default function App() {
     overlay = (
       <Forfaits settings={settings} utilisateur={auth.utilisateur} onRetour={retour} />
     );
+  } else if (current.screen === "cgu") {
+    overlay = <Cgu backendUrl={settings.backendUrl} onRetour={retour} />;
   } else if (current.screen === "admin") {
     overlay = auth.utilisateur.est_admin ? (
       <Admin settings={settings} token={auth.token} onRetour={retour} showToast={showToast} />
@@ -370,6 +397,8 @@ export default function App() {
         onRejoindre={rejoindreCorpusHandler}
         onOpenInterview={(id) => push("fiche", id)}
         onLancerAnalyse={lancerAnalyseCorpusHandler}
+        onExporterDocx={(id, nom) => exporterCorpus(id, nom, "docx")}
+        onExporterXlsx={(id, nom) => exporterCorpus(id, nom, "xlsx")}
         showToast={showToast}
       />
     );
@@ -393,6 +422,8 @@ export default function App() {
         onMajUtilisateur={majUtilisateur}
         onOuvrirForfaits={() => push("forfaits")}
         onOuvrirAdmin={() => push("admin")}
+        onOuvrirCgu={() => push("cgu")}
+        onCompteSupprime={() => { seDeconnecter(); showToast("Compte supprimé"); }}
         showToast={showToast}
       />
     );

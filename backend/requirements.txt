@@ -16,3 +16,7 @@ python-jose[cryptography]==3.5.0
 # Diarisation des locuteurs (torch CPU installé séparément dans le Dockerfile
 # via l'index dédié, pour éviter de tirer les paquets CUDA volumineux)
 pyannote.audio==3.3.2
+
+# Export des documents
+python-docx==1.2.0
+openpyxl==3.1.5

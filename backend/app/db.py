@@ -51,6 +51,9 @@ class Utilisateur(Base):
     credits: Mapped[float] = mapped_column(default=0)
     forfait_actuel: Mapped[str | None] = mapped_column(nullable=True)
 
+    cgu_acceptees_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cgu_version: Mapped[str | None] = mapped_column(nullable=True)
+
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -190,6 +193,8 @@ _COLONNES_ATTENDUES = {
         "est_admin": "BOOLEAN DEFAULT {bool_false}",
         "credits": "FLOAT DEFAULT 0",
         "forfait_actuel": "VARCHAR",
+        "cgu_acceptees_le": "TIMESTAMP",
+        "cgu_version": "VARCHAR",
     },
     "corpus": {
         "analyse_statut": "VARCHAR",

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  adminListerUtilisateurs, adminAjusterCredits, adminMouvements, adminAttribuerForfait,
+  adminListerUtilisateurs, adminAjusterCredits, adminDefinirCredits, adminSupprimerUtilisateur,
+  adminMouvements, adminAttribuerForfait,
   listerForfaits, adminCreerForfait, adminDesactiverForfait,
 } from "../lib/api.js";
 import { fmtDate } from "../lib/constants.js";
@@ -13,6 +14,8 @@ export default function Admin({ settings, token, onRetour, showToast }) {
   const [mouvements, setMouvements] = useState(null);
   const [delta, setDelta] = useState("");
   const [motif, setMotif] = useState("");
+  const [modeDefinir, setModeDefinir] = useState(false);
+  const [suppressionConfirm, setSuppressionConfirm] = useState(false);
   const [nouveauForfait, setNouveauForfait] = useState(false);
   const [nfNom, setNfNom] = useState("");
   const [nfPrix, setNfPrix] = useState("");
@@ -32,14 +35,27 @@ export default function Admin({ settings, token, onRetour, showToast }) {
 
   const ajusterCredits = async () => {
     const val = parseFloat(delta);
-    if (!val) return;
+    if (isNaN(val)) return;
     try {
-      const r = await adminAjusterCredits(settings.backendUrl, token, selection.id, val, motif);
+      const r = modeDefinir
+        ? await adminDefinirCredits(settings.backendUrl, token, selection.id, val, motif)
+        : await adminAjusterCredits(settings.backendUrl, token, selection.id, val, motif);
       setSelection((s) => ({ ...s, credits: r.credits }));
       setDelta(""); setMotif("");
       chargerUtilisateurs();
       adminMouvements(settings.backendUrl, token, selection.id).then(setMouvements);
-      showToast("Crédits ajustés");
+      showToast("Crédits mis à jour");
+    } catch (e) {
+      showToast("Échec : " + e.message);
+    }
+  };
+
+  const supprimerUtilisateur = async () => {
+    try {
+      await adminSupprimerUtilisateur(settings.backendUrl, token, selection.id);
+      showToast("Utilisateur supprimé");
+      setSelection(null);
+      chargerUtilisateurs();
     } catch (e) {
       showToast("Échec : " + e.message);
     }
@@ -103,10 +119,14 @@ export default function Admin({ settings, token, onRetour, showToast }) {
             </div>
           </div>
 
+          <div className="vue-switch">
+            <button className={"vue-opt" + (!modeDefinir ? " vue-actif" : "")} onClick={() => setModeDefinir(false)}>Ajouter/retirer</button>
+            <button className={"vue-opt" + (modeDefinir ? " vue-actif" : "")} onClick={() => setModeDefinir(true)}>Définir le solde</button>
+          </div>
           <div className="field-inline">
-            <input className="field-input" type="number" placeholder="+10 ou -5" value={delta}
+            <input className="field-input" type="number" placeholder={modeDefinir ? "Nouveau solde, ex. 100" : "+10 ou -5"} value={delta}
               onChange={(e) => setDelta(e.target.value)} />
-            <button className="btn primary sm" onClick={ajusterCredits}>Ajuster</button>
+            <button className="btn primary sm" onClick={ajusterCredits}>{modeDefinir ? "Définir" : "Ajuster"}</button>
           </div>
           <input className="field-input" placeholder="Motif (facultatif)" value={motif}
             onChange={(e) => setMotif(e.target.value)} />
@@ -136,6 +156,25 @@ export default function Admin({ settings, token, onRetour, showToast }) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {!selection.est_admin && (
+            <>
+              <button className="link-btn" style={{ color: "#D96D5F", marginTop: 16 }}
+                onClick={() => setSuppressionConfirm((s) => !s)}>
+                Supprimer cet utilisateur
+              </button>
+              {suppressionConfirm && (
+                <div className="glossaire-form" style={{ borderColor: "rgba(217,109,95,0.4)" }}>
+                  <p className="note-banner err" style={{ margin: 0 }}>
+                    Supprime définitivement ce compte, ses entretiens et ses corpus. Irréversible.
+                  </p>
+                  <button className="btn primary sm" style={{ background: "#D96D5F" }} onClick={supprimerUtilisateur}>
+                    Confirmer la suppression
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

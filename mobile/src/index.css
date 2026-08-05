@@ -369,6 +369,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .mdp-oeil:active { background: var(--surface-2); }
 
+/* ---- Consentement CGU ---- */
+.consent-row { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color: var(--ivoire-dim); line-height: 1.5; }
+.consent-row input[type="checkbox"] { width: 17px; height: 17px; margin-top: 1px; accent-color: var(--or); flex-shrink: 0; }
+.link-inline { color: var(--or); text-decoration: underline; display: inline; padding: 0; font-size: inherit; }
+.cgu-overlay { position: fixed; inset: 0; z-index: 80; background: var(--nuit); }
+.cgu-texte { white-space: pre-wrap; font-family: 'Instrument Sans', sans-serif; font-size: 13.5px; line-height: 1.7; color: var(--ivoire); }
+
 /* ---- Forfaits ---- */
 .forfait-card {
   width: 100%; background: var(--surface); border: 1px solid var(--ligne); border-radius: 13px;

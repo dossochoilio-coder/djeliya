@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { inscription, connexion, verifierEmail, renvoyerCode, motDePasseOublie, reinitialiserMotDePasse } from "../lib/api.js";
 import logo from "../assets/logo-full.png";
+import Cgu from "./Cgu.jsx";
 
 function ChampMotDePasse({ value, onChange, placeholder, onEnter }) {
   const [visible, setVisible] = useState(false);
@@ -32,6 +33,8 @@ export default function Connexion({ backendUrl, onConnecte }) {
   const [info, setInfo] = useState(null);
   const [envoi, setEnvoi] = useState(false);
   const [authEnAttente, setAuthEnAttente] = useState(null); // conservé pendant la vérification post-inscription
+  const [accepteCgu, setAccepteCgu] = useState(false);
+  const [voirCgu, setVoirCgu] = useState(false);
 
   const requireBackend = () => {
     if (!backendUrl) { setErreur("Configure d'abord l'adresse du serveur (voir plus bas)."); return false; }
@@ -52,7 +55,8 @@ export default function Connexion({ backendUrl, onConnecte }) {
           onConnecte(data);
         }
       } else {
-        const data = await inscription(backendUrl, { email, motDePasse, nom });
+        if (!accepteCgu) { setErreur("Tu dois accepter les conditions d'utilisation pour créer un compte."); setEnvoi(false); return; }
+        const data = await inscription(backendUrl, { email, motDePasse, nom, accepteCgu });
         if (!data.utilisateur.email_verifie) {
           setAuthEnAttente(data);
           setMode("verification");
@@ -165,15 +169,34 @@ export default function Connexion({ backendUrl, onConnecte }) {
               </button>
             )}
 
+            {mode === "inscription" && (
+              <label className="consent-row">
+                <input type="checkbox" checked={accepteCgu} onChange={(e) => setAccepteCgu(e.target.checked)} />
+                <span>
+                  J'accepte les{" "}
+                  <button type="button" className="link-inline" onClick={() => setVoirCgu(true)}>
+                    conditions d'utilisation et la politique de confidentialité
+                  </button>
+                </span>
+              </label>
+            )}
+
             {erreur && <p className="note-banner err">{erreur}</p>}
             {!backendUrl && (
               <p className="note-banner">Aucun serveur configuré. Renseigne l'adresse Railway une fois connecté.</p>
             )}
 
-            <button className="btn primary full" onClick={valider} disabled={envoi || !email || !motDePasse}>
+            <button className="btn primary full" onClick={valider}
+              disabled={envoi || !email || !motDePasse || (mode === "inscription" && !accepteCgu)}>
               {envoi ? "…" : mode === "connexion" ? "Se connecter" : "Créer mon compte"}
             </button>
           </>
+        )}
+
+        {voirCgu && (
+          <div className="cgu-overlay">
+            <Cgu backendUrl={backendUrl} onRetour={() => setVoirCgu(false)} />
+          </div>
         )}
 
         {mode === "verification" && (
