@@ -5,7 +5,7 @@ import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 
-export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, onRelancer, onLancerAnalyse, showToast }) {
+export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, showToast }) {
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -101,20 +101,24 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
     setDraft(interview.segments[segIdx].texte);
   };
   const saveEdit = (segIdx) => {
+    const texteAvant = interview.segments[segIdx].texte;
     const segments = interview.segments.map((s, i) =>
       i === segIdx ? { ...s, texte: draft, corrige: true, mots: (s.mots || []).map((m) => ({ ...m, confiance: 1 })) } : s
     );
     onUpdate({ ...interview, segments });
     setEditing(null);
     showToast("Segment corrigé");
+    if (draft !== texteAvant) onContribuer?.(texteAvant, draft);
   };
   const editWord = (segIdx, motIdx, nouveauMot) => {
+    const motAvant = interview.segments[segIdx].mots[motIdx].mot;
     const segments = interview.segments.map((s, i) => {
       if (i !== segIdx) return s;
       const mots = s.mots.map((m, j) => (j === motIdx ? { ...m, mot: nouveauMot, confiance: 1 } : m));
       return { ...s, mots, texte: mots.map((m) => m.mot).join(" ") };
     });
     onUpdate({ ...interview, segments });
+    if (nouveauMot !== motAvant) onContribuer?.(motAvant, nouveauMot);
   };
 
   /* --- Export / partage --- */
@@ -222,13 +226,20 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
             <button className={"vue-opt" + (vue === "transcription" ? " vue-actif" : "")}
               onClick={() => setVue("transcription")}>Transcription</button>
             <button className={"vue-opt" + (vue === "analyse" ? " vue-actif" : "")}
-              onClick={() => setVue("analyse")}>Analyse qualitative</button>
+              onClick={() => setVue("analyse")}>Analyse</button>
+            <button className={"vue-opt" + (vue === "codage" ? " vue-actif" : "")}
+              onClick={() => setVue("codage")}>Codage d'équipe</button>
           </div>
+        )}
+
+        {vue === "codage" && interview.statut === "termine" && (
+          <CodageView interview={interview} onEnregistrer={onEnregistrerCodage}
+            onLister={onListerCodages} onFiabilite={onFiabilite} onSeek={seek} />
         )}
 
         {vue === "analyse" && interview.statut === "termine" ? (
           <AnalyseView interview={interview} onLancer={onLancerAnalyse} onSeek={seek} />
-        ) : (
+        ) : vue === "codage" && interview.statut === "termine" ? null : (
         <>
         {audioUrl && (
           <div className="player-card">
@@ -299,6 +310,7 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
                     {typeof seg.debut === "number" && (
                       <button className="tc mono" onClick={() => seek(seg.debut)}>{fmtTime(seg.debut)}</button>
                     )}
+                    {seg.locuteur && <span className="locuteur-tag">{seg.locuteur.replace("SPEAKER_", "Locuteur ")}</span>}
                     {seg.corrige && <span className="corrige-tag">corrigé</span>}
                     <button className="edit-btn" onClick={() =>
                       editing === idx ? setEditing(null) : startEdit(idx)}>
@@ -436,6 +448,103 @@ function AnalyseView({ interview, onLancer, onSeek }) {
     </div>
   );
 }
+function CodageView({ interview, onEnregistrer, onLister, onFiabilite, onSeek }) {
+  const [codages, setCodages] = useState(null);
+  const [brouillon, setBrouillon] = useState({});
+  const [fiabilite, setFiabilite] = useState(null);
+  const [chargement, setChargement] = useState(true);
+
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const c = await onLister();
+        if (!annule) setCodages(c);
+      } catch { if (!annule) setCodages([]); }
+      setChargement(false);
+    })();
+    return () => { annule = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interview.id]);
+
+  const codagesParSegment = (idx) => (codages || []).filter((c) => c.segment_index === idx);
+
+  const enregistrer = async (idx) => {
+    const val = (brouillon[idx] || "").trim();
+    if (!val) return;
+    await onEnregistrer(idx, val);
+    setCodages((prev) => {
+      const sans = (prev || []).filter((c) => !(c.segment_index === idx && c.moi));
+      return [...sans, { segment_index: idx, code: val, codeur: "Toi", moi: true }];
+    });
+    setBrouillon((b) => ({ ...b, [idx]: "" }));
+  };
+
+  const calculerFiabilite = async () => {
+    setFiabilite("chargement");
+    try {
+      setFiabilite(await onFiabilite());
+    } catch (e) {
+      setFiabilite({ erreur: e.message });
+    }
+  };
+
+  if (chargement) return <div className="pending-card"><span className="spinner" />Chargement des codages…</div>;
+
+  return (
+    <div className="codage-view">
+      <p className="section-intro">
+        Chaque chercheur code les segments avec son propre libellé thématique, indépendamment des autres —
+        la fiabilité inter-codeurs (kappa de Cohen) mesure ensuite l'accord entre vous.
+      </p>
+
+      <button className="btn ghost full" onClick={calculerFiabilite}>Calculer la fiabilité inter-codeurs</button>
+      {fiabilite === "chargement" && <div className="pending-card"><span className="spinner" />Calcul…</div>}
+      {fiabilite && fiabilite !== "chargement" && !fiabilite.erreur && (
+        <div className="analyse-texte-card">
+          {fiabilite.nb_codeurs < 2 ? (
+            <p className="analyse-texte">Un seul codeur pour l'instant — invite un collègue via le corpus pour comparer vos codages.</p>
+          ) : (
+            <>
+              <p className="analyse-texte">
+                Kappa moyen entre {fiabilite.nb_codeurs} codeurs : <strong>{fiabilite.kappa_moyen ?? "—"}</strong>
+              </p>
+              <p className="analyse-texte" style={{ fontSize: 12, opacity: 0.75 }}>
+                (0 = accord aléatoire, 1 = accord parfait ; usuellement, ≥ 0,6 est considéré satisfaisant)
+              </p>
+            </>
+          )}
+        </div>
+      )}
+      {fiabilite?.erreur && <p className="note-banner err">{fiabilite.erreur}</p>}
+
+      <div className="transcript">
+        {(interview.segments || []).map((seg, idx) => (
+          <article key={idx} className="seg">
+            <div className="seg-top">
+              {typeof seg.debut === "number" && (
+                <button className="tc mono" onClick={() => onSeek(seg.debut)}>{fmtTime(seg.debut)}</button>
+              )}
+            </div>
+            <p className="seg-text">{seg.texte}</p>
+            <div className="codage-chips">
+              {codagesParSegment(idx).map((c, ci) => (
+                <span key={ci} className={"codage-chip" + (c.moi ? " moi" : "")}>{c.code} · {c.codeur}</span>
+              ))}
+            </div>
+            <div className="field-inline">
+              <input className="field-input sm" placeholder="Ton code pour ce segment"
+                value={brouillon[idx] || ""} onChange={(e) => setBrouillon((b) => ({ ...b, [idx]: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && enregistrer(idx)} />
+              <button className="btn primary sm" onClick={() => enregistrer(idx)}>Coder</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Mot({ m, onSave }) {
   const [edit, setEdit] = useState(false);
   const [val, setVal] = useState(m.mot);
