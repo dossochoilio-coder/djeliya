@@ -103,22 +103,20 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
   };
   const saveEdit = (segIdx) => {
     const texteAvant = interview.segments[segIdx].texte;
-    const segments = interview.segments.map((s, i) =>
-      i === segIdx ? { ...s, texte: draft, corrige: true, mots: (s.mots || []).map((m) => ({ ...m, confiance: 1 })) } : s
-    );
-    onCorrigerSegments(segments);
+    const segCorrige = {
+      ...interview.segments[segIdx], texte: draft, corrige: true,
+      mots: (interview.segments[segIdx].mots || []).map((m) => ({ ...m, confiance: 1 })),
+    };
+    onCorrigerSegments(segIdx, segCorrige);
     setEditing(null);
     showToast("Segment corrigé");
     if (draft !== texteAvant) onContribuer?.(texteAvant, draft);
   };
   const editWord = (segIdx, motIdx, nouveauMot) => {
-    const motAvant = interview.segments[segIdx].mots[motIdx].mot;
-    const segments = interview.segments.map((s, i) => {
-      if (i !== segIdx) return s;
-      const mots = s.mots.map((m, j) => (j === motIdx ? { ...m, mot: nouveauMot, confiance: 1 } : m));
-      return { ...s, mots, texte: mots.map((m) => m.mot).join(" ") };
-    });
-    onCorrigerSegments(segments);
+    const seg = interview.segments[segIdx];
+    const motAvant = seg.mots[motIdx].mot;
+    const mots = seg.mots.map((m, j) => (j === motIdx ? { ...m, mot: nouveauMot, confiance: 1 } : m));
+    onCorrigerSegments(segIdx, { ...seg, mots, texte: mots.map((m) => m.mot).join(" ") });
     if (nouveauMot !== motAvant) onContribuer?.(motAvant, nouveauMot);
   };
 

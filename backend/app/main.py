@@ -829,17 +829,21 @@ def obtenir_transcription(entretien_id: str, user: Utilisateur = Depends(utilisa
         session.close()
 
 
-@app.post("/api/transcriptions/{entretien_id}/segments")
-def corriger_segments(entretien_id: str, payload: SegmentsIn, user: Utilisateur = Depends(utilisateur_courant)):
-    """Persiste les corrections manuelles faites par un chercheur sur la transcription,
-    pour qu'elles ne soient plus jamais écrasées par un sondage ultérieur du serveur."""
+@app.post("/api/transcriptions/{entretien_id}/segments/{index}")
+def corriger_segment(entretien_id: str, index: int, payload: dict, user: Utilisateur = Depends(utilisateur_courant)):
+    """Corrige UN SEUL segment de façon atomique (jamais tout le tableau d'un coup),
+    pour que deux corrections rapprochées ne puissent jamais s'écraser l'une l'autre."""
     session = get_session()
     try:
         e = session.get(Entretien, entretien_id)
         if not e:
             raise HTTPException(404, "Entretien introuvable.")
         _verifier_acces(session, e, user)
-        e.segments = payload.segments
+        segments = list(e.segments or [])
+        if index < 0 or index >= len(segments):
+            raise HTTPException(422, "Segment introuvable.")
+        segments[index] = payload.get("segment", segments[index])
+        e.segments = segments
         session.commit()
         return {"ok": True}
     finally:

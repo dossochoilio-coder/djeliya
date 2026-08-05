@@ -16,11 +16,13 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
   const enrichis = useMemo(() => {
     return corpusList.map((c, i) => {
       const membres = interviews.filter((iv) => iv.corpusId === c.id);
+      const termines = membres.filter((iv) => iv.statut === "termine");
       const dureeSec = membres.reduce((a, m) => a + (m.dureeSec || 0), 0);
       return {
         ...c,
         couleur: PALETTE[i % PALETTE.length],
         nbEntretiens: membres.length,
+        nbTermines: termines.length,
         dureeMin: Math.round(dureeSec / 60),
         membres,
       };
@@ -80,6 +82,13 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
             </div>
           </div>
 
+          {selection.nbEntretiens > selection.nbTermines && (
+            <p className="field-help">
+              {selection.nbTermines} sur {selection.nbEntretiens} entretien{selection.nbEntretiens > 1 ? "s" : ""} réellement
+              terminé{selection.nbTermines > 1 ? "s" : ""} — seuls ceux-ci comptent pour l'analyse transversale.
+            </p>
+          )}
+
           {selection.code_invitation && (
             <button className="corpus-inline" onClick={() => {
               navigator.clipboard.writeText(selection.code_invitation);
@@ -90,7 +99,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
             </button>
           )}
 
-          {selection.nbEntretiens >= 2 && (
+          {selection.nbTermines >= 2 && (
             <div className="vue-switch">
               <button className={"vue-opt" + (vue === "entretiens" ? " vue-actif" : "")}
                 onClick={() => setVue("entretiens")}>Entretiens</button>
@@ -99,7 +108,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
             </div>
           )}
 
-          {vue === "analyse" && selection.nbEntretiens >= 2 ? (
+          {vue === "analyse" && selection.nbTermines >= 2 ? (
             <AnalyseView
               sujet={corpusDetail || {}}
               methodes={methodes}

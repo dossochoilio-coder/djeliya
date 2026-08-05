@@ -20,7 +20,7 @@ import {
   putAudioBlob, getAudioBlob, deleteAudioBlob, newId,
 } from "./lib/db.js";
 import {
-  checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegments,
+  checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
   creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
   enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, moi,
 } from "./lib/api.js";
@@ -165,12 +165,17 @@ export default function App() {
     setInterviews((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated, duree: updated.dureeSec ? fmtTime(updated.dureeSec) : x.duree } : x)));
   };
 
-  /* Corrections de transcription : appliquées localement tout de suite, puis
-     persistées sur le serveur pour ne plus jamais être écrasées par un sondage. */
-  const corrigerSegments = async (interview, segments) => {
-    majEntretien({ ...interview, segments });
+  /* Correction d'UN segment : appliquée localement tout de suite (à partir de l'état le
+     plus récent, jamais d'un `interview` potentiellement périmé), puis persistée sur le
+     serveur de façon atomique — deux corrections rapprochées ne peuvent plus s'écraser. */
+  const corrigerSegment = async (interviewId, jobId, index, nouveauSegment) => {
+    setInterviews((prev) => prev.map((x) => {
+      if (x.id !== interviewId) return x;
+      const segments = x.segments.map((s, i) => (i === index ? nouveauSegment : s));
+      return { ...x, segments };
+    }));
     try {
-      await enregistrerSegments(settings.backendUrl, auth.token, interview.jobId, segments);
+      await enregistrerSegment(settings.backendUrl, auth.token, jobId, index, nouveauSegment);
     } catch (e) {
       showToast("Correction gardée sur ce téléphone, mais pas encore synchronisée : " + e.message);
     }
@@ -316,7 +321,7 @@ export default function App() {
         methodes={methodes}
         onRetour={retour}
         onUpdate={majEntretien}
-        onCorrigerSegments={(segments) => corrigerSegments(interview, segments)}
+        onCorrigerSegments={(index, segment) => corrigerSegment(interview.id, interview.jobId, index, segment)}
         onSupprimer={supprimerEntretien}
         onRelancer={() => relancerEntretien(interview)}
         onLancerAnalyse={(contexte, methode) => lancerAnalyseEntretien(interview, contexte, methode)}

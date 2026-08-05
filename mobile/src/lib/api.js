@@ -295,12 +295,12 @@ export async function lancerAnalyse(backendUrl, token, jobId, contexte, methode)
   return res.json();
 }
 
-export async function enregistrerSegments(backendUrl, token, jobId, segments) {
+export async function enregistrerSegment(backendUrl, token, jobId, index, segment) {
   const base = clean(backendUrl);
-  const res = await fetch(`${base}/api/transcriptions/${jobId}/segments`, {
+  const res = await fetch(`${base}/api/transcriptions/${jobId}/segments/${index}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headersAuth(token) },
-    body: JSON.stringify({ segments }),
+    body: JSON.stringify({ segment }),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json();
