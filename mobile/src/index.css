@@ -138,6 +138,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .meter { display: flex; align-items: center; gap: 2px; height: 90px; width: 100%; justify-content: center; }
 .meter-bar { width: 4px; border-radius: 3px; transition: height 0.05s linear; min-height: 4px; }
 .rec-time { font-size: 26px; letter-spacing: 0.04em; }
+.rec-controls { display: flex; align-items: center; gap: 18px; }
+.rec-btn-secondaire {
+  width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--ligne);
+  display: grid; place-items: center; color: var(--or);
+}
+.rec-btn-secondaire:active { background: var(--nuit); }
 .rec-btn {
   width: 72px; height: 72px; border-radius: 50%; background: var(--err);
   display: grid; place-items: center; box-shadow: 0 10px 26px rgba(217,109,95,0.35);

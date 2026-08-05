@@ -1194,6 +1194,22 @@ def _run_job(entretien_id: str, path: str, langue: str, vocabulaire: str):
             initial_prompt=prompt,
             word_timestamps=True,
             vad_filter=True,
+            # Réduction des hallucinations et gain d'exhaustivité, en particulier pour
+            # les entretiens longs avec pauses, bruit de fond, et alternance de langues :
+            # - condition_on_previous_text=False évite au modèle de "dériver" ou de
+            #   boucler sur une phrase après un silence ou un changement de langue.
+            # - hallucination_silence_threshold ignore les segments hallucinés générés
+            #   sur du silence pur, sans jamais couper une parole réelle (vad_filter
+            #   s'en charge séparément).
+            # - beam_size=5 (recherche en faisceau) et température multi-passe
+            #   (valeur par défaut de la bibliothèque) maximisent la fidélité au lieu
+            #   d'une simple prédiction gloutonne.
+            condition_on_previous_text=False,
+            hallucination_silence_threshold=2.0,
+            beam_size=5,
+            compression_ratio_threshold=2.4,
+            log_prob_threshold=-1.0,
+            no_speech_threshold=0.6,
         )
         out = []
         for s in segments:

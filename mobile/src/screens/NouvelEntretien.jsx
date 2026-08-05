@@ -60,24 +60,38 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
                   <span key={i} className="meter-bar"
                     style={{
                       height: `${h}%`,
-                      background: rec.status === "enregistrement" ? "#E4B04A" : "#2A3157",
+                      background: rec.status === "enregistrement" ? "#E4B04A" : rec.status === "pause" ? "#7C6533" : "#2A3157",
                     }} />
                 ))}
               </div>
               <div className="rec-time mono">{fmtTime(rec.seconds)}</div>
-              {rec.status === "enregistrement" ? (
-                <button className="rec-btn active" onClick={handleStop} aria-label="Arrêter">
-                  <span className="rec-square" />
-                </button>
-              ) : (
-                <button className="rec-btn" onClick={handleStart} aria-label="Enregistrer"
-                  disabled={rec.status === "demande"}>
-                  <span className="rec-dot" />
-                </button>
-              )}
+              <div className="rec-controls">
+                {rec.status === "enregistrement" || rec.status === "pause" ? (
+                  <>
+                    <button className="rec-btn-secondaire" onClick={rec.status === "pause" ? rec.resume : rec.pause}
+                      aria-label={rec.status === "pause" ? "Reprendre" : "Mettre en pause"}>
+                      {rec.status === "pause" ? (
+                        <svg width="18" height="18" viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" fill="currentColor" /></svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 16 16"><rect x="3" y="2" width="3.6" height="12" rx="1" fill="currentColor" /><rect x="9.4" y="2" width="3.6" height="12" rx="1" fill="currentColor" /></svg>
+                      )}
+                    </button>
+                    <button className="rec-btn active" onClick={handleStop} aria-label="Arrêter">
+                      <span className="rec-square" />
+                    </button>
+                  </>
+                ) : (
+                  <button className="rec-btn" onClick={handleStart} aria-label="Enregistrer"
+                    disabled={rec.status === "demande"}>
+                    <span className="rec-dot" />
+                  </button>
+                )}
+              </div>
               <p className="rec-hint">
                 {rec.status === "enregistrement"
-                  ? "Enregistrement en cours — touche pour arrêter"
+                  ? "Enregistrement en cours — touche ⏸ pour faire une pause"
+                  : rec.status === "pause"
+                  ? "En pause — touche ▶ pour reprendre exactement où tu en étais"
                   : rec.status === "demande"
                   ? "Demande d'accès au microphone…"
                   : "Touche pour démarrer l'enregistrement"}

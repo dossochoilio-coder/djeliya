@@ -1,10 +1,21 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /* ============================================================
    Enregistrement audio via l'API native du navigateur
    (getUserMedia + MediaRecorder). Fonctionne dans l'app Android
    grâce à la permission RECORD_AUDIO déjà déclarée : Capacitor
    accorde automatiquement l'accès au micro demandé par la page.
+
+   - Pause/reprise natives (MediaRecorder.pause()/resume()) : aucune
+     perte, aucune coupure, l'audio repart exactement là où il
+     s'était arrêté.
+   - Maintien de l'écran actif pendant l'enregistrement, pour que
+     l'entretien ne soit jamais interrompu par une mise en veille
+     automatique du téléphone tant que l'app reste ouverte.
+   - Fonctionne entièrement hors connexion : l'enregistrement lui-même
+     n'a besoin d'aucun réseau, seul l'envoi final pour transcription
+     en a besoin (et l'audio reste sauvegardé sur l'appareil si cet
+     envoi échoue, pour un nouvel essai plus tard).
    ============================================================ */
 
 function pickMimeType() {
@@ -21,7 +32,7 @@ function pickMimeType() {
 }
 
 export function useRecorder() {
-  const [status, setStatus] = useState("inactif"); // inactif | demande | enregistrement | arrete
+  const [status, setStatus] = useState("inactif"); // inactif | demande | enregistrement | pause | arrete
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState(() => new Array(48).fill(4));
   const [erreur, setErreur] = useState(null);
@@ -34,9 +45,40 @@ export function useRecorder() {
   const rafRef = useRef(null);
   const timerRef = useRef(null);
   const mimeRef = useRef("");
+  const wakeLockRef = useRef(null);
+  const statusRef = useRef("inactif");
+
+  useEffect(() => { statusRef.current = status; }, [status]);
+
+  const demanderWakeLock = async () => {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      }
+    } catch { /* indisponible sur cet appareil : pas bloquant */ }
+  };
+  const relacherWakeLock = () => {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  };
+
+  /* Le verrou d'écran est automatiquement relâché par le système quand l'app
+     passe en arrière-plan — on le redemande dès le retour au premier plan
+     si l'enregistrement est toujours actif. */
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" &&
+        (statusRef.current === "enregistrement" || statusRef.current === "pause")) {
+        demanderWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   const stopMeter = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
     audioCtxRef.current = null;
   };
@@ -87,6 +129,7 @@ export function useRecorder() {
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
       runMeter();
+      await demanderWakeLock();
       setStatus("enregistrement");
     } catch (e) {
       setErreur(
@@ -98,9 +141,28 @@ export function useRecorder() {
     }
   }, [runMeter]);
 
+  const pause = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state !== "recording") return;
+    recorder.pause();
+    clearInterval(timerRef.current);
+    stopMeter();
+    setStatus("pause");
+  }, []);
+
+  const resume = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state !== "paused") return;
+    recorder.resume();
+    timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    runMeter();
+    setStatus("enregistrement");
+  }, [runMeter]);
+
   const cleanup = () => {
     clearInterval(timerRef.current);
     stopMeter();
+    relacherWakeLock();
     if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   };
@@ -115,6 +177,8 @@ export function useRecorder() {
         setStatus("arrete");
         resolve(blob);
       };
+      // Un MediaRecorder en pause doit être relancé avant de pouvoir être arrêté proprement.
+      if (recorder.state === "paused") recorder.resume();
       recorder.stop();
     });
   }, []);
@@ -128,5 +192,5 @@ export function useRecorder() {
     setSeconds(0);
   }, []);
 
-  return { status, seconds, levels, erreur, start, stop, cancel };
+  return { status, seconds, levels, erreur, start, pause, resume, stop, cancel };
 }
