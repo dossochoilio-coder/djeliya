@@ -3,6 +3,7 @@ import { App as CapApp } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Capacitor } from "@capacitor/core";
 
+import Connexion from "./screens/Connexion.jsx";
 import Accueil from "./screens/Accueil.jsx";
 import Corpus from "./screens/Corpus.jsx";
 import Glossaire from "./screens/Glossaire.jsx";
@@ -13,30 +14,34 @@ import TabBar from "./components/TabBar.jsx";
 
 import {
   loadInterviews, saveInterviews, loadSettings, saveSettings,
-  loadCorpus, saveCorpus, loadGlossaire, saveGlossaire,
+  loadGlossaire, saveGlossaire, loadAuth, saveAuth,
   putAudioBlob, getAudioBlob, deleteAudioBlob, newId,
 } from "./lib/db.js";
-import { checkHealth, createTranscription, getTranscription, lancerAnalyse } from "./lib/api.js";
+import {
+  checkHealth, createTranscription, getTranscription, lancerAnalyse,
+  creerCorpusDistant, listerCorpusDistant, rejoindreCorpus,
+  enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution,
+} from "./lib/api.js";
 import { fmtTime } from "./lib/constants.js";
 
 export default function App() {
+  const [auth, setAuth] = useState(() => loadAuth());
   const [interviews, setInterviews] = useState(() => loadInterviews());
   const [settings, setSettings] = useState(() => loadSettings());
-  const [corpusList, setCorpusList] = useState(() => loadCorpus());
+  const [corpusList, setCorpusList] = useState([]);
   const [glossaire, setGlossaire] = useState(() => loadGlossaire());
 
   const [tab, setTab] = useState("accueil");
   const [corpusSelectionne, setCorpusSelectionne] = useState(null);
-  const [stack, setStack] = useState([]); // écrans empilés au-dessus de l'onglet courant
+  const [stack, setStack] = useState([]);
   const [backendOk, setBackendOk] = useState(null);
   const [toast, setToast] = useState(null);
 
   const current = stack.length ? stack[stack.length - 1] : { screen: tab };
 
-  /* Persistance */
+  /* Persistance locale */
   useEffect(() => saveInterviews(interviews), [interviews]);
   useEffect(() => saveSettings(settings), [settings]);
-  useEffect(() => saveCorpus(corpusList), [corpusList]);
   useEffect(() => saveGlossaire(glossaire), [glossaire]);
 
   /* Habillage natif */
@@ -65,16 +70,32 @@ export default function App() {
   }, [settings.backendUrl]);
   useEffect(() => { verifierServeur(); }, [verifierServeur]);
 
+  /* Charger les corpus distants une fois connecté */
+  const rafraichirCorpus = useCallback(async () => {
+    if (!auth) return;
+    try {
+      setCorpusList(await listerCorpusDistant(settings.backendUrl, auth.token));
+    } catch { /* affiché via le bandeau serveur si hors ligne */ }
+  }, [auth, settings.backendUrl]);
+  useEffect(() => { rafraichirCorpus(); }, [rafraichirCorpus]);
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
 
-  /* Navigation */
   const push = (screen, id) => setStack((s) => [...s, { screen, id }]);
   const retour = () => setStack((s) => s.slice(0, -1));
   const changerOnglet = (t) => { setStack([]); setCorpusSelectionne(null); setTab(t); };
 
-  /* Sondage global des entretiens en cours de traitement */
+  const seDeconnecter = () => {
+    saveAuth(null);
+    setAuth(null);
+    setStack([]);
+    setTab("accueil");
+  };
+
+  /* Sondage global des entretiens en cours (transcription et/ou analyse) */
   const pollingRef = useRef(false);
   useEffect(() => {
+    if (!auth) return;
     const enAttente = interviews.some((i) =>
       i.statut === "en_attente" || i.statut === "en_cours" || i.analyse_statut === "en_cours"
     );
@@ -87,7 +108,7 @@ export default function App() {
       if (cibles.length === 0) { clearInterval(it); pollingRef.current = false; return; }
       for (const i of cibles) {
         try {
-          const job = await getTranscription(settings.backendUrl, i.jobId);
+          const job = await getTranscription(settings.backendUrl, auth.token, i.jobId);
           setInterviews((prev) => prev.map((x) => x.id === i.id ? {
             ...x, statut: job.statut, segments: job.segments || [],
             langueDetectee: job.langue_detectee, note: job.note, erreur: job.erreur,
@@ -100,13 +121,12 @@ export default function App() {
               erreur: "Le serveur a redémarré depuis l'envoi. Relance une nouvelle transcription.",
             } : x));
           }
-          /* autre erreur réseau : nouvel essai au prochain intervalle */
         }
       }
     }, 4000);
     return () => { clearInterval(it); pollingRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviews, settings.backendUrl]);
+  }, [interviews, settings.backendUrl, auth]);
 
   /* Création d'un entretien */
   const creerEntretien = async ({ blob, titre, langue, vocabulaire, corpusId }) => {
@@ -121,8 +141,8 @@ export default function App() {
     setStack([{ screen: "fiche", id }]);
 
     try {
-      const { id: jobId } = await createTranscription(settings.backendUrl, {
-        blob, filename: `${id}.webm`, langue, vocabulaire,
+      const { id: jobId } = await createTranscription(settings.backendUrl, auth.token, {
+        blob, filename: `${id}.webm`, langue, vocabulaire, corpusId, titre,
       });
       setInterviews((prev) => prev.map((x) => x.id === id ? { ...x, jobId, statut: "en_attente" } : x));
     } catch (e) {
@@ -140,8 +160,9 @@ export default function App() {
     if (!blob) { showToast("Audio introuvable sur cet appareil, impossible de relancer."); return; }
     setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, statut: "en_attente", erreur: null } : x));
     try {
-      const { id: jobId } = await createTranscription(settings.backendUrl, {
+      const { id: jobId } = await createTranscription(settings.backendUrl, auth.token, {
         blob, filename: `${interview.id}.webm`, langue: interview.langue, vocabulaire: interview.vocabulaire,
+        corpusId: interview.corpusId, titre: interview.titre,
       });
       setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, jobId, statut: "en_attente" } : x));
     } catch (e) {
@@ -153,7 +174,7 @@ export default function App() {
   const lancerAnalyseEntretien = async (interview, contexte) => {
     setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "en_cours", analyse_erreur: null } : x));
     try {
-      await lancerAnalyse(settings.backendUrl, interview.jobId, contexte);
+      await lancerAnalyse(settings.backendUrl, auth.token, interview.jobId, contexte);
     } catch (e) {
       setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "erreur", analyse_erreur: e.message } : x));
       showToast("Échec du lancement de l'analyse : " + e.message);
@@ -167,21 +188,57 @@ export default function App() {
     showToast("Entretien supprimé");
   };
 
-  const creerCorpus = (nom) => {
-    setCorpusList((prev) => [...prev, { id: newId(), nom, creeLe: new Date().toISOString() }]);
-    showToast("Corpus créé");
+  const creerCorpus = async (nom) => {
+    try {
+      await creerCorpusDistant(settings.backendUrl, auth.token, nom);
+      await rafraichirCorpus();
+      showToast("Corpus créé");
+    } catch (e) {
+      showToast("Échec : " + e.message);
+    }
+  };
+
+  const rejoindreCorpusHandler = async (code) => {
+    await rejoindreCorpus(settings.backendUrl, auth.token, code);
+    await rafraichirCorpus();
+    showToast("Corpus rejoint");
   };
 
   const ajouterGlossaire = ({ terme, sens }) => {
     setGlossaire((prev) => [...prev, { id: newId(), terme, sens }]);
     showToast("Terme ajouté au glossaire");
   };
+  const supprimerGlossaire = (id) => setGlossaire((prev) => prev.filter((e) => e.id !== id));
 
-  const supprimerGlossaire = (id) => {
-    setGlossaire((prev) => prev.filter((e) => e.id !== id));
+  const majUtilisateur = (utilisateur) => {
+    const nouvelAuth = { ...auth, utilisateur };
+    saveAuth(nouvelAuth);
+    setAuth(nouvelAuth);
   };
 
-  /* Rendu de l'écran empilé (prioritaire sur les onglets) */
+  const contribuerCorrection = async (langue, texteOriginal, texteCorrige) => {
+    if (!auth.utilisateur.contribution_langues_locales) return;
+    if (!["dyu", "bci"].includes(langue)) return;
+    try {
+      await envoyerContribution(settings.backendUrl, auth.token, { langue, texteOriginal, texteCorrige });
+    } catch { /* contribution facultative : échec silencieux, ne bloque jamais la correction elle-même */ }
+  };
+
+  /* ---------------- Écran de connexion (bloque tout le reste) ---------------- */
+  if (!auth) {
+    return (
+      <Connexion
+        backendUrl={settings.backendUrl}
+        onConnecte={(data) => {
+          saveAuth(data);
+          setAuth(data);
+          showToast(`Bienvenue, ${data.utilisateur.nom || data.utilisateur.email} !`);
+        }}
+      />
+    );
+  }
+
+  /* ---------------- Écran empilé (au-dessus des onglets) ---------------- */
   let overlay = null;
   if (current.screen === "nouveau") {
     overlay = (
@@ -203,6 +260,10 @@ export default function App() {
         onSupprimer={supprimerEntretien}
         onRelancer={() => relancerEntretien(interview)}
         onLancerAnalyse={(contexte) => lancerAnalyseEntretien(interview, contexte)}
+        onEnregistrerCodage={(segIdx, code) => enregistrerCodage(settings.backendUrl, auth.token, interview.jobId, segIdx, code)}
+        onListerCodages={() => listerCodages(settings.backendUrl, auth.token, interview.jobId)}
+        onFiabilite={() => fiabiliteInterCodeurs(settings.backendUrl, auth.token, interview.jobId)}
+        onContribuer={(avant, apres) => contribuerCorrection(interview.langueDetectee || interview.langue, avant, apres)}
         showToast={showToast}
       />
     ) : (
@@ -210,7 +271,7 @@ export default function App() {
     );
   }
 
-  /* Rendu de l'onglet courant */
+  /* ---------------- Onglets ---------------- */
   let body;
   if (tab === "accueil") {
     body = (
@@ -229,7 +290,9 @@ export default function App() {
         selectedId={corpusSelectionne}
         onSelectCorpus={setCorpusSelectionne}
         onCreer={creerCorpus}
+        onRejoindre={rejoindreCorpusHandler}
         onOpenInterview={(id) => push("fiche", id)}
+        showToast={showToast}
       />
     );
   } else if (tab === "glossaire") {
@@ -245,7 +308,11 @@ export default function App() {
     body = (
       <Reglages
         settings={settings}
+        utilisateur={auth.utilisateur}
+        token={auth.token}
         onSave={(s) => { setSettings(s); verifierServeur(); }}
+        onDeconnexion={seDeconnecter}
+        onMajUtilisateur={majUtilisateur}
         showToast={showToast}
       />
     );
