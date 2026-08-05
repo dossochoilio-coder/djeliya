@@ -1025,7 +1025,7 @@ def export_docx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_c
         c = session.get(Corpus, corpus_id)
         if not c or not c.analyse:
             raise HTTPException(404, "Aucune analyse de corpus disponible à exporter.")
-        entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()]
+        entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").order_by(Entretien.cree_le).all()]
         fiabilite = _fiabilite_corpus(session, corpus_id)
         buf = generer_docx_etude(_corpus_vers_dict(c), entretiens, fiabilite)
         nom = _nom_fichier(c.nom)
@@ -1046,7 +1046,7 @@ def export_xlsx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_c
         c = session.get(Corpus, corpus_id)
         if not c or not c.analyse:
             raise HTTPException(404, "Aucune analyse de corpus disponible à exporter.")
-        entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()]
+        entretiens = [_entretien_vers_dict(e) for e in session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").order_by(Entretien.cree_le).all()]
         fiabilite = _fiabilite_corpus(session, corpus_id)
         buf = generer_xlsx_etude(_corpus_vers_dict(c), entretiens, fiabilite)
         nom = _nom_fichier(c.nom)

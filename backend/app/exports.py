@@ -89,6 +89,79 @@ def _kappa_interpretation(k) -> str:
     return "accord quasi parfait"
 
 
+def _stats_qualitatives(analyse: dict, entretiens_ordre: list) -> dict:
+    """Indicateurs statistiques propres à la recherche qualitative :
+    - fréquence par dimension (nb de thèmes/concepts/verbatims qui s'y rattachent) ;
+    - convergence : pour chaque thème, sur combien d'entretiens distincts il apparaît
+      (un thème présent dans un seul entretien est moins robuste qu'un thème
+      retrouvé dans plusieurs cas — logique de triangulation) ;
+    - saturation théorique : nombre de concepts NOUVEAUX apportés par chaque
+      entretien pris dans l'ordre chronologique — un indicateur classique pour
+      juger si le corpus est suffisant (la courbe doit s'aplatir)."""
+    themes_par_nom = {t["theme"]: t for t in analyse.get("second_ordre", [])}
+    concepts_par_nom = {c["concept"]: c for c in analyse.get("premier_ordre", [])}
+    dimensions = analyse.get("dimensions_agregees") or []
+
+    # Fréquence par dimension
+    par_dimension = []
+    for dim in dimensions:
+        nb_themes = 0
+        nb_concepts = 0
+        nb_verbatims = 0
+        for nom_t in dim.get("themes_lies", []):
+            t = themes_par_nom.get(nom_t)
+            if not t:
+                continue
+            nb_themes += 1
+            for nom_c in t.get("concepts_lies", []):
+                c = concepts_par_nom.get(nom_c)
+                if not c:
+                    continue
+                nb_concepts += 1
+                nb_verbatims += len(c.get("verbatims", []))
+        par_dimension.append({
+            "dimension": dim["dimension"], "nb_themes": nb_themes,
+            "nb_concepts": nb_concepts, "nb_verbatims": nb_verbatims,
+        })
+
+    # Convergence : entretiens distincts par thème
+    total_entretiens = len(entretiens_ordre) or 1
+    convergence = []
+    themes_iter = analyse.get("second_ordre", []) if dimensions else analyse.get("second_ordre", [])
+    for t in themes_iter:
+        entretiens_du_theme = set()
+        for nom_c in t.get("concepts_lies", []):
+            c = concepts_par_nom.get(nom_c)
+            if not c:
+                continue
+            for v in c.get("verbatims", []):
+                if v.get("entretien"):
+                    entretiens_du_theme.add(v["entretien"])
+        convergence.append({
+            "theme": t["theme"], "nb_entretiens": len(entretiens_du_theme),
+            "pct_entretiens": round(len(entretiens_du_theme) / total_entretiens * 100, 1),
+        })
+    convergence.sort(key=lambda x: -x["nb_entretiens"])
+
+    # Saturation théorique (ordre chronologique des entretiens)
+    saturation = []
+    concepts_vus = set()
+    for titre_e in entretiens_ordre:
+        concepts_ici = set()
+        for c in analyse.get("premier_ordre", []):
+            for v in c.get("verbatims", []):
+                if v.get("entretien") == titre_e:
+                    concepts_ici.add(c["concept"])
+        nouveaux = concepts_ici - concepts_vus
+        concepts_vus |= concepts_ici
+        saturation.append({
+            "entretien": titre_e, "nouveaux_concepts": len(nouveaux),
+            "cumul_concepts": len(concepts_vus),
+        })
+
+    return {"par_dimension": par_dimension, "convergence": convergence, "saturation": saturation}
+
+
 # ----------------------------------------------------------------- utilitaires Word
 def _champ_toc(document):
     """Insère un vrai champ de sommaire Word (à mettre à jour par l'utilisateur :
@@ -318,6 +391,42 @@ def generer_docx_etude(corpus: dict, entretiens: list, fiabilite: dict = None) -
             row[2].text = str(d["kappa_moyen"]) if d["kappa_moyen"] is not None else "—"
             row[3].text = _kappa_interpretation(d["kappa_moyen"])
 
+    if analyse:
+        doc.add_heading("7. Indicateurs de rigueur qualitative", level=1)
+        entretiens_ordre = [e.get("titre", "") for e in entretiens]
+        stats_q = _stats_qualitatives(analyse, entretiens_ordre)
+
+        doc.add_heading("7.1. Convergence entre entretiens", level=2)
+        doc.add_paragraph(
+            "Un thème retrouvé dans plusieurs entretiens distincts est plus robuste qu'un thème "
+            "isolé à un seul cas — c'est le principe de triangulation en recherche qualitative."
+        )
+        tbl3 = doc.add_table(rows=1, cols=3)
+        tbl3.style = "Light Grid Accent 1"
+        for i, h in enumerate(["Thème", "Entretiens concernés", "% du corpus"]):
+            tbl3.rows[0].cells[i].text = h
+        for c in stats_q["convergence"]:
+            row = tbl3.add_row().cells
+            row[0].text = c["theme"]
+            row[1].text = str(c["nb_entretiens"])
+            row[2].text = f"{c['pct_entretiens']} %"
+
+        doc.add_heading("7.2. Saturation théorique", level=2)
+        doc.add_paragraph(
+            "Nombre de concepts nouveaux apportés par chaque entretien, dans l'ordre chronologique. "
+            "Une courbe qui s'aplatit vers la fin du corpus suggère que des entretiens "
+            "supplémentaires n'apporteraient plus beaucoup d'éléments inédits."
+        )
+        tbl4 = doc.add_table(rows=1, cols=3)
+        tbl4.style = "Light Grid Accent 1"
+        for i, h in enumerate(["Entretien", "Concepts nouveaux", "Cumul"]):
+            tbl4.rows[0].cells[i].text = h
+        for s in stats_q["saturation"]:
+            row = tbl4.add_row().cells
+            row[0].text = s["entretien"]
+            row[1].text = str(s["nouveaux_concepts"])
+            row[2].text = str(s["cumul_concepts"])
+
     if methode and methode in REFERENCES_APA:
         doc.add_heading("Références", level=1)
         doc.add_paragraph(REFERENCES_APA[methode])
@@ -474,6 +583,39 @@ def _feuille_codebook(wb, analyse):
     ws.column_dimensions["C"].width = 30
 
 
+def _feuille_stats_qualitatives(wb, analyse, entretiens_ordre):
+    stats_q = _stats_qualitatives(analyse, entretiens_ordre)
+    ws = wb.create_sheet("Statistiques qualitatives")
+
+    ws.cell(1, 1, "Fréquence par dimension").font = Font(bold=True, size=13)
+    _entete(ws, ["Dimension", "Thèmes", "Concepts", "Verbatims"], ligne=2)
+    r = 3
+    for d in stats_q["par_dimension"]:
+        ws.cell(r, 1, d["dimension"]); ws.cell(r, 2, d["nb_themes"])
+        ws.cell(r, 3, d["nb_concepts"]); ws.cell(r, 4, d["nb_verbatims"])
+        r += 1
+
+    r += 1
+    ws.cell(r, 1, "Convergence entre entretiens (triangulation)").font = Font(bold=True, size=13)
+    r += 1
+    _entete(ws, ["Thème", "Entretiens concernés", "% du corpus"], ligne=r)
+    r += 1
+    for c in stats_q["convergence"]:
+        ws.cell(r, 1, c["theme"]); ws.cell(r, 2, c["nb_entretiens"]); ws.cell(r, 3, f"{c['pct_entretiens']} %")
+        r += 1
+
+    r += 1
+    ws.cell(r, 1, "Saturation théorique (ordre chronologique)").font = Font(bold=True, size=13)
+    r += 1
+    _entete(ws, ["Entretien", "Concepts nouveaux", "Cumul de concepts distincts"], ligne=r)
+    r += 1
+    for s in stats_q["saturation"]:
+        ws.cell(r, 1, s["entretien"]); ws.cell(r, 2, s["nouveaux_concepts"]); ws.cell(r, 3, s["cumul_concepts"])
+        r += 1
+
+    ws.column_dimensions["A"].width = 34
+
+
 def generer_xlsx_etude(corpus: dict, entretiens: list, fiabilite: dict = None) -> io.BytesIO:
     wb = Workbook()
     analyse = corpus.get("analyse") or {}
@@ -531,6 +673,7 @@ def generer_xlsx_etude(corpus: dict, entretiens: list, fiabilite: dict = None) -
     if analyse:
         _feuille_analyse(wb, "Analyse transversale", analyse)
         _feuille_codebook(wb, analyse)
+        _feuille_stats_qualitatives(wb, analyse, [e.get("titre", "") for e in entretiens])
 
     if fiabilite and fiabilite.get("details"):
         ws_f = wb.create_sheet("Fiabilité inter-codeurs")

@@ -238,7 +238,12 @@ export default function App() {
   /* Charger le détail (dont l'analyse) du corpus sélectionné */
   useEffect(() => {
     if (!corpusSelectionne || !auth) { setCorpusDetail(null); return; }
-    detailCorpus(settings.backendUrl, auth.token, corpusSelectionne).then(setCorpusDetail).catch(() => {});
+    let annule = false;
+    setCorpusDetail(null); // évite d'afficher un résultat périmé pendant le chargement
+    detailCorpus(settings.backendUrl, auth.token, corpusSelectionne)
+      .then((d) => { if (!annule) setCorpusDetail(d); })
+      .catch(() => {});
+    return () => { annule = true; };
   }, [corpusSelectionne, auth, settings.backendUrl]);
 
   /* Sondage de l'analyse de corpus en cours */
