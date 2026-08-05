@@ -3,7 +3,7 @@ import { checkHealth, majPreferences, nombreContributions } from "../lib/api.js"
 import { LANGS } from "../lib/constants.js";
 import logo from "../assets/logo-full.png";
 
-export default function Reglages({ settings, utilisateur, token, onSave, onDeconnexion, onMajUtilisateur, showToast }) {
+export default function Reglages({ settings, utilisateur, token, onSave, onDeconnexion, onMajUtilisateur, onOuvrirForfaits, onOuvrirAdmin, showToast }) {
   const [form, setForm] = useState(settings);
   const [test, setTest] = useState(null); // null | "en_cours" | {ok, ...}
   const [nbContrib, setNbContrib] = useState(null);
@@ -60,6 +60,24 @@ export default function Reglages({ settings, utilisateur, token, onSave, onDecon
             </div>
             <button className="link-btn" onClick={onDeconnexion}>Déconnexion</button>
           </div>
+        )}
+
+        {utilisateur && !utilisateur.email_verifie && (
+          <p className="note-banner err">
+            Adresse e-mail non vérifiée — certaines actions (transcription) resteront bloquées tant
+            que la vérification n'est pas terminée.
+          </p>
+        )}
+
+        {utilisateur && (
+          <button className="corpus-inline" onClick={onOuvrirForfaits}>
+            {utilisateur.credits} crédits · {utilisateur.forfait_actuel || "Essai gratuit"}
+            <span className="corpus-inline-edit">forfaits</span>
+          </button>
+        )}
+
+        {utilisateur?.est_admin && (
+          <button className="btn ghost full" onClick={onOuvrirAdmin}>Panneau d'administration</button>
         )}
 
         {utilisateur && (

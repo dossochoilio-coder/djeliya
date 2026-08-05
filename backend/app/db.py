@@ -40,6 +40,17 @@ class Utilisateur(Base):
     nom: Mapped[str] = mapped_column(default="")
     mot_de_passe_hash: Mapped[str] = mapped_column()
     contribution_langues_locales: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    email_verifie: Mapped[bool] = mapped_column(Boolean, default=False)
+    code_verification: Mapped[str | None] = mapped_column(nullable=True)
+    code_verification_expire: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    code_reinitialisation: Mapped[str | None] = mapped_column(nullable=True)
+    code_reinitialisation_expire: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    est_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    credits: Mapped[float] = mapped_column(default=0)
+    forfait_actuel: Mapped[str | None] = mapped_column(nullable=True)
+
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -50,6 +61,14 @@ class Corpus(Base):
     proprietaire_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"))
     code_invitation: Mapped[str] = mapped_column(unique=True, index=True)
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+    analyse_statut: Mapped[str | None] = mapped_column(nullable=True)
+    analyse: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    analyse_erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
+    analyse_contexte: Mapped[str | None] = mapped_column(nullable=True)
+    analyse_methode: Mapped[str | None] = mapped_column(nullable=True)
+    analyse_modele: Mapped[str | None] = mapped_column(nullable=True)
+    analyse_nb_entretiens: Mapped[int | None] = mapped_column(nullable=True)
 
 
 class MembreCorpus(Base):
@@ -80,6 +99,7 @@ class Entretien(Base):
     analyse_erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
     analyse_contexte: Mapped[str | None] = mapped_column(nullable=True)
     analyse_modele: Mapped[str | None] = mapped_column(nullable=True)
+    analyse_methode: Mapped[str | None] = mapped_column(nullable=True)
 
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -92,6 +112,28 @@ class Codage(Base):
     utilisateur_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
     segment_index: Mapped[int] = mapped_column()
     code: Mapped[str] = mapped_column()  # libellé de thème choisi par le codeur
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Forfait(Base):
+    """Catalogue des forfaits payants, gérable par l'administrateur."""
+    __tablename__ = "forfaits"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    nom: Mapped[str] = mapped_column()
+    prix_fcfa: Mapped[int] = mapped_column(default=0)
+    credits_inclus: Mapped[float] = mapped_column(default=0)
+    description: Mapped[str] = mapped_column(default="")
+    actif: Mapped[bool] = mapped_column(Boolean, default=True)
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MouvementCredit(Base):
+    """Journal des mouvements de crédits, pour la transparence et l'audit."""
+    __tablename__ = "mouvements_credit"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    utilisateur_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
+    delta: Mapped[float] = mapped_column()
+    motif: Mapped[str] = mapped_column(default="")
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -114,23 +156,73 @@ class ContributionLangue(Base):
 def init_db():
     Base.metadata.create_all(engine)
     _migrer_colonnes_manquantes()
+    _promouvoir_admin()
 
 
-def _migrer_colonnes_manquantes():
-    """Filet de sécurité léger : ajoute les colonnes créées après un premier déploiement
-    (create_all ne modifie jamais les tables existantes, seulement les nouvelles)."""
+ADMIN_EMAIL = "dosso.choilio@gmail.com"
+
+
+def _promouvoir_admin():
+    """S'assure que le compte administrateur du projet a toujours les droits admin
+    et un solde de crédits illimité en pratique — idempotent, sans effet si déjà fait."""
     from sqlalchemy import inspect, text
     inspecteur = inspect(engine)
     if "utilisateurs" not in inspecteur.get_table_names():
         return
-    colonnes = {c["name"] for c in inspecteur.get_columns("utilisateurs")}
-    if "contribution_langues_locales" not in colonnes:
-        with engine.connect() as conn:
-            defaut = "0" if DATABASE_URL.startswith("sqlite") else "false"
-            conn.execute(text(
-                f"ALTER TABLE utilisateurs ADD COLUMN contribution_langues_locales BOOLEAN DEFAULT {defaut}"
-            ))
-            conn.commit()
+    with engine.connect() as conn:
+        conn.execute(text(
+            "UPDATE utilisateurs SET est_admin = :vrai, email_verifie = :vrai "
+            "WHERE email = :email"
+        ), {"vrai": True, "email": ADMIN_EMAIL})
+        conn.commit()
+
+
+# Type SQL portable (SQLite + PostgreSQL) pour chaque colonne ajoutée après le
+# premier déploiement — create_all() ne modifie jamais les tables existantes.
+_COLONNES_ATTENDUES = {
+    "utilisateurs": {
+        "contribution_langues_locales": "BOOLEAN DEFAULT {bool_false}",
+        "email_verifie": "BOOLEAN DEFAULT {bool_false}",
+        "code_verification": "VARCHAR",
+        "code_verification_expire": "TIMESTAMP",
+        "code_reinitialisation": "VARCHAR",
+        "code_reinitialisation_expire": "TIMESTAMP",
+        "est_admin": "BOOLEAN DEFAULT {bool_false}",
+        "credits": "FLOAT DEFAULT 0",
+        "forfait_actuel": "VARCHAR",
+    },
+    "corpus": {
+        "analyse_statut": "VARCHAR",
+        "analyse": "{json_type}",
+        "analyse_erreur": "TEXT",
+        "analyse_contexte": "VARCHAR",
+        "analyse_methode": "VARCHAR",
+        "analyse_modele": "VARCHAR",
+        "analyse_nb_entretiens": "INTEGER",
+    },
+    "entretiens": {"analyse_methode": "VARCHAR"},
+}
+
+
+def _migrer_colonnes_manquantes():
+    """Filet de sécurité léger : ajoute les colonnes créées après un premier déploiement."""
+    from sqlalchemy import inspect, text
+    inspecteur = inspect(engine)
+    est_sqlite = DATABASE_URL.startswith("sqlite")
+    json_type = "JSON" if est_sqlite else "JSONB"
+    bool_false = "0" if est_sqlite else "false"
+
+    for table, colonnes in _COLONNES_ATTENDUES.items():
+        if table not in inspecteur.get_table_names():
+            continue
+        existantes = {c["name"] for c in inspecteur.get_columns(table)}
+        for nom, type_sql in colonnes.items():
+            if nom in existantes:
+                continue
+            type_sql = type_sql.format(json_type=json_type, bool_false=bool_false)
+            with engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {nom} {type_sql}"))
+                conn.commit()
 
 
 def get_session() -> Session:

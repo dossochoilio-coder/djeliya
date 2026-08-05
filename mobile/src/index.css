@@ -345,6 +345,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .verbatim:active { background: var(--nuit); }
 .verbatim-tc { font-style: normal; color: var(--or); font-size: 11.5px; flex-shrink: 0; margin-top: 1px; }
+.verbatim-source { font-style: normal; color: var(--ivoire-dim); font-size: 11.5px; }
+.verbatim-inerte { cursor: default; }
+.verbatim-inerte:active { background: var(--surface-2); }
 .analyse-texte-card { background: var(--surface); border: 1px solid var(--ligne); border-radius: 13px; padding: 14px 15px; }
 .analyse-texte-card.limites { border-color: rgba(228,176,74,0.35); }
 .analyse-texte { font-size: 13.5px; line-height: 1.6; color: var(--ivoire); margin: 0; }
@@ -357,6 +360,25 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .connexion-hero .brand-logo { height: 34px; }
 .connexion-tag { font-size: 13.5px; color: var(--ivoire-dim); max-width: 260px; }
+
+.champ-mdp { position: relative; }
+.champ-mdp .field-input { padding-right: 42px; }
+.mdp-oeil {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 34px; height: 34px; display: grid; place-items: center; color: var(--ivoire-dim); border-radius: 8px;
+}
+.mdp-oeil:active { background: var(--surface-2); }
+
+/* ---- Forfaits ---- */
+.forfait-card {
+  width: 100%; background: var(--surface); border: 1px solid var(--ligne); border-radius: 13px;
+  padding: 13px 14px; display: flex; flex-direction: column; gap: 4px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+}
+.forfait-head { display: flex; justify-content: space-between; align-items: baseline; }
+.forfait-nom { font-weight: 600; font-size: 15px; }
+.forfait-prix { font-weight: 700; color: var(--or); font-size: 14px; }
+.forfait-credits { font-size: 12.5px; color: var(--ivoire-dim); margin: 0; }
 
 /* ---- Carte compte ---- */
 .compte-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 13px; padding: 13px 14px; }

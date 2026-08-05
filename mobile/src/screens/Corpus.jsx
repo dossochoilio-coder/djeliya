@@ -1,13 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { STATUTS, fmtDate } from "../lib/constants.js";
+import AnalyseView from "../components/AnalyseView.jsx";
 
 const PALETTE = ["#E4B04A", "#7C9CF5", "#5FC6A8", "#D96D5F", "#C48FE0"];
 
-export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, showToast }) {
+export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, onLancerAnalyse, showToast }) {
   const [creation, setCreation] = useState(false);
   const [nom, setNom] = useState("");
   const [rejoindre, setRejoindre] = useState(false);
   const [code, setCode] = useState("");
+  const [vue, setVue] = useState("entretiens");
+
+  useEffect(() => { setVue("entretiens"); }, [selectedId]);
 
   const enrichis = useMemo(() => {
     return corpusList.map((c, i) => {
@@ -86,7 +90,22 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
             </button>
           )}
 
-          {selection.membres.length === 0 ? (
+          {selection.nbEntretiens >= 2 && (
+            <div className="vue-switch">
+              <button className={"vue-opt" + (vue === "entretiens" ? " vue-actif" : "")}
+                onClick={() => setVue("entretiens")}>Entretiens</button>
+              <button className={"vue-opt" + (vue === "analyse" ? " vue-actif" : "")}
+                onClick={() => setVue("analyse")}>Analyse transversale</button>
+            </div>
+          )}
+
+          {vue === "analyse" && selection.nbEntretiens >= 2 ? (
+            <AnalyseView
+              sujet={corpusDetail || {}}
+              methodes={methodes}
+              onLancer={onLancerAnalyse}
+            />
+          ) : selection.membres.length === 0 ? (
             <p className="note-banner">Aucun entretien dans ce corpus pour l'instant. Assigne-le depuis la fiche d'un entretien.</p>
           ) : (
             <ul className="interview-list flush">

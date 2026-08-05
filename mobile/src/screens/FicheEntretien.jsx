@@ -4,8 +4,9 @@ import { Filesystem, Directory } from "@capacitor/filesystem";
 import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
+import AnalyseView from "../components/AnalyseView.jsx";
 
-export default function FicheEntretien({ interview, corpusList, onRetour, onUpdate, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, showToast }) {
+export default function FicheEntretien({ interview, corpusList, methodes, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, showToast }) {
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -105,7 +106,7 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
     const segments = interview.segments.map((s, i) =>
       i === segIdx ? { ...s, texte: draft, corrige: true, mots: (s.mots || []).map((m) => ({ ...m, confiance: 1 })) } : s
     );
-    onUpdate({ ...interview, segments });
+    onCorrigerSegments(segments);
     setEditing(null);
     showToast("Segment corrigé");
     if (draft !== texteAvant) onContribuer?.(texteAvant, draft);
@@ -117,7 +118,7 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
       const mots = s.mots.map((m, j) => (j === motIdx ? { ...m, mot: nouveauMot, confiance: 1 } : m));
       return { ...s, mots, texte: mots.map((m) => m.mot).join(" ") };
     });
-    onUpdate({ ...interview, segments });
+    onCorrigerSegments(segments);
     if (nouveauMot !== motAvant) onContribuer?.(motAvant, nouveauMot);
   };
 
@@ -238,7 +239,7 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
         )}
 
         {vue === "analyse" && interview.statut === "termine" ? (
-          <AnalyseView interview={interview} onLancer={onLancerAnalyse} onSeek={seek} />
+          <AnalyseView sujet={interview} methodes={methodes} onLancer={onLancerAnalyse} onSeek={seek} />
         ) : vue === "codage" && interview.statut === "termine" ? null : (
         <>
         {audioUrl && (
@@ -349,105 +350,6 @@ export default function FicheEntretien({ interview, corpusList, onRetour, onUpda
   );
 }
 
-function AnalyseView({ interview, onLancer, onSeek }) {
-  const [contexte, setContexte] = useState("");
-  const [dimOuverte, setDimOuverte] = useState(0);
-
-  const statut = interview.analyse_statut;
-  const a = interview.analyse;
-
-  if (!statut || statut === "erreur") {
-    return (
-      <div className="analyse-intro">
-        <p className="section-intro">
-          Codage thématique inductif automatique selon la méthode de structuration des données de
-          Gioia, Corley &amp; Hamilton (2013) : concepts de premier ordre → thèmes de second ordre → dimensions agrégées.
-        </p>
-        <label className="field">
-          <span className="field-label">Question de recherche ou angle d'analyse (facultatif)</span>
-          <input className="field-input" value={contexte} onChange={(e) => setContexte(e.target.value)}
-            placeholder="Ex. Comment les commerçantes financent-elles leur activité ?" />
-        </label>
-        {statut === "erreur" && (
-          <p className="note-banner err">Échec de l'analyse : {interview.analyse_erreur || "erreur inconnue"}</p>
-        )}
-        <button className="btn primary full" onClick={() => onLancer(contexte)}>
-          Lancer l'analyse qualitative
-        </button>
-      </div>
-    );
-  }
-
-  if (statut === "en_cours") {
-    return (
-      <div className="pending-card">
-        <span className="spinner" />
-        Analyse en cours (30 à 90 secondes)…
-      </div>
-    );
-  }
-
-  if (!a) return null;
-
-  const themesParNom = Object.fromEntries((a.second_ordre || []).map((t) => [t.theme, t]));
-  const conceptsParNom = Object.fromEntries((a.premier_ordre || []).map((c) => [c.concept, c]));
-
-  return (
-    <div className="analyse">
-      <p className="analyse-methode">
-        Méthode Gioia et al. (2013) · modèle {interview.analyse_modele || "IA"}
-        {interview.analyse_contexte ? ` · angle : ${interview.analyse_contexte}` : ""}
-      </p>
-
-      {(a.dimensions_agregees || []).map((dim, di) => (
-        <div key={dim.dimension} className="dim-card">
-          <button className="dim-head" onClick={() => setDimOuverte(dimOuverte === di ? -1 : di)}>
-            <span className="dim-nom">{dim.dimension}</span>
-            <span className="dim-chevron">{dimOuverte === di ? "−" : "+"}</span>
-          </button>
-          {dimOuverte === di && (
-            <div className="dim-body">
-              {(dim.themes_lies || []).map((nomTheme) => {
-                const theme = themesParNom[nomTheme];
-                if (!theme) return null;
-                return (
-                  <div key={nomTheme} className="theme-block">
-                    <div className="theme-nom">{theme.theme}</div>
-                    {theme.description && <p className="theme-desc">{theme.description}</p>}
-                    {(theme.concepts_lies || []).map((nomConcept) => {
-                      const concept = conceptsParNom[nomConcept];
-                      if (!concept) return null;
-                      return (
-                        <div key={nomConcept} className="concept-block">
-                          <div className="concept-nom">{concept.concept}</div>
-                          {(concept.verbatims || []).map((v, vi) => (
-                            <button key={vi} className="verbatim" onClick={() => onSeek(v.debut)}>
-                              <span className="verbatim-tc mono">{fmtTime(v.debut)}</span>
-                              « {v.texte} »
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ))}
-
-      <div className="analyse-texte-card">
-        <h3 className="subsection-title">Synthèse interprétative</h3>
-        <p className="analyse-texte">{a.synthese}</p>
-      </div>
-      <div className="analyse-texte-card limites">
-        <h3 className="subsection-title">Limites de l'analyse automatique</h3>
-        <p className="analyse-texte">{a.limites}</p>
-      </div>
-    </div>
-  );
-}
 function CodageView({ interview, onEnregistrer, onLister, onFiabilite, onSeek }) {
   const [codages, setCodages] = useState(null);
   const [brouillon, setBrouillon] = useState({});

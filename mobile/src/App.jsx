@@ -10,6 +10,8 @@ import Glossaire from "./screens/Glossaire.jsx";
 import NouvelEntretien from "./screens/NouvelEntretien.jsx";
 import FicheEntretien from "./screens/FicheEntretien.jsx";
 import Reglages from "./screens/Reglages.jsx";
+import Forfaits from "./screens/Forfaits.jsx";
+import Admin from "./screens/Admin.jsx";
 import TabBar from "./components/TabBar.jsx";
 
 import {
@@ -18,9 +20,9 @@ import {
   putAudioBlob, getAudioBlob, deleteAudioBlob, newId,
 } from "./lib/db.js";
 import {
-  checkHealth, createTranscription, getTranscription, lancerAnalyse,
-  creerCorpusDistant, listerCorpusDistant, rejoindreCorpus,
-  enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution,
+  checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegments,
+  creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
+  enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, moi,
 } from "./lib/api.js";
 import { fmtTime } from "./lib/constants.js";
 
@@ -29,6 +31,8 @@ export default function App() {
   const [interviews, setInterviews] = useState(() => loadInterviews());
   const [settings, setSettings] = useState(() => loadSettings());
   const [corpusList, setCorpusList] = useState([]);
+  const [corpusDetail, setCorpusDetail] = useState(null);
+  const [methodes, setMethodes] = useState({});
   const [glossaire, setGlossaire] = useState(() => loadGlossaire());
 
   const [tab, setTab] = useState("accueil");
@@ -70,6 +74,10 @@ export default function App() {
   }, [settings.backendUrl]);
   useEffect(() => { verifierServeur(); }, [verifierServeur]);
 
+  useEffect(() => {
+    if (settings.backendUrl) fetchMethodes(settings.backendUrl).then((m) => m && setMethodes(m));
+  }, [settings.backendUrl]);
+
   /* Charger les corpus distants une fois connecté */
   const rafraichirCorpus = useCallback(async () => {
     if (!auth) return;
@@ -102,6 +110,7 @@ export default function App() {
     if (!enAttente || pollingRef.current) return;
     pollingRef.current = true;
     const it = setInterval(async () => {
+      rafraichirUtilisateur();
       const cibles = interviews.filter((i) =>
         i.statut === "en_attente" || i.statut === "en_cours" || i.analyse_statut === "en_cours"
       );
@@ -145,6 +154,7 @@ export default function App() {
         blob, filename: `${id}.webm`, langue, vocabulaire, corpusId, titre,
       });
       setInterviews((prev) => prev.map((x) => x.id === id ? { ...x, jobId, statut: "en_attente" } : x));
+      rafraichirUtilisateur();
     } catch (e) {
       setInterviews((prev) => prev.map((x) => x.id === id ? { ...x, statut: "erreur", erreur: e.message } : x));
       showToast("Échec de l'envoi : " + e.message);
@@ -153,6 +163,17 @@ export default function App() {
 
   const majEntretien = (updated) => {
     setInterviews((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated, duree: updated.dureeSec ? fmtTime(updated.dureeSec) : x.duree } : x)));
+  };
+
+  /* Corrections de transcription : appliquées localement tout de suite, puis
+     persistées sur le serveur pour ne plus jamais être écrasées par un sondage. */
+  const corrigerSegments = async (interview, segments) => {
+    majEntretien({ ...interview, segments });
+    try {
+      await enregistrerSegments(settings.backendUrl, auth.token, interview.jobId, segments);
+    } catch (e) {
+      showToast("Correction gardée sur ce téléphone, mais pas encore synchronisée : " + e.message);
+    }
   };
 
   const relancerEntretien = async (interview) => {
@@ -171,10 +192,11 @@ export default function App() {
     }
   };
 
-  const lancerAnalyseEntretien = async (interview, contexte) => {
+  const lancerAnalyseEntretien = async (interview, contexte, methode) => {
     setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "en_cours", analyse_erreur: null } : x));
     try {
-      await lancerAnalyse(settings.backendUrl, auth.token, interview.jobId, contexte);
+      await lancerAnalyse(settings.backendUrl, auth.token, interview.jobId, contexte, methode);
+      rafraichirUtilisateur();
     } catch (e) {
       setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "erreur", analyse_erreur: e.message } : x));
       showToast("Échec du lancement de l'analyse : " + e.message);
@@ -204,6 +226,35 @@ export default function App() {
     showToast("Corpus rejoint");
   };
 
+  /* Charger le détail (dont l'analyse) du corpus sélectionné */
+  useEffect(() => {
+    if (!corpusSelectionne || !auth) { setCorpusDetail(null); return; }
+    detailCorpus(settings.backendUrl, auth.token, corpusSelectionne).then(setCorpusDetail).catch(() => {});
+  }, [corpusSelectionne, auth, settings.backendUrl]);
+
+  /* Sondage de l'analyse de corpus en cours */
+  useEffect(() => {
+    if (!corpusDetail || corpusDetail.analyse_statut !== "en_cours") return;
+    const it = setInterval(async () => {
+      try {
+        const d = await detailCorpus(settings.backendUrl, auth.token, corpusSelectionne);
+        setCorpusDetail(d);
+        if (d.analyse_statut !== "en_cours") clearInterval(it);
+      } catch { /* nouvel essai au prochain intervalle */ }
+    }, 4000);
+    return () => clearInterval(it);
+  }, [corpusDetail, corpusSelectionne, auth, settings.backendUrl]);
+
+  const lancerAnalyseCorpusHandler = async (contexte, methode) => {
+    setCorpusDetail((prev) => ({ ...prev, analyse_statut: "en_cours", analyse_erreur: null }));
+    try {
+      await lancerAnalyseCorpus(settings.backendUrl, auth.token, corpusSelectionne, contexte, methode);
+    } catch (e) {
+      setCorpusDetail((prev) => ({ ...prev, analyse_statut: "erreur", analyse_erreur: e.message }));
+      showToast("Échec du lancement : " + e.message);
+    }
+  };
+
   const ajouterGlossaire = ({ terme, sens }) => {
     setGlossaire((prev) => [...prev, { id: newId(), terme, sens }]);
     showToast("Terme ajouté au glossaire");
@@ -214,6 +265,13 @@ export default function App() {
     const nouvelAuth = { ...auth, utilisateur };
     saveAuth(nouvelAuth);
     setAuth(nouvelAuth);
+  };
+
+  const rafraichirUtilisateur = async () => {
+    try {
+      const u = await moi(settings.backendUrl, auth.token);
+      majUtilisateur(u);
+    } catch { /* pas grave si ça échoue, l'affichage se remettra à jour au prochain appel */ }
   };
 
   const contribuerCorrection = async (langue, texteOriginal, texteCorrige) => {
@@ -255,11 +313,13 @@ export default function App() {
       <FicheEntretien
         interview={interview}
         corpusList={corpusList}
+        methodes={methodes}
         onRetour={retour}
         onUpdate={majEntretien}
+        onCorrigerSegments={(segments) => corrigerSegments(interview, segments)}
         onSupprimer={supprimerEntretien}
         onRelancer={() => relancerEntretien(interview)}
-        onLancerAnalyse={(contexte) => lancerAnalyseEntretien(interview, contexte)}
+        onLancerAnalyse={(contexte, methode) => lancerAnalyseEntretien(interview, contexte, methode)}
         onEnregistrerCodage={(segIdx, code) => enregistrerCodage(settings.backendUrl, auth.token, interview.jobId, segIdx, code)}
         onListerCodages={() => listerCodages(settings.backendUrl, auth.token, interview.jobId)}
         onFiabilite={() => fiabiliteInterCodeurs(settings.backendUrl, auth.token, interview.jobId)}
@@ -268,6 +328,16 @@ export default function App() {
       />
     ) : (
       <div className="screen"><div className="content"><p>Entretien introuvable.</p></div></div>
+    );
+  } else if (current.screen === "forfaits") {
+    overlay = (
+      <Forfaits settings={settings} utilisateur={auth.utilisateur} onRetour={retour} />
+    );
+  } else if (current.screen === "admin") {
+    overlay = auth.utilisateur.est_admin ? (
+      <Admin settings={settings} token={auth.token} onRetour={retour} showToast={showToast} />
+    ) : (
+      <div className="screen"><div className="content"><p>Accès réservé.</p></div></div>
     );
   }
 
@@ -288,10 +358,13 @@ export default function App() {
         corpusList={corpusList}
         interviews={interviews}
         selectedId={corpusSelectionne}
+        corpusDetail={corpusDetail}
+        methodes={methodes}
         onSelectCorpus={setCorpusSelectionne}
         onCreer={creerCorpus}
         onRejoindre={rejoindreCorpusHandler}
         onOpenInterview={(id) => push("fiche", id)}
+        onLancerAnalyse={lancerAnalyseCorpusHandler}
         showToast={showToast}
       />
     );
@@ -313,6 +386,8 @@ export default function App() {
         onSave={(s) => { setSettings(s); verifierServeur(); }}
         onDeconnexion={seDeconnecter}
         onMajUtilisateur={majUtilisateur}
+        onOuvrirForfaits={() => push("forfaits")}
+        onOuvrirAdmin={() => push("admin")}
         showToast={showToast}
       />
     );

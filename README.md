@@ -25,11 +25,13 @@ git push -u origin main
 
 ## Fonctionnalités de l'application
 
-- **Comptes et sécurité** : chaque chercheur a son compte (e-mail + mot de passe), les entretiens sont rattachés à leur propriétaire, l'accès aux corpus partagés est vérifié à chaque requête.
+- **Comptes et sécurité** : chaque chercheur a son compte (e-mail + mot de passe), avec vérification d'adresse e-mail par code et récupération de mot de passe oublié. Le compte `dosso.choilio@gmail.com` est automatiquement administrateur, avec accès illimité.
+- **Crédits et forfaits** : chaque transcription/analyse consomme des crédits (remboursés automatiquement en cas d'échec) ; un crédit d'essai gratuit est offert à l'inscription. L'administrateur peut ajuster les crédits de n'importe quel utilisateur et gérer un catalogue de forfaits payants. **Important** : aucune passerelle de paiement réelle (Stripe, Mobile Money...) n'est intégrée — le flux actuel est une confirmation manuelle par l'admin après réception d'un paiement hors application (Mobile Money, virement), ce qui est une pratique de démarrage courante mais nécessite une intégration dédiée pour un paiement automatisé.
 - **Persistance réelle** : transcriptions, analyses et codages sont stockés dans PostgreSQL — ils survivent aux redémarrages et redéploiements du serveur (voir configuration Railway ci-dessous).
 - **Corpus d'équipe** : crée un corpus, partage son code d'invitation avec tes collègues, codez ensemble les mêmes entretiens.
 - **Diarisation des locuteurs** (facultative) : distingue automatiquement qui parle dans la transcription.
-- **Analyse qualitative (méthode Gioia)** : codage thématique inductif automatique — concepts de premier ordre, thèmes de second ordre, dimensions agrégées — avec verbatims horodatés cliquables, synthèse interprétative et limites méthodologiques explicites.
+- **Analyse qualitative multi-méthodologies** : trois méthodes reconnues au choix — Gioia et al. (structuration à 3 niveaux), analyse thématique réflexive (Braun & Clarke), analyse de contenu catégorielle (Bardin) — avec, pour chacune, une démarche méthodologique de niveau doctoral générée explicitement (positionnement épistémologique, justification, procédure suivie), des verbatims horodatés cliquables, une synthèse interprétative et les limites méthodologiques.
+- **Analyse transversale de corpus** : au-delà d'un entretien, analyse conjointe de tous les entretiens terminés d'un même corpus (minimum 2), avec attribution de chaque verbatim à son entretien d'origine et commentaire sur la convergence/divergence entre cas et la saturation théorique.
 - **Codage collaboratif et fiabilité inter-codeurs** : chaque chercheur code les segments indépendamment ; l'app calcule le kappa de Cohen entre codeurs, un indicateur de rigueur attendu en recherche qualitative.
 - **Écran d'accueil** : liste réelle des entretiens (recherche, statut, date), bouton flottant pour en démarrer un nouveau.
 - **Enregistrement natif** : dictaphone intégré avec vumètre réactif au micro réel, ou import d'un fichier audio existant.
@@ -90,13 +92,26 @@ Chaque poussée sur `main` redéploie le serveur automatiquement.
 | `GET` | `/api/languages` | Langues disponibles |
 | `POST` | `/api/auth/inscription` | Créer un compte |
 | `POST` | `/api/auth/connexion` | Se connecter (retourne un jeton) |
-| `GET` | `/api/auth/moi` | Profil du compte connecté |
+| `GET` | `/api/auth/moi` | Profil du compte connecté (dont crédits, forfait) |
+| `POST` | `/api/auth/verifier-email` | Valider le code de vérification reçu par e-mail |
+| `POST` | `/api/auth/renvoyer-code` | Renvoyer un code de vérification |
+| `POST` | `/api/auth/mot-de-passe-oublie` | Demander un code de réinitialisation |
+| `POST` | `/api/auth/reinitialiser-mot-de-passe` | Définir un nouveau mot de passe avec le code reçu |
+| `GET` | `/api/forfaits` | Catalogue public des forfaits actifs |
+| `GET` | `/api/admin/utilisateurs` | *(admin)* Lister tous les comptes |
+| `POST` | `/api/admin/utilisateurs/{id}/credits` | *(admin)* Ajuster le solde de crédits d'un utilisateur |
+| `POST` | `/api/admin/utilisateurs/{id}/attribuer-forfait` | *(admin)* Activer un forfait pour un utilisateur |
+| `POST` | `/api/admin/forfaits` | *(admin)* Créer un forfait |
+| `GET` | `/api/methodes` | Méthodologies d'analyse disponibles |
 | `POST` | `/api/corpus` | Créer un corpus (retourne un code d'invitation) |
 | `GET` | `/api/corpus` | Lister mes corpus |
+| `GET` | `/api/corpus/{id}` | Détail d'un corpus, dont son analyse transversale |
 | `POST` | `/api/corpus/rejoindre` | Rejoindre un corpus via son code |
+| `POST` | `/api/corpus/{id}/analyser` | Lancer l'analyse transversale du corpus (≥ 2 entretiens terminés) |
 | `POST` | `/api/transcriptions` | Envoi d'un audio |
 | `GET` | `/api/transcriptions` | Lister mes entretiens (et ceux de mes corpus) |
 | `GET` | `/api/transcriptions/{id}` | Détail : segments, locuteurs, analyse |
+| `POST` | `/api/transcriptions/{id}/segments` | Persister une correction manuelle de transcription |
 | `POST` | `/api/transcriptions/{id}/analyser` | Lancer l'analyse qualitative |
 | `POST` | `/api/transcriptions/{id}/codages` | Enregistrer mon codage d'un segment |
 | `GET` | `/api/transcriptions/{id}/fiabilite` | Kappa de Cohen entre codeurs |

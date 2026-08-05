@@ -59,7 +59,7 @@ export async function inscription(backendUrl, { email, motDePasse, nom }) {
     body: JSON.stringify({ email, mot_de_passe: motDePasse, nom: nom || "" }),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
-  return res.json(); // { token, utilisateur }
+  return res.json(); // { token, utilisateur, email_envoye }
 }
 
 export async function connexion(backendUrl, { email, motDePasse }) {
@@ -68,6 +68,124 @@ export async function connexion(backendUrl, { email, motDePasse }) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, mot_de_passe: motDePasse }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function moi(backendUrl, token) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/moi`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function verifierEmail(backendUrl, { email, code }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/verifier-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function renvoyerCode(backendUrl, email) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/renvoyer-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function motDePasseOublie(backendUrl, email) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/mot-de-passe-oublie`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function reinitialiserMotDePasse(backendUrl, { email, code, nouveauMotDePasse }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/auth/reinitialiser-mot-de-passe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, nouveau_mot_de_passe: nouveauMotDePasse }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+/* ---------------- Forfaits ---------------- */
+
+export async function listerForfaits(backendUrl) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/forfaits`);
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+/* ---------------- Administration ---------------- */
+
+export async function adminListerUtilisateurs(backendUrl, token) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/utilisateurs`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminAjusterCredits(backendUrl, token, utilisateurId, delta, motif) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/utilisateurs/${utilisateurId}/credits`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ delta, motif: motif || "" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminMouvements(backendUrl, token, utilisateurId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/utilisateurs/${utilisateurId}/mouvements`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminAttribuerForfait(backendUrl, token, utilisateurId, forfaitId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/utilisateurs/${utilisateurId}/attribuer-forfait`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ forfait_id: forfaitId }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminCreerForfait(backendUrl, token, { nom, prixFcfa, creditsInclus, description }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/forfaits`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ nom, prix_fcfa: prixFcfa, credits_inclus: creditsInclus, description: description || "" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function adminDesactiverForfait(backendUrl, token, forfaitId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/admin/forfaits/${forfaitId}/desactiver`, {
+    method: "POST", headers: headersAuth(token),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json();
@@ -111,6 +229,24 @@ export async function membresCorpus(backendUrl, token, corpusId) {
   return res.json();
 }
 
+export async function detailCorpus(backendUrl, token, corpusId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/corpus/${corpusId}`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function lancerAnalyseCorpus(backendUrl, token, corpusId, contexte, methode) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/corpus/${corpusId}/analyser`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ contexte: contexte || "", methode: methode || "gioia" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 /* ---------------- Transcriptions ---------------- */
 
 export async function createTranscription(backendUrl, token, { blob, filename, langue, vocabulaire, corpusId, titre }) {
@@ -140,12 +276,31 @@ export async function getTranscription(backendUrl, token, jobId) {
   return res.json();
 }
 
-export async function lancerAnalyse(backendUrl, token, jobId, contexte) {
+export async function fetchMethodes(backendUrl) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/methodes`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function lancerAnalyse(backendUrl, token, jobId, contexte, methode) {
   const base = clean(backendUrl);
   const form = new FormData();
   form.append("contexte", contexte || "");
+  form.append("methode", methode || "gioia");
   const res = await fetch(`${base}/api/transcriptions/${jobId}/analyser`, {
     method: "POST", body: form, headers: headersAuth(token),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function enregistrerSegments(backendUrl, token, jobId, segments) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/transcriptions/${jobId}/segments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ segments }),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json();
