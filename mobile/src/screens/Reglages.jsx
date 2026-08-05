@@ -1,11 +1,35 @@
-import { useState } from "react";
-import { checkHealth } from "../lib/api.js";
+import { useEffect, useState } from "react";
+import { checkHealth, majPreferences, nombreContributions } from "../lib/api.js";
 import { LANGS } from "../lib/constants.js";
 import logo from "../assets/logo-full.png";
 
-export default function Reglages({ settings, onSave, showToast }) {
+export default function Reglages({ settings, utilisateur, token, onSave, onDeconnexion, onMajUtilisateur, showToast }) {
   const [form, setForm] = useState(settings);
   const [test, setTest] = useState(null); // null | "en_cours" | {ok, ...}
+  const [nbContrib, setNbContrib] = useState(null);
+  const [enregistrementPref, setEnregistrementPref] = useState(false);
+
+  useEffect(() => {
+    if (!utilisateur) return;
+    nombreContributions(settings.backendUrl, token)
+      .then((r) => setNbContrib(r.nombre))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const basculerContribution = async () => {
+    setEnregistrementPref(true);
+    try {
+      const nouvelleValeur = !utilisateur.contribution_langues_locales;
+      await majPreferences(settings.backendUrl, token, nouvelleValeur);
+      onMajUtilisateur({ ...utilisateur, contribution_langues_locales: nouvelleValeur });
+      showToast(nouvelleValeur ? "Contribution activée — merci !" : "Contribution désactivée");
+    } catch (e) {
+      showToast("Échec : " + e.message);
+    } finally {
+      setEnregistrementPref(false);
+    }
+  };
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -27,6 +51,40 @@ export default function Reglages({ settings, onSave, showToast }) {
       </header>
 
       <div className="content">
+        {utilisateur && (
+          <div className="compte-card">
+            <div className="compte-avatar">{(utilisateur.nom || utilisateur.email)[0].toUpperCase()}</div>
+            <div className="compte-info">
+              <span className="compte-nom">{utilisateur.nom || "Chercheur"}</span>
+              <span className="compte-email">{utilisateur.email}</span>
+            </div>
+            <button className="link-btn" onClick={onDeconnexion}>Déconnexion</button>
+          </div>
+        )}
+
+        {utilisateur && (
+          <div className="contrib-card">
+            <div className="contrib-head">
+              <span className="field-label">Contribuer aux langues locales</span>
+              <button className={"toggle" + (utilisateur.contribution_langues_locales ? " on" : "")}
+                onClick={basculerContribution} disabled={enregistrementPref}
+                role="switch" aria-checked={utilisateur.contribution_langues_locales}>
+                <span className="toggle-knob" />
+              </button>
+            </div>
+            <p className="field-help">
+              Si activé, tes corrections manuelles sur des segments en dioula ou en baoulé sont
+              envoyées de façon sécurisée pour servir de données d'entraînement à un futur modèle
+              plus fiable dans ces langues. Aucun réentraînement automatique n'a lieu — c'est un
+              travail humain et scientifique distinct (voir la stratégie langues locales du projet).
+              Désactivable à tout moment.
+            </p>
+            {nbContrib !== null && nbContrib > 0 && (
+              <p className="contrib-count">{nbContrib} correction{nbContrib > 1 ? "s" : ""} envoyée{nbContrib > 1 ? "s" : ""} jusqu'ici — merci !</p>
+            )}
+          </div>
+        )}
+
         <label className="field">
           <span className="field-label">Adresse du serveur Djeliya</span>
           <input className="field-input mono" value={form.backendUrl}
@@ -42,7 +100,7 @@ export default function Reglages({ settings, onSave, showToast }) {
         {test && test !== "en_cours" && (
           <p className={"note-banner" + (test.ok ? " ok" : " err")}>
             {test.ok
-              ? `Connecté — modèle « ${test.data.model} »`
+              ? `Connecté — modèle « ${test.data.model} » · analyse ${test.data.analyse_disponible ? "activée" : "non configurée"} · diarisation ${test.data.diarisation_disponible ? "activée" : "non configurée"}`
               : `Échec : ${test.erreur}`}
           </p>
         )}
