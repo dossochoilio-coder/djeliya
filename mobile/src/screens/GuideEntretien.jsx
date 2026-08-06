@@ -46,6 +46,13 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
     }
   };
 
+  const relancer = (g) => {
+    setTheme(g.theme || "");
+    setQuestion(g.question_recherche || "");
+    setSelection(null);
+    setFormulaire(true);
+  };
+
   const supprimer = async (id) => {
     try {
       await supprimerGuide(settings.backendUrl, token, id);
@@ -140,9 +147,14 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
               )}
 
               <button className="btn primary full" onClick={() => exporter(selection.id)}>{t("guide.exporterWord")}</button>
-              <button className="link-btn" style={{ color: "#D96D5F" }} onClick={() => supprimer(selection.id)}>{t("guide.supprimer")}</button>
             </>
           )}
+
+          {selection.statut === "erreur" && (
+            <button className="btn ghost full" onClick={() => relancer(selection)}>{t("guide.relancer")}</button>
+          )}
+
+          <button className="link-btn" style={{ color: "#D96D5F" }} onClick={() => supprimer(selection.id)}>{t("guide.supprimer")}</button>
         </div>
       </div>
     );
@@ -192,7 +204,7 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
         ) : (
           <ul className="interview-list flush">
             {guides.map((gd) => (
-              <li key={gd.id}>
+              <li key={gd.id} className="guide-row-avec-action">
                 <button className="interview-row" onClick={() => setSelection(gd)}>
                   <div className="row-main">
                     <span className="row-title">{gd.guide?.titre || gd.theme}</span>
@@ -205,6 +217,8 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
                     {t(`statuts.${gd.statut === "en_cours" ? "en_cours" : gd.statut === "erreur" ? "erreur" : "termine"}`)}
                   </span>
                 </button>
+                <button className="icon-btn sm" aria-label={t("guide.supprimer")}
+                  onClick={(e) => { e.stopPropagation(); supprimer(gd.id); }}>✕</button>
               </li>
             ))}
           </ul>

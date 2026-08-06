@@ -467,7 +467,7 @@ def _run_guide(guide_id: str, theme: str, question_recherche: str, langue: str, 
         prompt = _construire_prompt_guide(theme, question_recherche, langue)
         resp = client.messages.create(
             model=ANALYSE_MODEL,
-            max_tokens=6000,
+            max_tokens=8000,
             messages=[{"role": "user", "content": prompt}],
         )
         texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")

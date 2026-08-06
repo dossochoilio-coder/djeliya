@@ -22,9 +22,6 @@ export default function Accueil({ interviews, onOpen, onNouveau, onOuvrirGuides,
           {Array.from({ length: 7 }).map((_, i) => <span key={i} />)}
         </span>
         <img src={logo} alt="Djeliya" className="brand-logo" />
-        <button className="icon-btn guide-entry" onClick={onOuvrirGuides} aria-label={t("guide.titre")}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 3.5h10a1 1 0 0 1 1 1v11.2l-1.5-.9-1.5.9-1.5-.9-1.5.9-1.5-.9-1.5.9V4.5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /><path d="M7.3 7.3h5.4M7.3 10h5.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
-        </button>
       </header>
 
       {backendOk === false && (
@@ -35,6 +32,17 @@ export default function Accueil({ interviews, onOpen, onNouveau, onOuvrirGuides,
         <input className="search" type="search" placeholder={t("accueil.rechercher")}
           value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
+
+      <button className="guide-card" onClick={onOuvrirGuides}>
+        <span className="guide-card-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none"><path d="M5 3.5h10a1 1 0 0 1 1 1v11.2l-1.5-.9-1.5.9-1.5-.9-1.5.9-1.5-.9-1.5.9V4.5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /><path d="M7.3 7.3h5.4M7.3 10h5.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+        </span>
+        <span className="guide-card-texte">
+          <span className="guide-card-titre">{t("guide.accueilBouton")}</span>
+          <span className="guide-card-sous">{t("guide.videSous")}</span>
+        </span>
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="guide-card-chevron"><path d="M7.5 15 13 10 7.5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
 
       {filtres.length === 0 ? (
         <div className="empty">
