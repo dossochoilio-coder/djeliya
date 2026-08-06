@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { STATUTS, fmtDate } from "../lib/constants.js";
+import { useT } from "../lib/i18n.js";
 import AnalyseView from "../components/AnalyseView.jsx";
 
 const PALETTE = ["#E4B04A", "#7C9CF5", "#5FC6A8", "#D96D5F", "#C48FE0"];
 
 export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, onLancerAnalyse, onExporterDocx, onExporterXlsx, showToast }) {
+  const { t } = useT();
   const [creation, setCreation] = useState(false);
   const [nom, setNom] = useState("");
   const [rejoindre, setRejoindre] = useState(false);
@@ -50,7 +52,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
       setCode("");
       setRejoindre(false);
     } catch (e) {
-      showToast(e.message || "Code invalide");
+      showToast(e.message || "");
     }
   };
 
@@ -70,41 +72,40 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
           <div className="stat-strip">
             <div className="stat-chip">
               <span className="stat-num" style={{ color: selection.couleur }}>{selection.nbEntretiens}</span>
-              <span className="stat-label">entretien{selection.nbEntretiens > 1 ? "s" : ""}</span>
+              <span className="stat-label">{selection.nbEntretiens > 1 ? t("corpus.entretiensMot") : t("corpus.entretien")}</span>
             </div>
             <div className="stat-chip">
               <span className="stat-num" style={{ color: selection.couleur }}>{selection.dureeMin}</span>
-              <span className="stat-label">minutes au total</span>
+              <span className="stat-label">{t("corpus.minutes")}</span>
             </div>
             <div className="stat-chip">
               <span className="stat-num" style={{ color: selection.couleur }}>{selection.nb_membres}</span>
-              <span className="stat-label">chercheur{selection.nb_membres > 1 ? "s" : ""}</span>
+              <span className="stat-label">{selection.nb_membres > 1 ? t("corpus.chercheurs") : t("corpus.chercheur")}</span>
             </div>
           </div>
 
           {selection.nbEntretiens > selection.nbTermines && (
             <p className="field-help">
-              {selection.nbTermines} sur {selection.nbEntretiens} entretien{selection.nbEntretiens > 1 ? "s" : ""} réellement
-              terminé{selection.nbTermines > 1 ? "s" : ""} — seuls ceux-ci comptent pour l'analyse transversale.
+              {selection.nbTermines} {t("corpus.termines")} {selection.nbEntretiens} {t("corpus.reellementTermines")}
             </p>
           )}
 
           {selection.code_invitation && (
             <button className="corpus-inline" onClick={() => {
               navigator.clipboard.writeText(selection.code_invitation);
-              showToast("Code copié — partage-le à ton équipe");
+              showToast(t("corpus.codeCopie"));
             }}>
-              Code d'invitation : <span className="mono">{selection.code_invitation}</span>
-              <span className="corpus-inline-edit">copier</span>
+              {t("corpus.codeInvitation")} : <span className="mono">{selection.code_invitation}</span>
+              <span className="corpus-inline-edit">{t("corpus.copier")}</span>
             </button>
           )}
 
           {selection.nbTermines >= 2 && (
             <div className="vue-switch">
               <button className={"vue-opt" + (vue === "entretiens" ? " vue-actif" : "")}
-                onClick={() => setVue("entretiens")}>Entretiens</button>
+                onClick={() => setVue("entretiens")}>{t("corpus.entretiensOnglet")}</button>
               <button className={"vue-opt" + (vue === "analyse" ? " vue-actif" : "")}
-                onClick={() => setVue("analyse")}>Analyse transversale</button>
+                onClick={() => setVue("analyse")}>{t("corpus.analyseTransversale")}</button>
             </div>
           )}
 
@@ -118,14 +119,14 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
               {corpusDetail?.analyse_statut === "termine" && (
                 <div className="field-inline">
                   <button className="btn ghost sm" style={{ flex: 1 }}
-                    onClick={() => onExporterDocx(selection.id, selection.nom)}>Exporter en Word</button>
+                    onClick={() => onExporterDocx(selection.id, selection.nom)}>{t("corpus.exporterWord")}</button>
                   <button className="btn ghost sm" style={{ flex: 1 }}
-                    onClick={() => onExporterXlsx(selection.id, selection.nom)}>Exporter en Excel</button>
+                    onClick={() => onExporterXlsx(selection.id, selection.nom)}>{t("corpus.exporterExcel")}</button>
                 </div>
               )}
             </>
           ) : selection.membres.length === 0 ? (
-            <p className="note-banner">Aucun entretien dans ce corpus pour l'instant. Assigne-le depuis la fiche d'un entretien.</p>
+            <p className="note-banner">{t("corpus.aucunEntretien")}</p>
           ) : (
             <ul className="interview-list flush">
               {selection.membres.map((iv) => {
@@ -137,7 +138,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
                         <span className="row-title">{iv.titre}</span>
                         <span className="row-meta">{fmtDate(iv.creeLe)}{iv.duree ? ` · ${iv.duree}` : ""}</span>
                       </div>
-                      <span className="status-pill" style={{ color: st.color, borderColor: st.color }}>{st.label}</span>
+                      <span className="status-pill" style={{ color: st.color, borderColor: st.color }}>{t(`statuts.${iv.statut}`)}</span>
                     </button>
                   </li>
                 );
@@ -152,7 +153,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
   return (
     <div className="screen">
       <header className="topbar">
-        <h1 className="topbar-title left">Corpus</h1>
+        <h1 className="topbar-title left">{t("corpus.titre")}</h1>
         <div style={{ display: "flex", gap: 4 }}>
           <button className="icon-btn" onClick={() => { setRejoindre((r) => !r); setCreation(false); }} aria-label="Rejoindre un corpus">
             <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><path d="M13 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" stroke="currentColor" strokeWidth="1.4" /><path d="M4 17c0-2.8 2.7-4.5 6-4.5s6 1.7 6 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
@@ -164,32 +165,32 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
       </header>
 
       <div className="content">
-        <p className="section-intro">Regroupe tes entretiens par projet de recherche, et invite ton équipe à coder les mêmes corpus.</p>
+        <p className="section-intro">{t("corpus.intro")}</p>
 
         {rejoindre && (
           <div className="field-inline">
-            <input className="field-input mono" placeholder="Code d'invitation" value={code}
+            <input className="field-input mono" placeholder={t("corpus.codeInvitationPlaceholder")} value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())} autoFocus
               onKeyDown={(e) => e.key === "Enter" && validerRejoindre()} />
-            <button className="btn primary sm" onClick={validerRejoindre}>Rejoindre</button>
+            <button className="btn primary sm" onClick={validerRejoindre}>{t("corpus.rejoindre")}</button>
           </div>
         )}
 
         {creation && (
           <div className="field-inline">
-            <input className="field-input" placeholder="Nom du corpus, ex. Entrepreneuriat féminin"
+            <input className="field-input" placeholder={t("corpus.nomCorpusPlaceholder")}
               value={nom} onChange={(e) => setNom(e.target.value)} autoFocus
               onKeyDown={(e) => e.key === "Enter" && validerCreation()} />
-            <button className="btn primary sm" onClick={validerCreation}>Créer</button>
+            <button className="btn primary sm" onClick={validerCreation}>{t("corpus.creer")}</button>
           </div>
         )}
 
         {enrichis.length === 0 && !creation && !rejoindre ? (
           <div className="empty">
             <div className="empty-badge">◫</div>
-            <p className="empty-title">Aucun corpus pour l'instant</p>
-            <p className="empty-sub">Crée un premier regroupement, ou rejoins celui d'un collègue avec son code.</p>
-            <button className="btn primary" onClick={() => setCreation(true)}>Créer un corpus</button>
+            <p className="empty-title">{t("corpus.videTitre")}</p>
+            <p className="empty-sub">{t("corpus.videSous")}</p>
+            <button className="btn primary" onClick={() => setCreation(true)}>{t("corpus.creerUnCorpus")}</button>
           </div>
         ) : (
           <ul className="corpus-list">
@@ -200,9 +201,9 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
                   <div className="corpus-info">
                     <span className="corpus-nom">{c.nom}</span>
                     <span className="corpus-meta">
-                      {c.nbEntretiens} entretien{c.nbEntretiens !== 1 ? "s" : ""}
-                      {c.dureeMin > 0 ? ` · ${c.dureeMin} min` : ""}
-                      {c.nb_membres > 1 ? ` · ${c.nb_membres} chercheurs` : ""}
+                      {c.nbEntretiens} {c.nbEntretiens !== 1 ? t("corpus.entretiensMot") : t("corpus.entretien")}
+                      {c.dureeMin > 0 ? ` · ${c.dureeMin} ${t("corpus.minutes")}` : ""}
+                      {c.nb_membres > 1 ? ` · ${c.nb_membres} ${t("corpus.chercheurs")}` : ""}
                     </span>
                   </div>
                 </button>
@@ -213,7 +214,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
 
         {sansCorpus.length > 0 && (
           <div className="unassigned-note">
-            {sansCorpus.length} entretien{sansCorpus.length > 1 ? "s" : ""} sans corpus assigné.
+            {sansCorpus.length} {sansCorpus.length > 1 ? t("corpus.entretiensMot") : t("corpus.entretien")} {t("corpus.sansCorpus")}.
           </div>
         )}
       </div>

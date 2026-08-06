@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import { useRecorder } from "../lib/useRecorder.js";
 import { LANGS, fmtTime } from "../lib/constants.js";
+import { useT } from "../lib/i18n.js";
 
 export default function NouvelEntretien({ settings, corpusList, onRetour, onCreer }) {
+  const { t } = useT();
   const rec = useRecorder();
   const [blob, setBlob] = useState(null);
   const [source, setSource] = useState(null); // "micro" | "fichier"
@@ -37,7 +39,7 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
   const valider = async () => {
     if (!blob) return;
     setEnvoi(true);
-    await onCreer({ blob, titre: titre.trim() || "Entretien sans titre", langue, vocabulaire, corpusId: corpusId || null });
+    await onCreer({ blob, titre: titre.trim() || "—", langue, vocabulaire, corpusId: corpusId || null });
     setEnvoi(false);
   };
 
@@ -47,7 +49,7 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
         <button className="icon-btn" onClick={onRetour} aria-label="Retour">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15 7 10l5.5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
-        <h1 className="topbar-title">Nouvel entretien</h1>
+        <h1 className="topbar-title">{t("nouvelEntretien.titre")}</h1>
         <span style={{ width: 36 }} />
       </header>
 
@@ -89,20 +91,20 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
               </div>
               <p className="rec-hint">
                 {rec.status === "enregistrement"
-                  ? "Enregistrement en cours — touche ⏸ pour faire une pause"
+                  ? t("nouvelEntretien.enregistrementEnCours")
                   : rec.status === "pause"
-                  ? "En pause — touche ▶ pour reprendre exactement où tu en étais"
+                  ? t("nouvelEntretien.enPause")
                   : rec.status === "demande"
-                  ? "Demande d'accès au microphone…"
-                  : "Touche pour démarrer l'enregistrement"}
+                  ? t("nouvelEntretien.demandeAcces")
+                  : t("nouvelEntretien.touchePourDemarrer")}
               </p>
               {rec.erreur && <p className="rec-error">{rec.erreur}</p>}
             </div>
 
-            <div className="divider"><span>ou</span></div>
+            <div className="divider"><span>{t("nouvelEntretien.ou")}</span></div>
 
             <button className="btn ghost full" onClick={() => fileRef.current?.click()}>
-              Importer un fichier audio
+              {t("nouvelEntretien.importer")}
             </button>
             <input ref={fileRef} type="file" accept="audio/*" hidden onChange={handleFile} />
           </>
@@ -114,21 +116,21 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
               <div className="recap-icon">{source === "micro" ? "🎙️" : "📁"}</div>
               <div>
                 <div className="recap-title">
-                  {source === "micro" ? "Enregistrement prêt" : "Fichier importé"}
+                  {source === "micro" ? t("nouvelEntretien.enregistrementPret") : t("nouvelEntretien.fichierImporte")}
                 </div>
                 <div className="recap-sub">{(blob.size / (1024 * 1024)).toFixed(1)} Mo</div>
               </div>
-              <button className="link-btn" onClick={recommencer}>Recommencer</button>
+              <button className="link-btn" onClick={recommencer}>{t("nouvelEntretien.recommencer")}</button>
             </div>
 
             <label className="field">
-              <span className="field-label">Titre de l'entretien</span>
+              <span className="field-label">{t("nouvelEntretien.titreEntretien")}</span>
               <input className="field-input" value={titre} onChange={(e) => setTitre(e.target.value)}
-                placeholder="Ex. Awa T. — Adjamé" autoFocus />
+                placeholder={t("nouvelEntretien.titrePlaceholder")} autoFocus />
             </label>
 
             <label className="field">
-              <span className="field-label">Langue attendue</span>
+              <span className="field-label">{t("nouvelEntretien.langueAttendue")}</span>
               <select className="field-input" value={langue} onChange={(e) => setLangue(e.target.value)}>
                 {Object.entries(LANGS).map(([k, l]) => (
                   <option key={k} value={k}>{l.name}</option>
@@ -137,17 +139,17 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
             </label>
 
             <label className="field">
-              <span className="field-label">Vocabulaire local (facultatif)</span>
+              <span className="field-label">{t("nouvelEntretien.vocabulaireLocal")}</span>
               <input className="field-input" value={vocabulaire} onChange={(e) => setVocabulaire(e.target.value)}
-                placeholder="Ex. tontine, pagne, Adjamé, Cocody" />
-              <span className="field-help">Guide le modèle vers les termes de ton terrain.</span>
+                placeholder={t("nouvelEntretien.vocabulairePlaceholder")} />
+              <span className="field-help">{t("nouvelEntretien.vocabulaireAide")}</span>
             </label>
 
             {corpusList.length > 0 && (
               <label className="field">
-                <span className="field-label">Corpus (facultatif)</span>
+                <span className="field-label">{t("nouvelEntretien.corpusFacultatif")}</span>
                 <select className="field-input" value={corpusId} onChange={(e) => setCorpusId(e.target.value)}>
-                  <option value="">Aucun</option>
+                  <option value="">{t("nouvelEntretien.aucunCorpus")}</option>
                   {corpusList.map((c) => (
                     <option key={c.id} value={c.id}>{c.nom}</option>
                   ))}
@@ -156,7 +158,7 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
             )}
 
             <button className="btn primary full" onClick={valider} disabled={envoi}>
-              {envoi ? "Envoi en cours…" : "Envoyer pour transcription"}
+              {envoi ? t("nouvelEntretien.envoiEnCours") : t("nouvelEntretien.envoyer")}
             </button>
           </>
         )}

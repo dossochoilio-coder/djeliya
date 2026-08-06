@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { useT } from "../lib/i18n.js";
 
 export default function Glossaire({ interviews, entrees, onAjouter, onSupprimer }) {
+  const { t } = useT();
   const [query, setQuery] = useState("");
   const [formOuvert, setFormOuvert] = useState(false);
   const [terme, setTerme] = useState("");
@@ -31,40 +33,40 @@ export default function Glossaire({ interviews, entrees, onAjouter, onSupprimer 
   const relevesFiltres = q ? releves.filter((r) => r.terme.includes(q) && !definis.has(r.terme)) : releves.filter((r) => !definis.has(r.terme));
 
   const valider = () => {
-    const t = terme.trim();
-    if (!t) return;
-    onAjouter({ terme: t, sens: sens.trim() });
+    const term = terme.trim();
+    if (!term) return;
+    onAjouter({ terme: term, sens: sens.trim() });
     setTerme(""); setSens(""); setFormOuvert(false);
   };
 
   return (
     <div className="screen">
       <header className="topbar">
-        <h1 className="topbar-title left">Glossaire</h1>
+        <h1 className="topbar-title left">{t("glossaire.titre")}</h1>
         <button className="icon-btn" onClick={() => setFormOuvert((o) => !o)} aria-label="Ajouter un terme">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </button>
       </header>
 
       <div className="content">
-        <p className="section-intro">Les termes locaux que tu renseignes à chaque entretien s'accumulent ici — définis-les une fois pour toutes.</p>
+        <p className="section-intro">{t("glossaire.intro")}</p>
 
-        <input className="search" type="search" placeholder="Rechercher un terme…"
+        <input className="search" type="search" placeholder={t("glossaire.rechercher")}
           value={query} onChange={(e) => setQuery(e.target.value)} />
 
         {formOuvert && (
           <div className="glossaire-form">
-            <input className="field-input" placeholder="Terme, ex. tontine" value={terme}
+            <input className="field-input" placeholder={t("glossaire.terme")} value={terme}
               onChange={(e) => setTerme(e.target.value)} autoFocus />
-            <input className="field-input" placeholder="Sens ou traduction" value={sens}
+            <input className="field-input" placeholder={t("glossaire.sens")} value={sens}
               onChange={(e) => setSens(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valider()} />
-            <button className="btn primary sm" onClick={valider}>Ajouter au glossaire</button>
+            <button className="btn primary sm" onClick={valider}>{t("glossaire.ajouterGlossaire")}</button>
           </div>
         )}
 
         {entreesFiltrees.length > 0 && (
           <section>
-            <h2 className="subsection-title">Définis</h2>
+            <h2 className="subsection-title">{t("glossaire.definis")}</h2>
             <ul className="gloss-list">
               {entreesFiltrees.map((e) => (
                 <li key={e.id} className="gloss-row">
@@ -81,7 +83,7 @@ export default function Glossaire({ interviews, entrees, onAjouter, onSupprimer 
 
         {relevesFiltres.length > 0 && (
           <section>
-            <h2 className="subsection-title">Relevés dans tes entretiens</h2>
+            <h2 className="subsection-title">{t("glossaire.relevesTitre")}</h2>
             <div className="gloss-chips">
               {relevesFiltres.map((r) => (
                 <button key={r.terme} className="gloss-chip-btn"
@@ -97,9 +99,9 @@ export default function Glossaire({ interviews, entrees, onAjouter, onSupprimer 
         {entreesFiltrees.length === 0 && relevesFiltres.length === 0 && (
           <div className="empty">
             <div className="empty-badge">✎</div>
-            <p className="empty-title">{q ? "Aucun résultat" : "Le glossaire est vide"}</p>
+            <p className="empty-title">{q ? t("glossaire.aucunResultat") : t("glossaire.videTitre")}</p>
             <p className="empty-sub">
-              {q ? "Essaie un autre terme." : "Renseigne un vocabulaire local à tes prochains entretiens, il apparaîtra ici automatiquement."}
+              {q ? t("glossaire.videSousRecherche") : t("glossaire.videSous")}
             </p>
           </div>
         )}

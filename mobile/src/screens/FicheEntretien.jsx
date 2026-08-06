@@ -4,9 +4,11 @@ import { Filesystem, Directory } from "@capacitor/filesystem";
 import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
+import { useT } from "../lib/i18n.js";
 import AnalyseView from "../components/AnalyseView.jsx";
 
 export default function FicheEntretien({ interview, corpusList, methodes, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onExporterDocx, onExporterXlsx, showToast }) {
+  const { t } = useT();
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -79,8 +81,6 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
     [time, interview.segments]
   );
 
-  /* La mise à jour du statut est gérée globalement dans App.jsx */
-
   const stats = useMemo(() => {
     const mots = (interview.segments || []).flatMap((s) => s.mots || []);
     if (!mots.length) return { conf: null, aValider: 0 };
@@ -109,7 +109,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
     };
     onCorrigerSegments(segIdx, segCorrige);
     setEditing(null);
-    showToast("Segment corrigé");
+    showToast(t("ficheEntretien.segmentCorrige"));
     if (draft !== texteAvant) onContribuer?.(texteAvant, draft);
   };
   const editWord = (segIdx, motIdx, nouveauMot) => {
@@ -122,8 +122,8 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
 
   /* --- Export / partage --- */
   const copier = async () => {
-    await navigator.clipboard.writeText(texteComplet || "(transcription vide)");
-    showToast("Texte copié dans le presse-papiers");
+    await navigator.clipboard.writeText(texteComplet || "");
+    showToast(t("ficheEntretien.texteCopie"));
     setMenuOpen(false);
   };
 
@@ -132,17 +132,17 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
       const nomFichier = `${(interview.titre || "entretien").replace(/[^\w-]+/g, "_")}.txt`;
       const res = await Filesystem.writeFile({
         path: nomFichier,
-        data: texteComplet || "(transcription vide)",
+        data: texteComplet || "",
         directory: Directory.Cache,
         encoding: "utf8",
       });
       await Share.share({
-        title: interview.titre || "Entretien Djeliya",
-        text: "Transcription — " + (interview.titre || ""),
+        title: interview.titre || "Djeliya",
+        text: interview.titre || "",
         url: res.uri,
       });
     } catch (e) {
-      showToast("Partage indisponible : " + (e.message || ""));
+      showToast(e.message || "");
     }
     setMenuOpen(false);
   };
@@ -165,14 +165,14 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
           <button className="icon-btn" onClick={() => setMenuOpen((o) => !o)} aria-label="Options">⋯</button>
           {menuOpen && (
             <div className="menu">
-              <button className="menu-item" onClick={copier}>Copier le texte</button>
-              <button className="menu-item" onClick={partager}>Partager le texte brut</button>
-              <button className="menu-item" onClick={() => { onExporterDocx?.(); setMenuOpen(false); }}>Exporter en Word</button>
-              <button className="menu-item" onClick={() => { onExporterXlsx?.(); setMenuOpen(false); }}>Exporter en Excel</button>
+              <button className="menu-item" onClick={copier}>{t("ficheEntretien.copierTexte")}</button>
+              <button className="menu-item" onClick={partager}>{t("ficheEntretien.partagerTexte")}</button>
+              <button className="menu-item" onClick={() => { onExporterDocx?.(); setMenuOpen(false); }}>{t("ficheEntretien.exporterWord")}</button>
+              <button className="menu-item" onClick={() => { onExporterXlsx?.(); setMenuOpen(false); }}>{t("ficheEntretien.exporterExcel")}</button>
               <button className="menu-item" onClick={() => { setCorpusPicker(true); setMenuOpen(false); }}>
-                Changer de corpus
+                {t("ficheEntretien.modifier")}
               </button>
-              <button className="menu-item danger" onClick={supprimer}>Supprimer l'entretien</button>
+              <button className="menu-item danger" onClick={supprimer}>{t("ficheEntretien.supprimerEntretien")}</button>
             </div>
           )}
         </div>
@@ -180,7 +180,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
 
       <div className="content">
         <div className="meta-row">
-          <span className="status-pill" style={{ color: st.color, borderColor: st.color }}>{st.label}</span>
+          <span className="status-pill" style={{ color: st.color, borderColor: st.color }}>{t(`statuts.${interview.statut}`)}</span>
           <span className="lang-tag" style={{ color: L.color, borderColor: L.color }}>{L.code}</span>
           {duree > 0 && <span className="meta-item mono">{fmtTime(duree)}</span>}
         </div>
@@ -189,7 +189,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
           const c = corpusList.find((x) => x.id === interview.corpusId);
           return (
             <button className="corpus-inline" onClick={() => setCorpusPicker(true)}>
-              {c ? `Corpus : ${c.nom}` : "Aucun corpus assigné"} <span className="corpus-inline-edit">modifier</span>
+              {c ? `${t("ficheEntretien.corpusAssigne")}${c.nom}` : t("ficheEntretien.aucunCorpusAssigne")} <span className="corpus-inline-edit">{t("ficheEntretien.modifier")}</span>
             </button>
           );
         })()}
@@ -198,24 +198,24 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
           <div className="picker-card">
             <button className={"picker-opt" + (!interview.corpusId ? " picker-actif" : "")}
               onClick={() => { onUpdate({ ...interview, corpusId: null }); setCorpusPicker(false); }}>
-              Aucun
+              {t("ficheEntretien.aucun")}
             </button>
             {corpusList.map((c) => (
               <button key={c.id} className={"picker-opt" + (interview.corpusId === c.id ? " picker-actif" : "")}
-                onClick={() => { onUpdate({ ...interview, corpusId: c.id }); setCorpusPicker(false); showToast(`Assigné à « ${c.nom} »`); }}>
+                onClick={() => { onUpdate({ ...interview, corpusId: c.id }); setCorpusPicker(false); showToast(t("ficheEntretien.assigneA", { nom: c.nom })); }}>
                 {c.nom}
               </button>
             ))}
-            {corpusList.length === 0 && <p className="field-help">Crée d'abord un corpus dans l'onglet Corpus.</p>}
+            {corpusList.length === 0 && <p className="field-help">{t("ficheEntretien.choisirCorpus")}</p>}
           </div>
         )}
 
         {interview.note && <p className="note-banner">⚑ {interview.note}</p>}
         {interview.statut === "erreur" && (
           <div className="note-banner err">
-            <p style={{ margin: 0 }}>Échec de la transcription : {interview.erreur || "erreur inconnue"}</p>
+            <p style={{ margin: 0 }}>{t("ficheEntretien.echecTranscription")}{interview.erreur || "—"}</p>
             <button className="btn primary sm" style={{ marginTop: 10 }} onClick={onRelancer}>
-              Relancer la transcription
+              {t("ficheEntretien.relancer")}
             </button>
           </div>
         )}
@@ -225,11 +225,11 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
         {interview.statut === "termine" && (
           <div className="vue-switch">
             <button className={"vue-opt" + (vue === "transcription" ? " vue-actif" : "")}
-              onClick={() => setVue("transcription")}>Transcription</button>
+              onClick={() => setVue("transcription")}>{t("ficheEntretien.transcription")}</button>
             <button className={"vue-opt" + (vue === "analyse" ? " vue-actif" : "")}
-              onClick={() => setVue("analyse")}>Analyse</button>
+              onClick={() => setVue("analyse")}>{t("ficheEntretien.analyse")}</button>
             <button className={"vue-opt" + (vue === "codage" ? " vue-actif" : "")}
-              onClick={() => setVue("codage")}>Codage d'équipe</button>
+              onClick={() => setVue("codage")}>{t("ficheEntretien.codageEquipe")}</button>
           </div>
         )}
 
@@ -245,7 +245,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
         {audioUrl && (
           <div className="player-card">
             <div className="player-row">
-              <button className="play" onClick={togglePlay} aria-label={playing ? "Pause" : "Lecture"}>
+              <button className="play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
                 {playing ? (
                   <svg width="14" height="14" viewBox="0 0 16 16"><rect x="3" y="2" width="3.6" height="12" rx="1" fill="currentColor" /><rect x="9.4" y="2" width="3.6" height="12" rx="1" fill="currentColor" /></svg>
                 ) : (
@@ -253,15 +253,15 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
                 )}
               </button>
               <span className="time mono">{fmtTime(time)}</span>
-              <div className="ribbon" role="slider" aria-label="Position de lecture" tabIndex={0}
+              <div className="ribbon" role="slider" aria-label="Position" tabIndex={0}
                 aria-valuemin={0} aria-valuemax={duree} aria-valuenow={Math.round(time)}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
                   seek(((e.clientX - r.left) / r.width) * duree);
                 }}>
                 {Array.from({ length: NBARS }).map((_, i) => {
-                  const t = (i / NBARS) * duree;
-                  const past = t <= time;
+                  const tt = (i / NBARS) * duree;
+                  const past = tt <= time;
                   const amp = peaks ? peaks[Math.floor((i / NBARS) * peaks.length)] : 0.4;
                   return (
                     <span key={i} className="bar" style={{
@@ -278,18 +278,18 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
           </div>
         )}
         {audioIntrouvable && (
-          <p className="note-banner">Audio indisponible sur cet appareil. La transcription reste consultable.</p>
+          <p className="note-banner">{t("ficheEntretien.audioIndisponible")}</p>
         )}
 
         {stats.conf !== null && (
           <div className="stat-strip">
             <div className="stat-chip">
               <span className="stat-num">{stats.conf}%</span>
-              <span className="stat-label">fiabilité</span>
+              <span className="stat-label">{t("ficheEntretien.fiabilite")}</span>
             </div>
             <div className="stat-chip">
               <span className="stat-num">{stats.aValider}</span>
-              <span className="stat-label">mot{stats.aValider > 1 ? "s" : ""} à vérifier</span>
+              <span className="stat-label">{stats.aValider > 1 ? t("ficheEntretien.motsAVerifier") : t("ficheEntretien.motAVerifier")}</span>
             </div>
           </div>
         )}
@@ -297,7 +297,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
         {(interview.statut === "en_attente" || interview.statut === "en_cours") && (
           <div className="pending-card">
             <span className="spinner" />
-            {interview.statut === "en_attente" ? "En file d'attente sur le serveur…" : "Transcription en cours…"}
+            {interview.statut === "en_attente" ? t("ficheEntretien.enFileAttente") : t("ficheEntretien.enCoursServeur")}
           </div>
         )}
 
@@ -312,10 +312,10 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
                       <button className="tc mono" onClick={() => seek(seg.debut)}>{fmtTime(seg.debut)}</button>
                     )}
                     {seg.locuteur && <span className="locuteur-tag">{seg.locuteur.replace("SPEAKER_", "Locuteur ")}</span>}
-                    {seg.corrige && <span className="corrige-tag">corrigé</span>}
+                    {seg.corrige && <span className="corrige-tag">{t("ficheEntretien.corrige")}</span>}
                     <button className="edit-btn" onClick={() =>
                       editing === idx ? setEditing(null) : startEdit(idx)}>
-                      {editing === idx ? "Annuler" : "Modifier"}
+                      {editing === idx ? t("ficheEntretien.annuler") : t("ficheEntretien.modifier")}
                     </button>
                   </div>
 
@@ -323,7 +323,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
                     <div className="edit-zone">
                       <textarea className="edit-ta" rows={3} value={draft}
                         onChange={(e) => setDraft(e.target.value)} autoFocus />
-                      <button className="btn primary sm" onClick={() => saveEdit(idx)}>Enregistrer</button>
+                      <button className="btn primary sm" onClick={() => saveEdit(idx)}>{t("ficheEntretien.enregistrer")}</button>
                     </div>
                   ) : seg.mots && seg.mots.length ? (
                     <p className="seg-text">
@@ -341,7 +341,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
         )}
 
         {interview.statut === "termine" && (interview.segments || []).length === 0 && (
-          <p className="note-banner">Aucune parole détectée dans cet audio.</p>
+          <p className="note-banner">{t("ficheEntretien.aucuneParole")}</p>
         )}
         </>
         )}
@@ -351,6 +351,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
 }
 
 function CodageView({ interview, onEnregistrer, onLister, onFiabilite, onSeek }) {
+  const { t } = useT();
   const [codages, setCodages] = useState(null);
   const [brouillon, setBrouillon] = useState({});
   const [fiabilite, setFiabilite] = useState(null);
@@ -391,28 +392,25 @@ function CodageView({ interview, onEnregistrer, onLister, onFiabilite, onSeek })
     }
   };
 
-  if (chargement) return <div className="pending-card"><span className="spinner" />Chargement des codages…</div>;
+  if (chargement) return <div className="pending-card"><span className="spinner" />{t("codage.chargement")}</div>;
 
   return (
     <div className="codage-view">
-      <p className="section-intro">
-        Chaque chercheur code les segments avec son propre libellé thématique, indépendamment des autres —
-        la fiabilité inter-codeurs (kappa de Cohen) mesure ensuite l'accord entre vous.
-      </p>
+      <p className="section-intro">{t("codage.intro")}</p>
 
-      <button className="btn ghost full" onClick={calculerFiabilite}>Calculer la fiabilité inter-codeurs</button>
-      {fiabilite === "chargement" && <div className="pending-card"><span className="spinner" />Calcul…</div>}
+      <button className="btn ghost full" onClick={calculerFiabilite}>{t("codage.calculerFiabilite")}</button>
+      {fiabilite === "chargement" && <div className="pending-card"><span className="spinner" />{t("codage.calcul")}</div>}
       {fiabilite && fiabilite !== "chargement" && !fiabilite.erreur && (
         <div className="analyse-texte-card">
           {fiabilite.nb_codeurs < 2 ? (
-            <p className="analyse-texte">Un seul codeur pour l'instant — invite un collègue via le corpus pour comparer vos codages.</p>
+            <p className="analyse-texte">{t("codage.unSeulCodeur")}</p>
           ) : (
             <>
               <p className="analyse-texte">
-                Kappa moyen entre {fiabilite.nb_codeurs} codeurs : <strong>{fiabilite.kappa_moyen ?? "—"}</strong>
+                {t("codage.kappaMoyen", { n: fiabilite.nb_codeurs })}<strong>{fiabilite.kappa_moyen ?? "—"}</strong>
               </p>
               <p className="analyse-texte" style={{ fontSize: 12, opacity: 0.75 }}>
-                (0 = accord aléatoire, 1 = accord parfait ; usuellement, ≥ 0,6 est considéré satisfaisant)
+                {t("codage.kappaAide")}
               </p>
             </>
           )}
@@ -435,10 +433,10 @@ function CodageView({ interview, onEnregistrer, onLister, onFiabilite, onSeek })
               ))}
             </div>
             <div className="field-inline">
-              <input className="field-input sm" placeholder="Ton code pour ce segment"
+              <input className="field-input sm" placeholder={t("codage.tonCode")}
                 value={brouillon[idx] || ""} onChange={(e) => setBrouillon((b) => ({ ...b, [idx]: e.target.value }))}
                 onKeyDown={(e) => e.key === "Enter" && enregistrer(idx)} />
-              <button className="btn primary sm" onClick={() => enregistrer(idx)}>Coder</button>
+              <button className="btn primary sm" onClick={() => enregistrer(idx)}>{t("codage.coder")}</button>
             </div>
           </article>
         ))}
@@ -467,7 +465,7 @@ function Mot({ m, onSave }) {
   return (
     <span className="wtok">
       <button className={"word" + (low ? " low" : "")} onClick={() => low && setEdit(true)}
-        title={low ? `Fiabilité ${Math.round((m.confiance ?? 1) * 100)} % — toucher pour corriger` : undefined}>
+        title={low ? `${Math.round((m.confiance ?? 1) * 100)}%` : undefined}>
         {m.mot}
       </button>{" "}
     </span>

@@ -319,12 +319,12 @@ export async function detailCorpus(backendUrl, token, corpusId) {
   return res.json();
 }
 
-export async function lancerAnalyseCorpus(backendUrl, token, corpusId, contexte, methode) {
+export async function lancerAnalyseCorpus(backendUrl, token, corpusId, contexte, methode, langue) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/corpus/${corpusId}/analyser`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headersAuth(token) },
-    body: JSON.stringify({ contexte: contexte || "", methode: methode || "gioia" }),
+    body: JSON.stringify({ contexte: contexte || "", methode: methode || "gioia", langue: langue || "fr" }),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json();
@@ -366,11 +366,12 @@ export async function fetchMethodes(backendUrl) {
   return res.json();
 }
 
-export async function lancerAnalyse(backendUrl, token, jobId, contexte, methode) {
+export async function lancerAnalyse(backendUrl, token, jobId, contexte, methode, langue) {
   const base = clean(backendUrl);
   const form = new FormData();
   form.append("contexte", contexte || "");
   form.append("methode", methode || "gioia");
+  form.append("langue", langue || "fr");
   const res = await fetch(`${base}/api/transcriptions/${jobId}/analyser`, {
     method: "POST", body: form, headers: headersAuth(token),
   });

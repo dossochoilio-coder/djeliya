@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { fmtTime } from "../lib/constants.js";
+import { useT } from "../lib/i18n.js";
 
 /**
  * Vue d'analyse qualitative réutilisée pour un entretien seul ou un corpus entier
  * (analyse transversale). `onSeek` est facultatif : sans audio unique (corpus),
  * les verbatims restent affichés mais non cliquables.
+ *
+ * Note i18n : le contenu généré par le modèle (démarche méthodologique, thèmes,
+ * synthèse, verbatims) est produit en français par le serveur quelle que soit la
+ * langue de l'interface — seuls les libellés fixes de cet écran sont traduits.
  */
 export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMinAvant }) {
+  const { t, langue } = useT();
   const [contexte, setContexte] = useState("");
   const [methode, setMethode] = useState("gioia");
   const [dimOuverte, setDimOuverte] = useState(0);
@@ -20,25 +26,25 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
       <div className="analyse-intro">
         {seuilMinAvant}
         <label className="field">
-          <span className="field-label">Méthodologie</span>
+          <span className="field-label">{t("analyseView.methodologie")}</span>
           <select className="field-input" value={methode} onChange={(e) => setMethode(e.target.value)}>
             {Object.entries(methodes || {}).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
             ))}
-            {!methodes || Object.keys(methodes).length === 0 ? <option value="gioia">Méthode Gioia</option> : null}
+            {!methodes || Object.keys(methodes).length === 0 ? <option value="gioia">Gioia</option> : null}
           </select>
-          {methodes?.[methode] && <span className="field-help">Référence : {methodes[methode].reference}</span>}
+          {methodes?.[methode] && <span className="field-help">{t("analyseView.reference")}{methodes[methode].reference}</span>}
         </label>
         <label className="field">
-          <span className="field-label">Question de recherche ou angle d'analyse (facultatif)</span>
+          <span className="field-label">{t("analyseView.questionRecherche")}</span>
           <input className="field-input" value={contexte} onChange={(e) => setContexte(e.target.value)}
-            placeholder="Ex. Comment les commerçantes financent-elles leur activité ?" />
+            placeholder={t("analyseView.questionPlaceholder")} />
         </label>
         {statut === "erreur" && (
-          <p className="note-banner err">Échec de l'analyse : {sujet.analyse_erreur || "erreur inconnue"}</p>
+          <p className="note-banner err">{t("analyseView.echecAnalyse")}{sujet.analyse_erreur || "—"}</p>
         )}
-        <button className="btn primary full" onClick={() => onLancer(contexte, methode)}>
-          Lancer l'analyse qualitative
+        <button className="btn primary full" onClick={() => onLancer(contexte, methode, langue)}>
+          {t("analyseView.lancerAnalyse")}
         </button>
       </div>
     );
@@ -48,14 +54,14 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
     return (
       <div className="pending-card">
         <span className="spinner" />
-        Analyse en cours (30 à 90 secondes)…
+        {t("analyseView.analyseEnCours")}
       </div>
     );
   }
 
   if (!a) return null;
 
-  const themesParNom = Object.fromEntries((a.second_ordre || []).map((t) => [t.theme, t]));
+  const themesParNom = Object.fromEntries((a.second_ordre || []).map((t2) => [t2.theme, t2]));
   const conceptsParNom = Object.fromEntries((a.premier_ordre || []).map((c) => [c.concept, c]));
   const structureADeuxNiveaux = (a.dimensions_agregees || []).length === 0;
 
@@ -91,15 +97,15 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
   return (
     <div className="analyse">
       <p className="analyse-methode">
-        {methodes?.[sujet.analyse_methode]?.label || "Analyse qualitative"} · modèle {sujet.analyse_modele || "IA"}
-        {sujet.analyse_contexte ? ` · angle : ${sujet.analyse_contexte}` : ""}
-        {sujet.analyse_nb_entretiens ? ` · ${sujet.analyse_nb_entretiens} entretiens` : ""}
+        {methodes?.[sujet.analyse_methode]?.label || t("ficheEntretien.analyse")} · {t("analyseView.modele")} {sujet.analyse_modele || "IA"}
+        {sujet.analyse_contexte ? ` · ${t("analyseView.angle")}${sujet.analyse_contexte}` : ""}
+        {sujet.analyse_nb_entretiens ? ` · ${sujet.analyse_nb_entretiens} ${t("analyseView.entretiens")}` : ""}
       </p>
 
       {a.demarche_methodologique && (
         <div className="dim-card">
           <button className="dim-head" onClick={() => setDemarcheOuverte((o) => !o)}>
-            <span className="dim-nom">Démarche méthodologique</span>
+            <span className="dim-nom">{t("analyseView.demarcheMethodologique")}</span>
             <span className="dim-chevron">{demarcheOuverte ? "−" : "+"}</span>
           </button>
           {demarcheOuverte && (
@@ -127,11 +133,11 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
         ))}
 
       <div className="analyse-texte-card">
-        <h3 className="subsection-title">Synthèse interprétative</h3>
+        <h3 className="subsection-title">{t("analyseView.syntheseInterpretative")}</h3>
         <p className="analyse-texte">{a.synthese}</p>
       </div>
       <div className="analyse-texte-card limites">
-        <h3 className="subsection-title">Limites de l'analyse automatique</h3>
+        <h3 className="subsection-title">{t("analyseView.limitesAutomatique")}</h3>
         <p className="analyse-texte">{a.limites}</p>
       </div>
     </div>

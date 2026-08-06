@@ -14,6 +14,7 @@ import Forfaits from "./screens/Forfaits.jsx";
 import Admin from "./screens/Admin.jsx";
 import Cgu from "./screens/Cgu.jsx";
 import TabBar from "./components/TabBar.jsx";
+import { LangueProvider } from "./lib/i18n.js";
 
 import {
   loadInterviews, saveInterviews, loadSettings, saveSettings,
@@ -201,10 +202,10 @@ export default function App() {
     }
   };
 
-  const lancerAnalyseEntretien = async (interview, contexte, methode) => {
+  const lancerAnalyseEntretien = async (interview, contexte, methode, langue) => {
     setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "en_cours", analyse_erreur: null } : x));
     try {
-      await lancerAnalyse(settings.backendUrl, auth.token, interview.jobId, contexte, methode);
+      await lancerAnalyse(settings.backendUrl, auth.token, interview.jobId, contexte, methode, langue);
       rafraichirUtilisateur();
     } catch (e) {
       setInterviews((prev) => prev.map((x) => x.id === interview.id ? { ...x, analyse_statut: "erreur", analyse_erreur: e.message } : x));
@@ -259,10 +260,10 @@ export default function App() {
     return () => clearInterval(it);
   }, [corpusDetail, corpusSelectionne, auth, settings.backendUrl]);
 
-  const lancerAnalyseCorpusHandler = async (contexte, methode) => {
+  const lancerAnalyseCorpusHandler = async (contexte, methode, langue) => {
     setCorpusDetail((prev) => ({ ...prev, analyse_statut: "en_cours", analyse_erreur: null }));
     try {
-      await lancerAnalyseCorpus(settings.backendUrl, auth.token, corpusSelectionne, contexte, methode);
+      await lancerAnalyseCorpus(settings.backendUrl, auth.token, corpusSelectionne, contexte, methode, langue);
     } catch (e) {
       setCorpusDetail((prev) => ({ ...prev, analyse_statut: "erreur", analyse_erreur: e.message }));
       showToast("Échec du lancement : " + e.message);
@@ -319,14 +320,16 @@ export default function App() {
   /* ---------------- Écran de connexion (bloque tout le reste) ---------------- */
   if (!auth) {
     return (
-      <Connexion
-        backendUrl={settings.backendUrl}
-        onConnecte={(data) => {
-          saveAuth(data);
-          setAuth(data);
-          showToast(`Bienvenue, ${data.utilisateur.nom || data.utilisateur.email} !`);
-        }}
-      />
+      <LangueProvider langue={settings.langueInterface || "fr"}>
+        <Connexion
+          backendUrl={settings.backendUrl}
+          onConnecte={(data) => {
+            saveAuth(data);
+            setAuth(data);
+            showToast(`Bienvenue, ${data.utilisateur.nom || data.utilisateur.email} !`);
+          }}
+        />
+      </LangueProvider>
     );
   }
 
@@ -353,7 +356,7 @@ export default function App() {
         onCorrigerSegments={(index, segment) => corrigerSegment(interview.id, interview.jobId, index, segment)}
         onSupprimer={supprimerEntretien}
         onRelancer={() => relancerEntretien(interview)}
-        onLancerAnalyse={(contexte, methode) => lancerAnalyseEntretien(interview, contexte, methode)}
+        onLancerAnalyse={(contexte, methode, langue) => lancerAnalyseEntretien(interview, contexte, methode, langue)}
         onEnregistrerCodage={(segIdx, code) => enregistrerCodage(settings.backendUrl, auth.token, interview.jobId, segIdx, code)}
         onListerCodages={() => listerCodages(settings.backendUrl, auth.token, interview.jobId)}
         onFiabilite={() => fiabiliteInterCodeurs(settings.backendUrl, auth.token, interview.jobId)}
@@ -438,10 +441,10 @@ export default function App() {
   const montrerTabBar = stack.length === 0;
 
   return (
-    <>
+    <LangueProvider langue={settings.langueInterface || "fr"}>
       <div className={montrerTabBar ? "with-tabbar" : ""}>{overlay || body}</div>
       {montrerTabBar && <TabBar active={tab} onChange={changerOnglet} />}
       {toast && <div className="toast" role="status">{toast}</div>}
-    </>
+    </LangueProvider>
   );
 }

@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
   backendUrl: "https://djeliya-production.up.railway.app",
   langueDefaut: "auto",
   vocabulaireDefaut: "",
+  langueInterface: "fr",
 };
 
 export function loadSettings() {

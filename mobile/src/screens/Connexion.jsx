@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { inscription, connexion, verifierEmail, renvoyerCode, motDePasseOublie, reinitialiserMotDePasse } from "../lib/api.js";
+import { useT } from "../lib/i18n.js";
 import logo from "../assets/logo-full.png";
 import Cgu from "./Cgu.jsx";
 
@@ -23,6 +24,7 @@ function ChampMotDePasse({ value, onChange, placeholder, onEnter }) {
 }
 
 export default function Connexion({ backendUrl, onConnecte }) {
+  const { t } = useT();
   const [mode, setMode] = useState("connexion"); // connexion | inscription | verification | oubli | reset
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
@@ -32,12 +34,12 @@ export default function Connexion({ backendUrl, onConnecte }) {
   const [erreur, setErreur] = useState(null);
   const [info, setInfo] = useState(null);
   const [envoi, setEnvoi] = useState(false);
-  const [authEnAttente, setAuthEnAttente] = useState(null); // conservé pendant la vérification post-inscription
+  const [authEnAttente, setAuthEnAttente] = useState(null);
   const [accepteCgu, setAccepteCgu] = useState(false);
   const [voirCgu, setVoirCgu] = useState(false);
 
   const requireBackend = () => {
-    if (!backendUrl) { setErreur("Configure d'abord l'adresse du serveur (voir plus bas)."); return false; }
+    if (!backendUrl) { setErreur(t("connexion.serveurRequis")); return false; }
     return true;
   };
 
@@ -55,14 +57,12 @@ export default function Connexion({ backendUrl, onConnecte }) {
           onConnecte(data);
         }
       } else {
-        if (!accepteCgu) { setErreur("Tu dois accepter les conditions d'utilisation pour créer un compte."); setEnvoi(false); return; }
+        if (!accepteCgu) { setErreur(t("connexion.accepterCguRequis")); setEnvoi(false); return; }
         const data = await inscription(backendUrl, { email, motDePasse, nom, accepteCgu });
         if (!data.utilisateur.email_verifie) {
           setAuthEnAttente(data);
           setMode("verification");
-          setInfo(data.email_envoye
-            ? "Un code à 6 chiffres a été envoyé à ton adresse e-mail."
-            : "Vérification e-mail indisponible pour l'instant — contacte l'administrateur si besoin.");
+          setInfo(data.email_envoye ? t("connexion.codeEnvoye") : t("connexion.codeIndisponible"));
         } else {
           onConnecte(data);
         }
@@ -91,7 +91,7 @@ export default function Connexion({ backendUrl, onConnecte }) {
     setErreur(null); setInfo(null);
     try {
       const r = await renvoyerCode(backendUrl, email);
-      setInfo(r.email_envoye ? "Nouveau code envoyé." : "L'envoi a échoué — réessaie plus tard.");
+      setInfo(r.email_envoye ? t("connexion.nouveauCodeEnvoye") : t("connexion.envoiEchoue"));
     } catch (e) {
       setErreur(e.message);
     }
@@ -103,7 +103,7 @@ export default function Connexion({ backendUrl, onConnecte }) {
     setEnvoi(true);
     try {
       await motDePasseOublie(backendUrl, email);
-      setInfo("Si un compte existe avec cette adresse, un code de réinitialisation vient d'être envoyé.");
+      setInfo(t("connexion.resetInfo"));
       setMode("reset");
     } catch (e) {
       setErreur(e.message);
@@ -129,7 +129,7 @@ export default function Connexion({ backendUrl, onConnecte }) {
     <div className="screen connexion-screen">
       <div className="connexion-hero">
         <img src={logo} alt="Djeliya" className="brand-logo" />
-        <p className="connexion-tag">La parole des terrains, structurée pour la recherche.</p>
+        <p className="connexion-tag">{t("connexion.slogan")}</p>
       </div>
 
       <div className="content">
@@ -137,35 +137,35 @@ export default function Connexion({ backendUrl, onConnecte }) {
           <>
             <div className="vue-switch">
               <button className={"vue-opt" + (mode === "connexion" ? " vue-actif" : "")}
-                onClick={() => { setMode("connexion"); setErreur(null); }}>Connexion</button>
+                onClick={() => { setMode("connexion"); setErreur(null); }}>{t("connexion.connexion")}</button>
               <button className={"vue-opt" + (mode === "inscription" ? " vue-actif" : "")}
-                onClick={() => { setMode("inscription"); setErreur(null); }}>Créer un compte</button>
+                onClick={() => { setMode("inscription"); setErreur(null); }}>{t("connexion.inscription")}</button>
             </div>
 
             {mode === "inscription" && (
               <label className="field">
-                <span className="field-label">Nom</span>
+                <span className="field-label">{t("connexion.nom")}</span>
                 <input className="field-input" value={nom} onChange={(e) => setNom(e.target.value)}
-                  placeholder="Dr Aya Kouassi" />
+                  placeholder={t("connexion.nomPlaceholder")} />
               </label>
             )}
 
             <label className="field">
-              <span className="field-label">E-mail</span>
+              <span className="field-label">{t("connexion.email")}</span>
               <input className="field-input" type="email" value={email} autoCapitalize="none"
                 onChange={(e) => setEmail(e.target.value)} placeholder="toi@labo.ci" />
             </label>
 
             <label className="field">
-              <span className="field-label">Mot de passe</span>
+              <span className="field-label">{t("connexion.motDePasse")}</span>
               <ChampMotDePasse value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)}
-                placeholder="8 caractères minimum" onEnter={valider} />
+                placeholder={t("connexion.motDePassePlaceholder")} onEnter={valider} />
             </label>
 
             {mode === "connexion" && (
               <button className="link-btn" style={{ alignSelf: "flex-start" }}
                 onClick={() => { setMode("oubli"); setErreur(null); setInfo(null); }}>
-                Mot de passe oublié ?
+                {t("connexion.mdpOublie")}
               </button>
             )}
 
@@ -173,9 +173,9 @@ export default function Connexion({ backendUrl, onConnecte }) {
               <label className="consent-row">
                 <input type="checkbox" checked={accepteCgu} onChange={(e) => setAccepteCgu(e.target.checked)} />
                 <span>
-                  J'accepte les{" "}
+                  {t("connexion.accepteCgu")}{" "}
                   <button type="button" className="link-inline" onClick={() => setVoirCgu(true)}>
-                    conditions d'utilisation et la politique de confidentialité
+                    {t("connexion.cguLien")}
                   </button>
                 </span>
               </label>
@@ -183,12 +183,12 @@ export default function Connexion({ backendUrl, onConnecte }) {
 
             {erreur && <p className="note-banner err">{erreur}</p>}
             {!backendUrl && (
-              <p className="note-banner">Aucun serveur configuré. Renseigne l'adresse Railway une fois connecté.</p>
+              <p className="note-banner">{t("connexion.serveurNonConfigure")}</p>
             )}
 
             <button className="btn primary full" onClick={valider}
               disabled={envoi || !email || !motDePasse || (mode === "inscription" && !accepteCgu)}>
-              {envoi ? "…" : mode === "connexion" ? "Se connecter" : "Créer mon compte"}
+              {envoi ? t("connexion.envoi") : mode === "connexion" ? t("connexion.seConnecter") : t("connexion.creerCompte")}
             </button>
           </>
         )}
@@ -202,11 +202,10 @@ export default function Connexion({ backendUrl, onConnecte }) {
         {mode === "verification" && (
           <>
             <p className="section-intro">
-              Entre le code à 6 chiffres envoyé à <strong>{email}</strong> pour activer ton compte
-              et recevoir ton crédit d'essai gratuit.
+              {t("connexion.verifTitre")} <strong>{email}</strong> {t("connexion.verifSuite")}
             </p>
             <label className="field">
-              <span className="field-label">Code de vérification</span>
+              <span className="field-label">{t("connexion.codeVerif")}</span>
               <input className="field-input mono" value={code} inputMode="numeric" maxLength={6}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                 placeholder="123456" onKeyDown={(e) => e.key === "Enter" && validerCode()} />
@@ -214,26 +213,26 @@ export default function Connexion({ backendUrl, onConnecte }) {
             {info && <p className="note-banner ok">{info}</p>}
             {erreur && <p className="note-banner err">{erreur}</p>}
             <button className="btn primary full" onClick={validerCode} disabled={envoi || code.length !== 6}>
-              {envoi ? "…" : "Vérifier"}
+              {envoi ? t("connexion.envoi") : t("connexion.verifier")}
             </button>
-            <button className="link-btn" onClick={renvoyer}>Renvoyer le code</button>
+            <button className="link-btn" onClick={renvoyer}>{t("connexion.renvoyerCode")}</button>
           </>
         )}
 
         {mode === "oubli" && (
           <>
-            <p className="section-intro">Renseigne ton adresse e-mail pour recevoir un code de réinitialisation.</p>
+            <p className="section-intro">{t("connexion.oubliTitre")}</p>
             <label className="field">
-              <span className="field-label">E-mail</span>
+              <span className="field-label">{t("connexion.email")}</span>
               <input className="field-input" type="email" value={email} autoCapitalize="none"
                 onChange={(e) => setEmail(e.target.value)} placeholder="toi@labo.ci"
                 onKeyDown={(e) => e.key === "Enter" && demanderReinitialisation()} />
             </label>
             {erreur && <p className="note-banner err">{erreur}</p>}
             <button className="btn primary full" onClick={demanderReinitialisation} disabled={envoi || !email}>
-              {envoi ? "…" : "Recevoir un code"}
+              {envoi ? t("connexion.envoi") : t("connexion.recevoirCode")}
             </button>
-            <button className="link-btn" onClick={() => { setMode("connexion"); setErreur(null); }}>Retour à la connexion</button>
+            <button className="link-btn" onClick={() => { setMode("connexion"); setErreur(null); }}>{t("connexion.retourConnexion")}</button>
           </>
         )}
 
@@ -241,19 +240,19 @@ export default function Connexion({ backendUrl, onConnecte }) {
           <>
             {info && <p className="note-banner ok">{info}</p>}
             <label className="field">
-              <span className="field-label">Code reçu par e-mail</span>
+              <span className="field-label">{t("connexion.codeRecu")}</span>
               <input className="field-input mono" value={code} inputMode="numeric" maxLength={6}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
             </label>
             <label className="field">
-              <span className="field-label">Nouveau mot de passe</span>
+              <span className="field-label">{t("connexion.nouveauMdp")}</span>
               <ChampMotDePasse value={nouveauMdp} onChange={(e) => setNouveauMdp(e.target.value)}
-                placeholder="8 caractères minimum" onEnter={validerReinitialisation} />
+                placeholder={t("connexion.motDePassePlaceholder")} onEnter={validerReinitialisation} />
             </label>
             {erreur && <p className="note-banner err">{erreur}</p>}
             <button className="btn primary full" onClick={validerReinitialisation}
               disabled={envoi || code.length !== 6 || nouveauMdp.length < 8}>
-              {envoi ? "…" : "Réinitialiser et me connecter"}
+              {envoi ? t("connexion.envoi") : t("connexion.reinitialiser")}
             </button>
           </>
         )}

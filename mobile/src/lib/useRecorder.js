@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useT } from "./i18n.js";
 
 /* ============================================================
    Enregistrement audio via l'API native du navigateur
@@ -32,6 +33,7 @@ function pickMimeType() {
 }
 
 export function useRecorder() {
+  const { t } = useT();
   const [status, setStatus] = useState("inactif"); // inactif | demande | enregistrement | pause | arrete
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState(() => new Array(48).fill(4));
@@ -134,12 +136,12 @@ export function useRecorder() {
     } catch (e) {
       setErreur(
         e.name === "NotAllowedError"
-          ? "Accès au microphone refusé. Autorise-le dans les réglages du téléphone."
-          : "Impossible de démarrer l'enregistrement : " + e.message
+          ? t("nouvelEntretien.micRefuse")
+          : t("nouvelEntretien.micErreur") + e.message
       );
       setStatus("inactif");
     }
-  }, [runMeter]);
+  }, [runMeter, t]);
 
   const pause = useCallback(() => {
     const recorder = recorderRef.current;

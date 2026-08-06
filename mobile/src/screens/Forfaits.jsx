@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { listerForfaits } from "../lib/api.js";
+import { useT } from "../lib/i18n.js";
 
 const CONTACT_ADMIN = "dosso.choilio@gmail.com";
 
 export default function Forfaits({ settings, utilisateur, onRetour }) {
+  const { t } = useT();
   const [forfaits, setForfaits] = useState(null);
   const [erreur, setErreur] = useState(null);
 
@@ -17,7 +19,7 @@ export default function Forfaits({ settings, utilisateur, onRetour }) {
         <button className="icon-btn" onClick={onRetour} aria-label="Retour">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15 7 10l5.5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
-        <h1 className="topbar-title">Forfaits & crédits</h1>
+        <h1 className="topbar-title">{t("forfaits.titre")}</h1>
         <span style={{ width: 36 }} />
       </header>
 
@@ -25,25 +27,22 @@ export default function Forfaits({ settings, utilisateur, onRetour }) {
         <div className="stat-strip">
           <div className="stat-chip">
             <span className="stat-num">{utilisateur?.credits ?? "—"}</span>
-            <span className="stat-label">crédits disponibles</span>
+            <span className="stat-label">{t("forfaits.credits")}</span>
           </div>
           <div className="stat-chip">
-            <span className="stat-num" style={{ fontSize: 15 }}>{utilisateur?.forfait_actuel || "Essai gratuit"}</span>
-            <span className="stat-label">forfait actuel</span>
+            <span className="stat-num" style={{ fontSize: 15 }}>{utilisateur?.forfait_actuel || t("reglages.essaiGratuit")}</span>
+            <span className="stat-label">{t("forfaits.forfaitActuel")}</span>
           </div>
         </div>
 
-        <p className="section-intro">
-          1 crédit ≈ 1 transcription courte ; une analyse qualitative coûte 2 crédits. Les crédits
-          ne sont jamais consommés en cas d'échec (remboursement automatique).
-        </p>
+        <p className="section-intro">{t("forfaits.intro")}</p>
 
         {erreur && <p className="note-banner err">{erreur}</p>}
 
         {forfaits === null ? (
-          <div className="pending-card"><span className="spinner" />Chargement des forfaits…</div>
+          <div className="pending-card"><span className="spinner" />{t("forfaits.chargement")}</div>
         ) : forfaits.length === 0 ? (
-          <p className="note-banner">Aucun forfait payant n'est encore proposé — profite de ton crédit d'essai gratuit.</p>
+          <p className="note-banner">{t("forfaits.aucunForfait")}</p>
         ) : (
           <ul className="corpus-list">
             {forfaits.map((f) => (
@@ -53,7 +52,7 @@ export default function Forfaits({ settings, utilisateur, onRetour }) {
                     <span className="forfait-nom">{f.nom}</span>
                     <span className="forfait-prix">{f.prix_fcfa.toLocaleString("fr-FR")} FCFA</span>
                   </div>
-                  <p className="forfait-credits">{f.credits_inclus} crédits inclus</p>
+                  <p className="forfait-credits">{f.credits_inclus} {t("forfaits.creditsInclus")}</p>
                   {f.description && <p className="field-help">{f.description}</p>}
                 </div>
               </li>
@@ -63,9 +62,7 @@ export default function Forfaits({ settings, utilisateur, onRetour }) {
 
         {forfaits && forfaits.length > 0 && (
           <div className="note-banner">
-            Pour souscrire : envoie le montant du forfait par Mobile Money (Orange Money, MTN Money,
-            Moov Money) ou virement, puis écris à <strong>{CONTACT_ADMIN}</strong> avec ton e-mail de
-            compte Djeliya et la preuve de paiement. Ton forfait sera activé sous peu.
+            {t("forfaits.commentSouscrire")} <strong>{CONTACT_ADMIN}</strong> {t("forfaits.commentSouscrireSuite")}
           </div>
         )}
       </div>

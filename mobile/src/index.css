@@ -393,6 +393,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .forfait-prix { font-weight: 700; color: var(--or); font-size: 14px; }
 .forfait-credits { font-size: 12.5px; color: var(--ivoire-dim); margin: 0; }
 
+/* ---- Support ---- */
+.support-card { background: var(--surface); border: 1px solid var(--ligne); border-radius: 13px; padding: 13px 14px; display: flex; flex-direction: column; gap: 6px; }
+
 /* ---- Carte compte ---- */
 .compte-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 13px; padding: 13px 14px; }
 .compte-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--or); display: grid; place-items: center; font-weight: 700; color: var(--or); flex-shrink: 0; }

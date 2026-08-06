@@ -154,6 +154,7 @@ def _entretien_vers_dict(e: Entretien) -> dict:
         "analyse_erreur": e.analyse_erreur,
         "analyse_contexte": e.analyse_contexte,
         "analyse_methode": e.analyse_methode,
+        "analyse_langue": e.analyse_langue,
         "analyse_modele": e.analyse_modele,
         "cree_le": e.cree_le.isoformat() if e.cree_le else None,
     }
@@ -249,6 +250,7 @@ class RejoindreIn(BaseModel):
 class AnalyseCorpusIn(BaseModel):
     contexte: str = ""
     methode: str = "gioia"
+    langue: str = "fr"
 
 
 class CodageIn(BaseModel):
@@ -819,6 +821,7 @@ def _corpus_vers_dict(c: Corpus) -> dict:
         "analyse_statut": c.analyse_statut, "analyse": c.analyse, "analyse_erreur": c.analyse_erreur,
         "analyse_contexte": c.analyse_contexte, "analyse_methode": c.analyse_methode,
         "analyse_modele": c.analyse_modele, "analyse_nb_entretiens": c.analyse_nb_entretiens,
+        "analyse_langue": c.analyse_langue,
     }
 
 
@@ -840,6 +843,7 @@ def detail_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_couran
 def lancer_analyse_corpus(corpus_id: str, payload: AnalyseCorpusIn, user: Utilisateur = Depends(utilisateur_courant)):
     if payload.methode not in METHODES_ANALYSE:
         raise HTTPException(422, f"Méthode inconnue : {payload.methode}")
+    langue = payload.langue if payload.langue in ("fr", "en") else "fr"
     session = get_session()
     try:
         if not session.query(MembreCorpus).filter_by(corpus_id=corpus_id, utilisateur_id=user.id).first():
@@ -866,7 +870,7 @@ def lancer_analyse_corpus(corpus_id: str, payload: AnalyseCorpusIn, user: Utilis
     finally:
         session.close()
 
-    threading.Thread(target=_run_analyse_corpus, args=(corpus_id, payload.contexte, payload.methode, user.id, cout), daemon=True).start()
+    threading.Thread(target=_run_analyse_corpus, args=(corpus_id, payload.contexte, payload.methode, user.id, cout, langue), daemon=True).start()
     return {"analyse_statut": "en_cours"}
 
 
@@ -1060,11 +1064,13 @@ def export_xlsx_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_c
 
 @app.post("/api/transcriptions/{entretien_id}/analyser")
 def lancer_analyse(
-    entretien_id: str, contexte: str = Form(""), methode: str = Form("gioia"),
+    entretien_id: str, contexte: str = Form(""), methode: str = Form("gioia"), langue: str = Form("fr"),
     user: Utilisateur = Depends(utilisateur_courant),
 ):
     if methode not in METHODES_ANALYSE:
         raise HTTPException(422, f"Méthode inconnue : {methode}")
+    if langue not in ("fr", "en"):
+        langue = "fr"
     session = get_session()
     try:
         e = session.get(Entretien, entretien_id)
@@ -1090,7 +1096,7 @@ def lancer_analyse(
     finally:
         session.close()
 
-    threading.Thread(target=_run_analyse, args=(entretien_id, contexte, methode, user.id), daemon=True).start()
+    threading.Thread(target=_run_analyse, args=(entretien_id, contexte, methode, user.id, langue), daemon=True).start()
     return {"analyse_statut": "en_cours"}
 
 
@@ -1332,8 +1338,9 @@ et les critères de catégorisation (exclusion mutuelle, homogénéité, pertine
 }
 
 
-def _construire_prompt(transcription: str, contexte: str, methode: str, multi_entretiens: bool = False) -> str:
+def _construire_prompt(transcription: str, contexte: str, methode: str, multi_entretiens: bool = False, langue: str = "fr") -> str:
     m = METHODES_ANALYSE[methode]
+    est_anglais = langue == "en"
     portee = (
         "sur l'ensemble des entretiens de ce corpus (analyse transversale inter-cas — indique pour "
         "chaque verbatim de quel entretien il provient via le champ \"entretien\", et commente dans "
@@ -1341,6 +1348,16 @@ def _construire_prompt(transcription: str, contexte: str, methode: str, multi_en
         "théorique semble atteinte ou si de nouveaux codes émergent encore)"
         if multi_entretiens else
         "de la transcription d'entretien ci-dessous"
+    )
+    consigne_langue = (
+        "Rédige tous les libellés (concepts, thèmes, dimensions), la démarche méthodologique, la "
+        "synthèse et les limites en ANGLAIS. En revanche, les verbatims (citations) doivent "
+        "impérativement rester dans leur langue EXACTE d'origine telle qu'elle apparaît dans la "
+        "transcription (français, dioula, baoulé, anglais...) — ne traduis JAMAIS un verbatim, "
+        "traduire les paroles d'un participant fausserait la rigueur scientifique de l'analyse."
+        if est_anglais else
+        "Rédige l'intégralité de la réponse en français, y compris les verbatims tels qu'ils "
+        "apparaissent dans la transcription (ne les traduis pas s'ils sont dans une autre langue)."
     )
     return f"""Tu es méthodologue qualitatif spécialisé en sciences de gestion et organisation, de niveau \
 recherche doctorale.
@@ -1354,8 +1371,10 @@ Contexte / question de recherche fournie par le chercheur : {contexte or "non pr
 Transcription{'s' if multi_entretiens else ''} horodatée{'s' if multi_entretiens else ''} :
 {transcription}
 
+{consigne_langue}
+
 Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
-aucune balise markdown, en français. Assure-toi que le JSON est syntaxiquement valide : échappe tous \
+aucune balise markdown. Assure-toi que le JSON est syntaxiquement valide : échappe tous \
 les guillemets internes aux chaînes de caractères (\\") et ne laisse aucune chaîne non terminée :
 {SCHEMA_ANALYSE}"""
 
@@ -1386,14 +1405,14 @@ def _valider_analyse(analyse: dict):
             raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
 
 
-def _run_analyse(entretien_id: str, contexte: str, methode: str, payeur_id: str):
+def _run_analyse(entretien_id: str, contexte: str, methode: str, payeur_id: str, langue: str = "fr"):
     session = get_session()
     try:
         e = session.get(Entretien, entretien_id)
         segments = list(e.segments or [])
         transcription = "\n".join(f"[{s['debut']:.1f}s] {s['texte']}" for s in segments)
         client = get_anthropic()
-        prompt = _construire_prompt(transcription, contexte, methode)
+        prompt = _construire_prompt(transcription, contexte, methode, langue=langue)
         resp = client.messages.create(
             model=ANALYSE_MODEL,
             max_tokens=8000,
@@ -1408,6 +1427,7 @@ def _run_analyse(entretien_id: str, contexte: str, methode: str, payeur_id: str)
         e.analyse_contexte = contexte
         e.analyse_methode = methode
         e.analyse_modele = ANALYSE_MODEL
+        e.analyse_langue = langue
         session.commit()
     except Exception as ex:  # noqa: BLE001
         e = session.get(Entretien, entretien_id)
@@ -1426,7 +1446,7 @@ def _run_analyse(entretien_id: str, contexte: str, methode: str, payeur_id: str)
         session.close()
 
 
-def _run_analyse_corpus(corpus_id: str, contexte: str, methode: str, payeur_id: str, cout: float):
+def _run_analyse_corpus(corpus_id: str, contexte: str, methode: str, payeur_id: str, cout: float, langue: str = "fr"):
     session = get_session()
     try:
         entretiens = session.query(Entretien).filter_by(corpus_id=corpus_id, statut="termine").all()
@@ -1437,7 +1457,7 @@ def _run_analyse_corpus(corpus_id: str, contexte: str, methode: str, payeur_id: 
         transcription = "\n".join(blocs)
 
         client = get_anthropic()
-        prompt = _construire_prompt(transcription, contexte, methode, multi_entretiens=True)
+        prompt = _construire_prompt(transcription, contexte, methode, multi_entretiens=True, langue=langue)
         resp = client.messages.create(
             model=ANALYSE_MODEL,
             max_tokens=8000,
@@ -1454,6 +1474,7 @@ def _run_analyse_corpus(corpus_id: str, contexte: str, methode: str, payeur_id: 
         corpus.analyse_methode = methode
         corpus.analyse_modele = ANALYSE_MODEL
         corpus.analyse_nb_entretiens = len(entretiens)
+        corpus.analyse_langue = langue
         session.commit()
     except Exception as ex:  # noqa: BLE001
         corpus = session.get(Corpus, corpus_id)

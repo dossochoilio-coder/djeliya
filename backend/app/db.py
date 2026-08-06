@@ -72,6 +72,7 @@ class Corpus(Base):
     analyse_methode: Mapped[str | None] = mapped_column(nullable=True)
     analyse_modele: Mapped[str | None] = mapped_column(nullable=True)
     analyse_nb_entretiens: Mapped[int | None] = mapped_column(nullable=True)
+    analyse_langue: Mapped[str | None] = mapped_column(nullable=True)
 
 
 class MembreCorpus(Base):
@@ -103,6 +104,7 @@ class Entretien(Base):
     analyse_contexte: Mapped[str | None] = mapped_column(nullable=True)
     analyse_modele: Mapped[str | None] = mapped_column(nullable=True)
     analyse_methode: Mapped[str | None] = mapped_column(nullable=True)
+    analyse_langue: Mapped[str | None] = mapped_column(nullable=True)
 
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -204,8 +206,9 @@ _COLONNES_ATTENDUES = {
         "analyse_methode": "VARCHAR",
         "analyse_modele": "VARCHAR",
         "analyse_nb_entretiens": "INTEGER",
+        "analyse_langue": "VARCHAR",
     },
-    "entretiens": {"analyse_methode": "VARCHAR"},
+    "entretiens": {"analyse_methode": "VARCHAR", "analyse_langue": "VARCHAR"},
 }
 
 

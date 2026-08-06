@@ -1,0 +1,396 @@
+import { createContext, createElement, useContext } from "react";
+
+export const TRADUCTIONS = {
+  fr: {
+    tabbar: { entretiens: "Entretiens", corpus: "Corpus", glossaire: "Glossaire", reglages: "Réglages" },
+
+    connexion: {
+      slogan: "La parole des terrains, structurée pour la recherche.",
+      connexion: "Connexion", inscription: "Créer un compte",
+      nom: "Nom", nomPlaceholder: "Dr Aya Kouassi",
+      email: "E-mail", motDePasse: "Mot de passe", motDePassePlaceholder: "8 caractères minimum",
+      mdpOublie: "Mot de passe oublié ?",
+      accepteCgu: "J'accepte les", cguLien: "conditions d'utilisation et la politique de confidentialité",
+      seConnecter: "Se connecter", creerCompte: "Créer mon compte", envoi: "…",
+      serveurNonConfigure: "Aucun serveur configuré. Renseigne l'adresse Railway une fois connecté.",
+      serveurRequis: "Configure d'abord l'adresse du serveur (voir plus bas).",
+      accepterCguRequis: "Tu dois accepter les conditions d'utilisation pour créer un compte.",
+      verifTitre: "Entre le code à 6 chiffres envoyé à", verifSuite: "pour activer ton compte et recevoir ton crédit d'essai gratuit.",
+      codeVerif: "Code de vérification", verifier: "Vérifier", renvoyerCode: "Renvoyer le code",
+      codeEnvoye: "Un code à 6 chiffres a été envoyé à ton adresse e-mail.",
+      codeIndisponible: "Vérification e-mail indisponible pour l'instant — contacte l'administrateur si besoin.",
+      nouveauCodeEnvoye: "Nouveau code envoyé.", envoiEchoue: "L'envoi a échoué — réessaie plus tard.",
+      oubliTitre: "Renseigne ton adresse e-mail pour recevoir un code de réinitialisation.",
+      recevoirCode: "Recevoir un code", retourConnexion: "Retour à la connexion",
+      resetInfo: "Si un compte existe avec cette adresse, un code de réinitialisation vient d'être envoyé.",
+      codeRecu: "Code reçu par e-mail", nouveauMdp: "Nouveau mot de passe",
+      reinitialiser: "Réinitialiser et me connecter",
+    },
+
+    accueil: {
+      rechercher: "Rechercher un entretien…",
+      serveurNonConnecte: "Serveur non connecté — configure-le dans l'onglet Réglages",
+      vide: "Aucun entretien pour l'instant",
+      videSous: "Enregistre ta première conversation de terrain ou importe un fichier audio.",
+      commencer: "Commencer un entretien",
+    },
+
+    statuts: {
+      brouillon: "Brouillon", en_attente: "En file", en_cours: "Transcription…",
+      termine: "Terminé", erreur: "Erreur",
+    },
+
+    nouvelEntretien: {
+      titre: "Nouvel entretien",
+      enregistrementEnCours: "Enregistrement en cours — touche ⏸ pour faire une pause",
+      enPause: "En pause — touche ▶ pour reprendre exactement où tu en étais",
+      demandeAcces: "Demande d'accès au microphone…",
+      touchePourDemarrer: "Touche pour démarrer l'enregistrement",
+      ou: "ou", importer: "Importer un fichier audio",
+      enregistrementPret: "Enregistrement prêt", fichierImporte: "Fichier importé",
+      recommencer: "Recommencer",
+      titreEntretien: "Titre de l'entretien", titrePlaceholder: "Ex. Awa T. — Adjamé",
+      langueAttendue: "Langue attendue",
+      vocabulaireLocal: "Vocabulaire local (facultatif)", vocabulairePlaceholder: "Ex. tontine, pagne, Adjamé, Cocody",
+      vocabulaireAide: "Guide le modèle vers les termes de ton terrain.",
+      corpusFacultatif: "Corpus (facultatif)", aucunCorpus: "Aucun",
+      envoyer: "Envoyer pour transcription", envoiEnCours: "Envoi en cours…",
+      micRefuse: "Accès au microphone refusé. Autorise-le dans les réglages du téléphone.",
+      micErreur: "Impossible de démarrer l'enregistrement : ",
+    },
+
+    ficheEntretien: {
+      transcription: "Transcription", analyse: "Analyse", codageEquipe: "Codage d'équipe",
+      corpusAssigne: "Corpus : ", aucunCorpusAssigne: "Aucun corpus assigné", modifier: "modifier",
+      audioIndisponible: "Audio indisponible sur cet appareil. La transcription reste consultable.",
+      aucuneParole: "Aucune parole détectée dans cet audio.",
+      enFileAttente: "En file d'attente sur le serveur…", enCoursServeur: "Transcription en cours…",
+      echecTranscription: "Échec de la transcription : ", relancer: "Relancer la transcription",
+      copierTexte: "Copier le texte", partagerTexte: "Partager le texte brut",
+      exporterWord: "Exporter en Word", exporterExcel: "Exporter en Excel",
+      supprimerEntretien: "Supprimer l'entretien", corrige: "corrigé",
+      annuler: "Annuler", enregistrer: "Enregistrer", segmentCorrige: "Segment corrigé",
+      texteCopie: "Texte copié dans le presse-papiers",
+      fiabilite: "fiabilité", motAVerifier: "mot à vérifier", motsAVerifier: "mots à vérifier",
+      aucun: "Aucun", choisirCorpus: "Crée d'abord un corpus dans l'onglet Corpus.",
+      assigneA: "Assigné à « {nom} »",
+    },
+
+    analyseView: {
+      methodologie: "Méthodologie", reference: "Référence : ",
+      questionRecherche: "Question de recherche ou angle d'analyse (facultatif)",
+      questionPlaceholder: "Ex. Comment les commerçantes financent-elles leur activité ?",
+      lancerAnalyse: "Lancer l'analyse qualitative",
+      analyseEnCours: "Analyse en cours (30 à 90 secondes)…",
+      demarcheMethodologique: "Démarche méthodologique",
+      syntheseInterpretative: "Synthèse interprétative",
+      limitesAutomatique: "Limites de l'analyse automatique",
+      echecAnalyse: "Échec de l'analyse : ",
+      modele: "modèle", angle: "angle : ", entretiens: "entretiens",
+    },
+
+    codage: {
+      intro: "Chaque chercheur code les segments avec son propre libellé thématique, indépendamment des autres — la fiabilité inter-codeurs (kappa de Cohen) mesure ensuite l'accord entre vous.",
+      calculerFiabilite: "Calculer la fiabilité inter-codeurs",
+      calcul: "Calcul…", unSeulCodeur: "Un seul codeur pour l'instant — invite un collègue via le corpus pour comparer vos codages.",
+      kappaMoyen: "Kappa moyen entre {n} codeurs : ",
+      kappaAide: "(0 = accord aléatoire, 1 = accord parfait ; usuellement, ≥ 0,6 est considéré satisfaisant)",
+      tonCode: "Ton code pour ce segment", coder: "Coder", chargement: "Chargement des codages…",
+    },
+
+    corpus: {
+      titre: "Corpus", entretiensOnglet: "Entretiens", analyseTransversale: "Analyse transversale",
+      intro: "Regroupe tes entretiens par projet de recherche, et invite ton équipe à coder les mêmes corpus.",
+      codeInvitation: "Code d'invitation", rejoindre: "Rejoindre", creer: "Créer", copier: "copier",
+      codeCopie: "Code copié — partage-le à ton équipe",
+      nomCorpusPlaceholder: "Nom du corpus, ex. Entrepreneuriat féminin",
+      codeInvitationPlaceholder: "Code d'invitation",
+      videTitre: "Aucun corpus pour l'instant",
+      videSous: "Crée un premier regroupement, ou rejoins celui d'un collègue avec son code.",
+      creerUnCorpus: "Créer un corpus",
+      entretien: "entretien", entretiensMot: "entretiens", chercheur: "chercheur", chercheurs: "chercheurs",
+      minutes: "min", sansCorpus: "sans corpus assigné",
+      aucunEntretien: "Aucun entretien dans ce corpus pour l'instant. Assigne-le depuis la fiche d'un entretien.",
+      exporterWord: "Exporter en Word", exporterExcel: "Exporter en Excel",
+      termines: "sur", reellementTermines: "entretien(s) réellement terminé(s) — seuls ceux-ci comptent pour l'analyse transversale.",
+    },
+
+    glossaire: {
+      titre: "Glossaire",
+      intro: "Les termes locaux que tu renseignes à chaque entretien s'accumulent ici — définis-les une fois pour toutes.",
+      rechercher: "Rechercher un terme…",
+      terme: "Terme, ex. tontine", sens: "Sens ou traduction", ajouterGlossaire: "Ajouter au glossaire",
+      definis: "Définis", relevesTitre: "Relevés dans tes entretiens",
+      videTitre: "Le glossaire est vide", aucunResultat: "Aucun résultat",
+      videSous: "Renseigne un vocabulaire local à tes prochains entretiens, il apparaîtra ici automatiquement.",
+      videSousRecherche: "Essaie un autre terme.",
+      termeAjoute: "Terme ajouté au glossaire",
+    },
+
+    reglages: {
+      titre: "Réglages", deconnexion: "Déconnexion",
+      emailNonVerifie: "Adresse e-mail non vérifiée — certaines actions (transcription) resteront bloquées tant que la vérification n'est pas terminée.",
+      modifierCompte: "Modifier mon compte", nom: "Nom",
+      mdpActuelLabel: "Mot de passe actuel (pour changer de mot de passe)",
+      nouveauMdpLabel: "Nouveau mot de passe (facultatif)", nouveauMdpAide: "Laisser vide pour ne pas changer",
+      supprimerCompte: "Supprimer mon compte",
+      suppressionAvertissement: "Action irréversible : tes entretiens, tes corpus (dont tu es seul propriétaire) et tes contributions seront définitivement supprimés.",
+      tapeSupprimer: "Tape SUPPRIMER pour confirmer", tonMdp: "Ton mot de passe",
+      supprimerDefinitivement: "Supprimer définitivement mon compte",
+      credits: "crédits", essaiGratuit: "Essai gratuit", forfaits: "forfaits",
+      panneauAdmin: "Panneau d'administration",
+      contribuerLangues: "Contribuer aux langues locales",
+      contribuerAide: "Si activé, tes corrections manuelles sur des segments en dioula ou en baoulé sont envoyées de façon sécurisée pour servir de données d'entraînement à un futur modèle plus fiable dans ces langues. Aucun réentraînement automatique n'a lieu — c'est un travail humain et scientifique distinct (voir la stratégie langues locales du projet). Désactivable à tout moment.",
+      correctionsEnvoyees: "correction envoyée jusqu'ici — merci !", correctionsEnvoyeesPl: "corrections envoyées jusqu'ici — merci !",
+      adresseServeur: "Adresse du serveur Djeliya", adresseServeurAide: "L'adresse de ton déploiement Railway (voir onglet Networking du service).",
+      testerConnexion: "Tester la connexion", verification: "Vérification…",
+      connecte: "Connecté — modèle « {modele} » · analyse ", activee: "activée", nonConfiguree: "non configurée",
+      diarisation: " · diarisation ", echec: "Échec : ",
+      langueDefaut: "Langue par défaut",
+      vocabulaireDefaut: "Vocabulaire local par défaut", vocabulaireDefautPlaceholder: "Ex. tontine, pagne, Cocody",
+      vocabulaireDefautAide: "Pré-rempli à chaque nouvel entretien — modifiable au cas par cas.",
+      langueInterface: "Langue de l'application",
+      support: "Assistance", supportAide: "Une question, un problème ? Écris-nous.",
+      about1: "Djeliya — plateforme de transcription pour la recherche qualitative multilingue.",
+      about2: "Les entretiens et l'audio restent sur cet appareil ; seul l'audio envoyé pour transcription transite par ton serveur.",
+      cguLien: "Conditions d'utilisation et confidentialité",
+    },
+
+    forfaits: {
+      titre: "Forfaits & crédits", credits: "crédits disponibles", forfaitActuel: "forfait actuel",
+      intro: "1 crédit ≈ 1 transcription courte ; une analyse qualitative coûte 2 crédits. Les crédits ne sont jamais consommés en cas d'échec (remboursement automatique).",
+      chargement: "Chargement des forfaits…",
+      aucunForfait: "Aucun forfait payant n'est encore proposé — profite de ton crédit d'essai gratuit.",
+      creditsInclus: "crédits inclus",
+      commentSouscrire: "Pour souscrire : envoie le montant du forfait par Mobile Money (Orange Money, MTN Money, Moov Money) ou virement, puis écris à",
+      commentSouscrireSuite: "avec ton e-mail de compte Djeliya et la preuve de paiement. Ton forfait sera activé sous peu.",
+    },
+
+    admin: {
+      titre: "Administration", utilisateurs: "Utilisateurs", forfaitsOnglet: "Forfaits",
+      chargement: "Chargement…", verifie: "Vérifié", nonVerifie: "Non vérifié",
+      ajouterRetirer: "Ajouter/retirer", definirSolde: "Définir le solde",
+      nouveauSoldePlaceholder: "Nouveau solde, ex. 100", montantPlaceholder: "+10 ou -5",
+      definir: "Définir", ajuster: "Ajuster", motif: "Motif (facultatif)",
+      attribuerForfait: "Attribuer un forfait (paiement confirmé)", choisir: "Choisir…",
+      historique: "Historique des mouvements",
+      supprimerUtilisateur: "Supprimer cet utilisateur",
+      suppressionAvertissement: "Supprime définitivement ce compte, ses entretiens et ses corpus. Irréversible.",
+      confirmerSuppression: "Confirmer la suppression",
+      nouveauForfait: "+ Nouveau forfait", nomForfait: "Nom, ex. Chercheur Pro",
+      prixFcfa: "Prix en FCFA", creditsInclus: "Crédits inclus", description: "Description (facultatif)",
+      desactiver: "Désactiver",
+    },
+
+    cgu: { titre: "Conditions & confidentialité", chargement: "Chargement…" },
+  },
+
+  en: {
+    tabbar: { entretiens: "Interviews", corpus: "Corpus", glossaire: "Glossary", reglages: "Settings" },
+
+    connexion: {
+      slogan: "The voice of the field, structured for research.",
+      connexion: "Sign in", inscription: "Create an account",
+      nom: "Name", nomPlaceholder: "Dr Aya Kouassi",
+      email: "Email", motDePasse: "Password", motDePassePlaceholder: "8 characters minimum",
+      mdpOublie: "Forgot your password?",
+      accepteCgu: "I accept the", cguLien: "terms of use and privacy policy",
+      seConnecter: "Sign in", creerCompte: "Create my account", envoi: "…",
+      serveurNonConfigure: "No server configured. Enter the Railway address once signed in.",
+      serveurRequis: "First set the server address (see below).",
+      accepterCguRequis: "You must accept the terms of use to create an account.",
+      verifTitre: "Enter the 6-digit code sent to", verifSuite: "to activate your account and receive your free trial credit.",
+      codeVerif: "Verification code", verifier: "Verify", renvoyerCode: "Resend code",
+      codeEnvoye: "A 6-digit code has been sent to your email address.",
+      codeIndisponible: "Email verification unavailable right now — contact the administrator if needed.",
+      nouveauCodeEnvoye: "New code sent.", envoiEchoue: "Sending failed — try again later.",
+      oubliTitre: "Enter your email address to receive a reset code.",
+      recevoirCode: "Receive a code", retourConnexion: "Back to sign in",
+      resetInfo: "If an account exists with this address, a reset code has just been sent.",
+      codeRecu: "Code received by email", nouveauMdp: "New password",
+      reinitialiser: "Reset and sign me in",
+    },
+
+    accueil: {
+      rechercher: "Search an interview…",
+      serveurNonConnecte: "Server not connected — set it up in the Settings tab",
+      vide: "No interviews yet",
+      videSous: "Record your first field conversation or import an audio file.",
+      commencer: "Start an interview",
+    },
+
+    statuts: {
+      brouillon: "Draft", en_attente: "Queued", en_cours: "Transcribing…",
+      termine: "Done", erreur: "Error",
+    },
+
+    nouvelEntretien: {
+      titre: "New interview",
+      enregistrementEnCours: "Recording in progress — tap ⏸ to pause",
+      enPause: "Paused — tap ▶ to resume exactly where you left off",
+      demandeAcces: "Requesting microphone access…",
+      touchePourDemarrer: "Tap to start recording",
+      ou: "or", importer: "Import an audio file",
+      enregistrementPret: "Recording ready", fichierImporte: "File imported",
+      recommencer: "Start over",
+      titreEntretien: "Interview title", titrePlaceholder: "E.g. Awa T. — Adjamé",
+      langueAttendue: "Expected language",
+      vocabulaireLocal: "Local vocabulary (optional)", vocabulairePlaceholder: "E.g. tontine, pagne, Adjamé, Cocody",
+      vocabulaireAide: "Guides the model toward your fieldwork's specific terms.",
+      corpusFacultatif: "Corpus (optional)", aucunCorpus: "None",
+      envoyer: "Send for transcription", envoiEnCours: "Sending…",
+      micRefuse: "Microphone access denied. Enable it in your phone's settings.",
+      micErreur: "Could not start recording: ",
+    },
+
+    ficheEntretien: {
+      transcription: "Transcript", analyse: "Analysis", codageEquipe: "Team coding",
+      corpusAssigne: "Corpus: ", aucunCorpusAssigne: "No corpus assigned", modifier: "change",
+      audioIndisponible: "Audio unavailable on this device. The transcript remains readable.",
+      aucuneParole: "No speech detected in this audio.",
+      enFileAttente: "Queued on the server…", enCoursServeur: "Transcribing…",
+      echecTranscription: "Transcription failed: ", relancer: "Retry transcription",
+      copierTexte: "Copy text", partagerTexte: "Share plain text",
+      exporterWord: "Export to Word", exporterExcel: "Export to Excel",
+      supprimerEntretien: "Delete interview", corrige: "corrected",
+      annuler: "Cancel", enregistrer: "Save", segmentCorrige: "Segment corrected",
+      texteCopie: "Text copied to clipboard",
+      fiabilite: "reliability", motAVerifier: "word to check", motsAVerifier: "words to check",
+      aucun: "None", choisirCorpus: "Create a corpus in the Corpus tab first.",
+      assigneA: "Assigned to “{nom}”",
+    },
+
+    analyseView: {
+      methodologie: "Methodology", reference: "Reference: ",
+      questionRecherche: "Research question or analysis angle (optional)",
+      questionPlaceholder: "E.g. How do the traders finance their business?",
+      lancerAnalyse: "Run qualitative analysis",
+      analyseEnCours: "Analysis in progress (30 to 90 seconds)…",
+      demarcheMethodologique: "Methodological approach",
+      syntheseInterpretative: "Interpretive summary",
+      limitesAutomatique: "Limits of the automated analysis",
+      echecAnalyse: "Analysis failed: ",
+      modele: "model", angle: "angle: ", entretiens: "interviews",
+    },
+
+    codage: {
+      intro: "Each researcher codes segments with their own thematic label, independently of the others — inter-rater reliability (Cohen's kappa) then measures the agreement between you.",
+      calculerFiabilite: "Calculate inter-rater reliability",
+      calcul: "Calculating…", unSeulCodeur: "Only one coder so far — invite a colleague via the corpus to compare your coding.",
+      kappaMoyen: "Average kappa across {n} coders: ",
+      kappaAide: "(0 = random agreement, 1 = perfect agreement; usually ≥ 0.6 is considered satisfactory)",
+      tonCode: "Your code for this segment", coder: "Code", chargement: "Loading codes…",
+    },
+
+    corpus: {
+      titre: "Corpus", entretiensOnglet: "Interviews", analyseTransversale: "Cross-case analysis",
+      intro: "Group your interviews by research project, and invite your team to code the same corpus.",
+      codeInvitation: "Invitation code", rejoindre: "Join", creer: "Create", copier: "copy",
+      codeCopie: "Code copied — share it with your team",
+      nomCorpusPlaceholder: "Corpus name, e.g. Women's entrepreneurship",
+      codeInvitationPlaceholder: "Invitation code",
+      videTitre: "No corpus yet",
+      videSous: "Create your first group, or join a colleague's with their code.",
+      creerUnCorpus: "Create a corpus",
+      entretien: "interview", entretiensMot: "interviews", chercheur: "researcher", chercheurs: "researchers",
+      minutes: "min", sansCorpus: "with no corpus assigned",
+      aucunEntretien: "No interviews in this corpus yet. Assign one from an interview's page.",
+      exporterWord: "Export to Word", exporterExcel: "Export to Excel",
+      termines: "of", reellementTermines: "interview(s) actually completed — only these count toward cross-case analysis.",
+    },
+
+    glossaire: {
+      titre: "Glossary",
+      intro: "The local terms you enter for each interview accumulate here — define them once and for all.",
+      rechercher: "Search a term…",
+      terme: "Term, e.g. tontine", sens: "Meaning or translation", ajouterGlossaire: "Add to glossary",
+      definis: "Defined", relevesTitre: "Found in your interviews",
+      videTitre: "The glossary is empty", aucunResultat: "No results",
+      videSous: "Enter local vocabulary on your next interviews, it will appear here automatically.",
+      videSousRecherche: "Try another term.",
+      termeAjoute: "Term added to glossary",
+    },
+
+    reglages: {
+      titre: "Settings", deconnexion: "Sign out",
+      emailNonVerifie: "Email address not verified — some actions (transcription) will stay blocked until verification is complete.",
+      modifierCompte: "Edit my account", nom: "Name",
+      mdpActuelLabel: "Current password (to change your password)",
+      nouveauMdpLabel: "New password (optional)", nouveauMdpAide: "Leave blank to keep it unchanged",
+      supprimerCompte: "Delete my account",
+      suppressionAvertissement: "Irreversible action: your interviews, your corpus (that you solely own), and your contributions will be permanently deleted.",
+      tapeSupprimer: "Type DELETE to confirm", tonMdp: "Your password",
+      supprimerDefinitivement: "Permanently delete my account",
+      credits: "credits", essaiGratuit: "Free trial", forfaits: "plans",
+      panneauAdmin: "Admin panel",
+      contribuerLangues: "Contribute to local languages",
+      contribuerAide: "If enabled, your manual corrections on Dioula or Baoulé segments are securely sent to serve as training data for a future, more reliable model in these languages. No automatic retraining takes place — this is a separate human and scientific effort (see the project's local languages strategy). Can be turned off at any time.",
+      correctionsEnvoyees: "correction sent so far — thank you!", correctionsEnvoyeesPl: "corrections sent so far — thank you!",
+      adresseServeur: "Djeliya server address", adresseServeurAide: "Your Railway deployment address (see the service's Networking tab).",
+      testerConnexion: "Test connection", verification: "Checking…",
+      connecte: "Connected — model “{modele}” · analysis ", activee: "enabled", nonConfiguree: "not configured",
+      diarisation: " · diarization ", echec: "Failed: ",
+      langueDefaut: "Default language",
+      vocabulaireDefaut: "Default local vocabulary", vocabulaireDefautPlaceholder: "E.g. tontine, pagne, Cocody",
+      vocabulaireDefautAide: "Pre-filled for every new interview — editable case by case.",
+      langueInterface: "App language",
+      support: "Support", supportAide: "A question, an issue? Write to us.",
+      about1: "Djeliya — a transcription platform for multilingual qualitative research.",
+      about2: "Interviews and audio stay on this device; only the audio sent for transcription passes through your server.",
+      cguLien: "Terms of use and privacy",
+    },
+
+    forfaits: {
+      titre: "Plans & credits", credits: "credits available", forfaitActuel: "current plan",
+      intro: "1 credit ≈ 1 short transcription; a qualitative analysis costs 2 credits. Credits are never consumed on failure (automatic refund).",
+      chargement: "Loading plans…",
+      aucunForfait: "No paid plan is available yet — enjoy your free trial credit.",
+      creditsInclus: "credits included",
+      commentSouscrire: "To subscribe: send the plan's amount by Mobile Money (Orange Money, MTN Money, Moov Money) or bank transfer, then write to",
+      commentSouscrireSuite: "with your Djeliya account email and proof of payment. Your plan will be activated shortly.",
+    },
+
+    admin: {
+      titre: "Administration", utilisateurs: "Users", forfaitsOnglet: "Plans",
+      chargement: "Loading…", verifie: "Verified", nonVerifie: "Not verified",
+      ajouterRetirer: "Add/remove", definirSolde: "Set balance",
+      nouveauSoldePlaceholder: "New balance, e.g. 100", montantPlaceholder: "+10 or -5",
+      definir: "Set", ajuster: "Adjust", motif: "Reason (optional)",
+      attribuerForfait: "Assign a plan (payment confirmed)", choisir: "Choose…",
+      historique: "Credit history",
+      supprimerUtilisateur: "Delete this user",
+      suppressionAvertissement: "Permanently deletes this account, its interviews and its corpus. Irreversible.",
+      confirmerSuppression: "Confirm deletion",
+      nouveauForfait: "+ New plan", nomForfait: "Name, e.g. Pro Researcher",
+      prixFcfa: "Price in FCFA", creditsInclus: "Credits included", description: "Description (optional)",
+      desactiver: "Deactivate",
+    },
+
+    cgu: { titre: "Terms & privacy", chargement: "Loading…" },
+  },
+};
+
+const LangueContext = createContext({ langue: "fr", t: (chemin) => chemin });
+
+export function LangueProvider({ langue, children }) {
+  const t = (chemin, params) => {
+    const parts = chemin.split(".");
+    let v = TRADUCTIONS[langue] || TRADUCTIONS.fr;
+    for (const p of parts) v = v?.[p];
+    if (typeof v !== "string") {
+      // Repli sûr sur le français si une clé manque dans une langue
+      let vf = TRADUCTIONS.fr;
+      for (const p of parts) vf = vf?.[p];
+      v = typeof vf === "string" ? vf : chemin;
+    }
+    if (params) {
+      return Object.entries(params).reduce((s, [k, val]) => s.replaceAll(`{${k}}`, val), v);
+    }
+    return v;
+  };
+  return createElement(LangueContext.Provider, { value: { langue, t } }, children);
+}
+
+export function useT() {
+  return useContext(LangueContext);
+}

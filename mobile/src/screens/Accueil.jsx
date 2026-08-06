@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { STATUTS, fmtDate } from "../lib/constants.js";
+import { useT } from "../lib/i18n.js";
 import logo from "../assets/logo-full.png";
 
 export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
+  const { t } = useT();
   const [query, setQuery] = useState("");
 
   const filtres = useMemo(() => {
@@ -23,20 +25,20 @@ export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
       </header>
 
       {backendOk === false && (
-        <p className="warn-bar">Serveur non connecté — configure-le dans l'onglet Réglages</p>
+        <p className="warn-bar">{t("accueil.serveurNonConnecte")}</p>
       )}
 
       <div className="list-tools">
-        <input className="search" type="search" placeholder="Rechercher un entretien…"
+        <input className="search" type="search" placeholder={t("accueil.rechercher")}
           value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
 
       {filtres.length === 0 ? (
         <div className="empty">
           <div className="empty-badge">◎</div>
-          <p className="empty-title">Aucun entretien pour l'instant</p>
-          <p className="empty-sub">Enregistre ta première conversation de terrain ou importe un fichier audio.</p>
-          <button className="btn primary" onClick={onNouveau}>Commencer un entretien</button>
+          <p className="empty-title">{t("accueil.vide")}</p>
+          <p className="empty-sub">{t("accueil.videSous")}</p>
+          <button className="btn primary" onClick={onNouveau}>{t("accueil.commencer")}</button>
         </div>
       ) : (
         <ul className="interview-list">
@@ -46,14 +48,14 @@ export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
               <li key={i.id}>
                 <button className="interview-row" onClick={() => onOpen(i.id)}>
                   <div className="row-main">
-                    <span className="row-title">{i.titre || "Entretien sans titre"}</span>
+                    <span className="row-title">{i.titre || "—"}</span>
                     <span className="row-meta">
                       {fmtDate(i.creeLe)}
                       {i.duree ? ` · ${i.duree}` : ""}
                     </span>
                   </div>
                   <span className="status-pill" style={{ color: st.color, borderColor: st.color }}>
-                    {st.label}
+                    {t(`statuts.${i.statut}`)}
                   </span>
                 </button>
               </li>
@@ -62,7 +64,7 @@ export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
         </ul>
       )}
 
-      <button className="fab" onClick={onNouveau} aria-label="Nouvel entretien">
+      <button className="fab" onClick={onNouveau} aria-label={t("accueil.commencer")}>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
           <path d="M12 5v14M5 12h14" stroke="#1B1503" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
