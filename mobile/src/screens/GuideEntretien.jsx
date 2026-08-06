@@ -94,6 +94,8 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
 
           {g && (
             <>
+              <p className="note-banner" style={{ fontSize: 12 }}>⚠ {t("guide.avertissementIa")}</p>
+
               {g.informations_pratiques && (
                 <div className="analyse-texte-card">
                   <h3 className="subsection-title">{t("guide.infosPratiques")}</h3>
@@ -131,6 +133,20 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
                   </div>
                 </div>
               ))}
+
+              {(g.grille_coherence || []).length > 0 && (
+                <div className="analyse-texte-card">
+                  <h3 className="subsection-title">{t("guide.grilleCoherence")}</h3>
+                  <p className="analyse-texte" style={{ fontSize: 12.5, opacity: 0.8 }}>{t("guide.grilleCoherenceIntro")}</p>
+                  {g.grille_coherence.map((item, gi) => (
+                    <div key={gi} className="concept-block">
+                      <div className="concept-nom">{item.question}</div>
+                      <p className="theme-desc"><strong>{t("guide.dimensionVisee")} : </strong>{item.dimension_visee}</p>
+                      {item.justification && <p className="theme-desc" style={{ fontSize: 12 }}>{item.justification}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {g.conseils_methodologiques && (
                 <div className="analyse-texte-card">

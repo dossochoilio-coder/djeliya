@@ -101,6 +101,7 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
         {sujet.analyse_contexte ? ` · ${t("analyseView.angle")}${sujet.analyse_contexte}` : ""}
         {sujet.analyse_nb_entretiens ? ` · ${sujet.analyse_nb_entretiens} ${t("analyseView.entretiens")}` : ""}
       </p>
+      <p className="note-banner" style={{ fontSize: 12 }}>⚠ {t("analyseView.avertissementIa")}</p>
 
       {a.demarche_methodologique && (
         <div className="dim-card">

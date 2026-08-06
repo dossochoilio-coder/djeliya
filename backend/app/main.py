@@ -423,7 +423,10 @@ SCHEMA_GUIDE = """{
     }
   ],
   "conseils_methodologiques": "conseils concrets pour la conduite de l'entretien : écoute active, gestion des silences, neutralité du chercheur, prise de notes, reformulation",
-  "note_methodologique": "paragraphe de niveau doctoral situant le guide dans son cadre théorique (type d'entretien, logique de l'entonnoir du général au particulier, typologie des questions mobilisée) avec au moins une référence bibliographique reconnue (ex. Kvale & Brinkmann, 2009 ; Patton, 2002 ; Blanchet & Gotman, 2007)"
+  "note_methodologique": "paragraphe de niveau doctoral situant le guide dans son cadre théorique (type d'entretien, logique de l'entonnoir du général au particulier, typologie des questions mobilisée) avec au moins une référence bibliographique reconnue (ex. Kvale & Brinkmann, 2009 ; Patton, 2002 ; Blanchet & Gotman, 2007)",
+  "grille_coherence": [
+    {"question": "reprend EXACTEMENT le texte d'une question du guide ci-dessus", "dimension_visee": "la dimension ou l'axe théorique du sujet que cette question vise à explorer", "justification": "en une phrase, pourquoi cette question permet d'explorer cette dimension précise"}
+  ]
 }"""
 
 
@@ -444,6 +447,12 @@ pertinentes du sujet, puis une clôture. Chaque question ouverte doit être acco
 possibles. Le guide doit être directement utilisable par un chercheur sur le terrain, sans jargon inutile \
 dans les questions elles-mêmes (le jargon méthodologique reste réservé à la note méthodologique).
 
+Produis également une grille de cohérence ("grille_coherence") qui reprend CHAQUE question principale du \
+guide (pas les relances) et l'associe explicitement à la dimension théorique du sujet qu'elle vise à \
+explorer, avec une justification courte. Cette grille doit permettre à un chercheur ou un directeur de \
+recherche de vérifier d'un coup d'œil qu'aucune dimension du thème n'est oubliée et qu'aucune question \
+n'est redondante avec une autre.
+
 {consigne_langue}
 
 Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
@@ -453,7 +462,7 @@ internes aux chaînes de caractères (\\") et ne laisse aucune chaîne non termi
 
 
 def _valider_guide(guide: dict):
-    for cle in ("titre", "preambule", "sections", "conseils_methodologiques", "note_methodologique"):
+    for cle in ("titre", "preambule", "sections", "conseils_methodologiques", "note_methodologique", "grille_coherence"):
         if cle not in guide:
             raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
     if not guide["sections"]:
@@ -467,7 +476,7 @@ def _run_guide(guide_id: str, theme: str, question_recherche: str, langue: str, 
         prompt = _construire_prompt_guide(theme, question_recherche, langue)
         resp = client.messages.create(
             model=ANALYSE_MODEL,
-            max_tokens=8000,
+            max_tokens=9000,
             messages=[{"role": "user", "content": prompt}],
         )
         texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
