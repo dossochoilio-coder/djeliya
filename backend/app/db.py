@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, ForeignKey, JSON, DateTime, Boolean, Text
 from sqlalchemy.orm import (
-    DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session,
+    DeclarativeBase, Mapped, mapped_column, sessionmaker, Session,
 )
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./djeliya.db")
