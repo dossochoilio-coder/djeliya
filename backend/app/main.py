@@ -514,6 +514,14 @@ n'est redondante avec une autre.
 
 {consigne_langue}
 
+{CONSIGNE_ORIGINALITE}
+
+Point d'attention supplémentaire pour ce guide : plusieurs étudiants peuvent soumettre des thèmes très \
+proches (ex. plusieurs mémoires sur le même sujet de recherche dans une même promotion). Formule donc \
+les questions et les intitulés de section de façon distinctive, en t'appuyant précisément sur les mots \
+et l'angle propres à CE thème et CETTE question de recherche fournis, plutôt que sur une trame \
+générique de guide d'entretien qui reviendrait à l'identique pour n'importe quel autre thème voisin.
+
 Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
 aucune balise markdown. Assure-toi que le JSON est syntaxiquement valide : échappe tous les guillemets \
 internes aux chaînes de caractères (\\") et ne laisse aucune chaîne non terminée :
@@ -1839,6 +1847,20 @@ et les critères de catégorisation (exclusion mutuelle, homogénéité, pertine
 }
 
 
+CONSIGNE_ORIGINALITE = (
+    "Consigne d'originalité (essentielle — cette application est utilisée par des étudiants et "
+    "chercheurs dont les productions peuvent être comparées entre elles ou passées dans un logiciel "
+    "anti-plagiat) : rédige un contenu ORIGINAL, formulé avec tes propres mots, et directement ancré "
+    "dans les éléments concrets et spécifiques de CE cas précis (ce thème, ce contexte, ces verbatims). "
+    "N'utilise jamais de tournure figée, de définition récitée mot pour mot, ou de paragraphe "
+    "interchangeable qui pourrait convenir à l'identique à un autre thème ou un autre chercheur — même "
+    "les passages méthodologiques génériques (démarche, conseils) doivent être reformulés à ta façon à "
+    "chaque fois plutôt que recopiés d'un modèle standard. Les citations verbatim exactes du terrain "
+    "restent seules exemptées de cette règle : elles doivent être retranscrites fidèlement, jamais "
+    "reformulées."
+)
+
+
 def _construire_prompt(transcription: str, contexte: str, methode: str, multi_entretiens: bool = False, langue: str = "fr") -> str:
     m = METHODES_ANALYSE[methode]
     est_anglais = langue == "en"
@@ -1873,6 +1895,8 @@ Transcription{'s' if multi_entretiens else ''} horodatée{'s' if multi_entretien
 {transcription}
 
 {consigne_langue}
+
+{CONSIGNE_ORIGINALITE}
 
 Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
 aucune balise markdown. Assure-toi que le JSON est syntaxiquement valide : échappe tous \
