@@ -32,6 +32,7 @@ git push -u origin main
 - **Conservation des données** : rien n'est jamais supprimé automatiquement — seule une action explicite de l'utilisateur (ou de l'admin) efface un entretien, un corpus ou un compte. L'app demande aussi un stockage "persistant" au système d'exploitation pour empêcher toute éviction de l'audio local sous pression de stockage.
 - **Statistiques qualitatives** : le rapport d'étude calcule désormais la convergence entre entretiens (sur combien de cas un thème apparaît — logique de triangulation) et la saturation théorique (nombre de concepts nouveaux apportés par chaque entretien, dans l'ordre chronologique).
 - **Bilingue français / anglais** : toute l'interface (boutons, titres, messages) se traduit selon le réglage choisi dans Réglages. **L'analyse qualitative générée par l'IA suit aussi cette langue** (démarche méthodologique, thèmes, synthèse rédigés en anglais si demandé), avec une règle méthodologique stricte : les verbatims (citations) ne sont jamais traduits, ils restent dans la langue exacte de l'entretien. Les rapports Word/Excel exportés suivent également cette langue. Seul le texte légal des CGU reste en français dans les deux langues, pour ne pas s'écarter du texte de référence fondé sur la loi ivoirienne.
+- **Guide d'entretien généré par l'IA** : à partir d'un thème et d'une question de recherche, conception d'un guide d'entretien semi-directif complet — préambule de consentement, sections thématiques en entonnoir avec questions et relances, conseils méthodologiques, note méthodologique référencée (Kvale & Brinkmann, Patton, Blanchet & Gotman). Exportable en Word, suit la langue de l'interface. Accessible depuis l'icône en haut à droite de l'écran Entretiens.
 - **Persistance réelle** : transcriptions, analyses et codages sont stockés dans PostgreSQL — ils survivent aux redémarrages et redéploiements du serveur (voir configuration Railway ci-dessous).
 - **Corpus d'équipe** : crée un corpus, partage son code d'invitation avec tes collègues, codez ensemble les mêmes entretiens.
 - **Diarisation des locuteurs** (facultative) : distingue automatiquement qui parle dans la transcription.
@@ -116,6 +117,11 @@ Chaque poussée sur `main` redéploie le serveur automatiquement.
 | `POST` | `/api/admin/forfaits` | *(admin)* Créer un forfait |
 | `POST` | `/api/admin/utilisateurs/{id}/credits/definir` | *(admin)* Redéfinir le solde de crédits (valeur absolue) |
 | `DELETE` | `/api/admin/utilisateurs/{id}` | *(admin)* Supprimer un compte utilisateur |
+| `GET` | `/api/guides` | Lister mes guides d'entretien |
+| `POST` | `/api/guides` | Générer un nouveau guide d'entretien (1 crédit) |
+| `GET` | `/api/guides/{id}` | Détail / statut d'un guide |
+| `DELETE` | `/api/guides/{id}` | Supprimer un guide |
+| `GET` | `/api/guides/{id}/export/docx` | Exporter le guide en Word |
 | `GET` | `/api/methodes` | Méthodologies d'analyse disponibles |
 | `POST` | `/api/corpus` | Créer un corpus (retourne un code d'invitation) |
 | `GET` | `/api/corpus` | Lister mes corpus |

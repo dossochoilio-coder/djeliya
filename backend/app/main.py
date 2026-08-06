@@ -22,12 +22,12 @@ from pydantic import BaseModel
 
 from .db import (
     init_db, get_session, Utilisateur, Corpus, MembreCorpus, Entretien, Codage,
-    ContributionLangue, Forfait, MouvementCredit, ADMIN_EMAIL,
+    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, ADMIN_EMAIL,
 )
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
 from .email_utils import envoyer_code_verification, envoyer_code_reinitialisation, EMAIL_CONFIGURE
 from .cgu import CGU_TEXTE, CGU_VERSION
-from .exports import generer_docx_entretien, generer_xlsx_entretien, generer_docx_etude, generer_xlsx_etude
+from .exports import generer_docx_entretien, generer_xlsx_entretien, generer_docx_etude, generer_xlsx_etude, generer_docx_guide
 
 # ----------------------------------------------------------------- config
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
@@ -40,6 +40,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 CREDITS_ESSAI_GRATUIT = float(os.getenv("CREDITS_ESSAI_GRATUIT", "20"))
 COUT_CREDIT_TRANSCRIPTION = float(os.getenv("COUT_CREDIT_TRANSCRIPTION", "1"))
 COUT_CREDIT_ANALYSE = float(os.getenv("COUT_CREDIT_ANALYSE", "2"))
+COUT_CREDIT_GUIDE = float(os.getenv("COUT_CREDIT_GUIDE", "1"))
 
 app = FastAPI(title="Djeliya API", version="0.3.0")
 app.add_middleware(
@@ -228,6 +229,12 @@ class DefinirCreditsIn(BaseModel):
     motif: str = ""
 
 
+class GuideEntretienIn(BaseModel):
+    theme: str
+    question_recherche: str = ""
+    langue: str = "fr"
+
+
 class ForfaitIn(BaseModel):
     nom: str
     prix_fcfa: int
@@ -298,6 +305,195 @@ def methodes():
 @app.get("/api/cgu")
 def cgu():
     return {"version": CGU_VERSION, "texte": CGU_TEXTE}
+
+
+# ----------------------------------------------------------------- guide d'entretien
+def _guide_vers_dict(g: GuideEntretien) -> dict:
+    return {
+        "id": g.id, "theme": g.theme, "question_recherche": g.question_recherche,
+        "langue": g.langue, "statut": g.statut, "guide": g.guide, "erreur": g.erreur,
+        "modele": g.modele, "cree_le": g.cree_le.isoformat() if g.cree_le else None,
+    }
+
+
+@app.get("/api/guides")
+def lister_guides(user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        guides = session.query(GuideEntretien).filter_by(proprietaire_id=user.id).order_by(GuideEntretien.cree_le.desc()).all()
+        return [_guide_vers_dict(g) for g in guides]
+    finally:
+        session.close()
+
+
+@app.get("/api/guides/{guide_id}")
+def detail_guide(guide_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        g = session.get(GuideEntretien, guide_id)
+        if not g or g.proprietaire_id != user.id:
+            raise HTTPException(404, "Guide introuvable.")
+        return _guide_vers_dict(g)
+    finally:
+        session.close()
+
+
+@app.post("/api/guides")
+def creer_guide(payload: GuideEntretienIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if not payload.theme.strip():
+        raise HTTPException(422, "Le thème de recherche est requis.")
+    langue = payload.langue if payload.langue in ("fr", "en") else "fr"
+    session = get_session()
+    try:
+        if not user.email_verifie:
+            raise HTTPException(403, "Vérifie ton adresse e-mail avant de générer un guide d'entretien.")
+        if not user.est_admin and user.credits < COUT_CREDIT_GUIDE:
+            raise HTTPException(402, "Crédits insuffisants. Consulte les forfaits disponibles dans l'app.")
+        if not user.est_admin:
+            u = session.get(Utilisateur, user.id)
+            u.credits -= COUT_CREDIT_GUIDE
+            session.add(MouvementCredit(
+                id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_GUIDE,
+                motif=f"Guide d'entretien — {payload.theme[:60]}",
+            ))
+        guide_id = uuid.uuid4().hex[:16]
+        g = GuideEntretien(
+            id=guide_id, proprietaire_id=user.id, theme=payload.theme.strip(),
+            question_recherche=payload.question_recherche.strip(), langue=langue, statut="en_cours",
+        )
+        session.add(g)
+        session.commit()
+    finally:
+        session.close()
+
+    threading.Thread(target=_run_guide, args=(guide_id, payload.theme.strip(), payload.question_recherche.strip(), langue, user.id), daemon=True).start()
+    return {"id": guide_id, "statut": "en_cours"}
+
+
+@app.delete("/api/guides/{guide_id}")
+def supprimer_guide(guide_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        g = session.get(GuideEntretien, guide_id)
+        if not g or g.proprietaire_id != user.id:
+            raise HTTPException(404, "Guide introuvable.")
+        session.delete(g)
+        session.commit()
+        return {"ok": True}
+    finally:
+        session.close()
+
+
+@app.get("/api/guides/{guide_id}/export/docx")
+def export_docx_guide(guide_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        g = session.get(GuideEntretien, guide_id)
+        if not g or g.proprietaire_id != user.id:
+            raise HTTPException(404, "Guide introuvable.")
+        if g.statut != "termine" or not g.guide:
+            raise HTTPException(409, "Ce guide n'est pas encore prêt.")
+        data = _guide_vers_dict(g)
+    finally:
+        session.close()
+    buf = generer_docx_guide(data)
+    nom = _nom_fichier(data["theme"])
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="guide_{nom}.docx"'},
+    )
+
+
+SCHEMA_GUIDE = """{
+  "titre": "titre concis et professionnel du guide d'entretien",
+  "informations_pratiques": {
+    "type_entretien": "ex. entretien semi-directif individuel",
+    "duree_estimee": "ex. 45 à 60 minutes",
+    "population_cible": "description du profil des personnes à interroger",
+    "materiel_recommande": "ex. enregistreur, formulaire de consentement, carnet de notes"
+  },
+  "preambule": "texte complet à lire au participant en début d'entretien : présentation du chercheur et de l'étude, objectif, durée, caractère volontaire, confidentialité et anonymisation, demande d'autorisation d'enregistrement, droit de ne pas répondre ou d'arrêter à tout moment",
+  "sections": [
+    {
+      "titre": "libellé de la section (ex. Mise en confiance, ou le nom d'un thème précis)",
+      "objectif": "ce que cette section vise à recueillir, en 1 phrase",
+      "questions": [
+        {"question": "question ouverte posée telle quelle", "relances": ["relance 1 si la réponse est courte", "relance 2 pour approfondir"]}
+      ]
+    }
+  ],
+  "conseils_methodologiques": "conseils concrets pour la conduite de l'entretien : écoute active, gestion des silences, neutralité du chercheur, prise de notes, reformulation",
+  "note_methodologique": "paragraphe de niveau doctoral situant le guide dans son cadre théorique (type d'entretien, logique de l'entonnoir du général au particulier, typologie des questions mobilisée) avec au moins une référence bibliographique reconnue (ex. Kvale & Brinkmann, 2009 ; Patton, 2002 ; Blanchet & Gotman, 2007)"
+}"""
+
+
+def _construire_prompt_guide(theme: str, question_recherche: str, langue: str) -> str:
+    consigne_langue = "Rédige l'intégralité du guide en anglais." if langue == "en" else "Rédige l'intégralité du guide en français."
+    return f"""Tu es méthodologue qualitatif spécialisé en sciences de gestion et organisation, de niveau \
+recherche doctorale, expert en conception de guides d'entretien semi-directifs.
+
+Conçois un guide d'entretien professionnel, complet et directement utilisable sur le terrain, à partir \
+des éléments suivants fournis par le chercheur :
+
+Thème de recherche : {theme}
+Question de recherche : {question_recherche or "non précisée — déduis un axe pertinent à partir du thème"}
+
+Le guide doit suivre la structure classique en entonnoir (questions générales puis progressivement plus \
+précises) : une phase de mise en confiance, puis 3 à 6 sections thématiques couvrant les dimensions \
+pertinentes du sujet, puis une clôture. Chaque question ouverte doit être accompagnée de relances \
+possibles. Le guide doit être directement utilisable par un chercheur sur le terrain, sans jargon inutile \
+dans les questions elles-mêmes (le jargon méthodologique reste réservé à la note méthodologique).
+
+{consigne_langue}
+
+Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
+aucune balise markdown. Assure-toi que le JSON est syntaxiquement valide : échappe tous les guillemets \
+internes aux chaînes de caractères (\\") et ne laisse aucune chaîne non terminée :
+{SCHEMA_GUIDE}"""
+
+
+def _valider_guide(guide: dict):
+    for cle in ("titre", "preambule", "sections", "conseils_methodologiques", "note_methodologique"):
+        if cle not in guide:
+            raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
+    if not guide["sections"]:
+        raise ValueError("Le guide généré ne contient aucune section.")
+
+
+def _run_guide(guide_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
+    session = get_session()
+    try:
+        client = get_anthropic()
+        prompt = _construire_prompt_guide(theme, question_recherche, langue)
+        resp = client.messages.create(
+            model=ANALYSE_MODEL,
+            max_tokens=6000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+        guide = _extraire_json(texte)
+        _valider_guide(guide)
+
+        g = session.get(GuideEntretien, guide_id)
+        g.guide = guide
+        g.statut = "termine"
+        g.modele = ANALYSE_MODEL
+        session.commit()
+    except Exception as ex:  # noqa: BLE001
+        g = session.get(GuideEntretien, guide_id)
+        if g:
+            g.statut = "erreur"
+            g.erreur = str(ex)
+            u = session.get(Utilisateur, payeur_id)
+            if u and not u.est_admin:
+                u.credits += COUT_CREDIT_GUIDE
+                session.add(MouvementCredit(
+                    id=uuid.uuid4().hex[:16], utilisateur_id=u.id, delta=COUT_CREDIT_GUIDE,
+                    motif="Remboursement — échec de la génération du guide",
+                ))
+            session.commit()
+    finally:
+        session.close()
 
 
 # ----------------------------------------------------------------- authentification

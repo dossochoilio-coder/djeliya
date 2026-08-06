@@ -13,6 +13,7 @@ import Reglages from "./screens/Reglages.jsx";
 import Forfaits from "./screens/Forfaits.jsx";
 import Admin from "./screens/Admin.jsx";
 import Cgu from "./screens/Cgu.jsx";
+import GuideEntretien from "./screens/GuideEntretien.jsx";
 import TabBar from "./components/TabBar.jsx";
 import { LangueProvider } from "./lib/i18n.js";
 
@@ -25,7 +26,7 @@ import {
   checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
   creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
   enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, moi,
-  exporterDocxEntretien, exporterXlsxEntretien, exporterDocxCorpus, exporterXlsxCorpus,
+  exporterDocxEntretien, exporterXlsxEntretien, exporterDocxCorpus, exporterXlsxCorpus, exporterDocxGuide,
 } from "./lib/api.js";
 import { partagerFichierBinaire } from "./lib/export.js";
 import { fmtTime } from "./lib/constants.js";
@@ -374,6 +375,14 @@ export default function App() {
     );
   } else if (current.screen === "cgu") {
     overlay = <Cgu backendUrl={settings.backendUrl} onRetour={retour} />;
+  } else if (current.screen === "guides") {
+    overlay = (
+      <GuideEntretien
+        settings={settings} token={auth.token} onRetour={retour}
+        onExporterDocx={(id) => exporterDocxGuide(settings.backendUrl, auth.token, id)}
+        showToast={showToast}
+      />
+    );
   } else if (current.screen === "admin") {
     overlay = auth.utilisateur.est_admin ? (
       <Admin settings={settings} token={auth.token} onRetour={retour} showToast={showToast} />
@@ -391,6 +400,7 @@ export default function App() {
         backendOk={backendOk}
         onOpen={(id) => push("fiche", id)}
         onNouveau={() => push("nouveau")}
+        onOuvrirGuides={() => push("guides")}
       />
     );
   } else if (tab === "corpus") {

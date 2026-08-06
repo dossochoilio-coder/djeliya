@@ -183,6 +183,29 @@ export const TRADUCTIONS = {
     },
 
     cgu: { titre: "Conditions & confidentialité", chargement: "Chargement…" },
+
+    guide: {
+      titre: "Guides d'entretien",
+      accueilBouton: "Guide d'entretien",
+      nouveauGuide: "Nouveau guide",
+      theme: "Thème de recherche", themePlaceholder: "Ex. Financement informel des commerçantes",
+      questionRecherche: "Question de recherche (facultatif)",
+      questionPlaceholder: "Ex. Comment les commerçantes financent-elles leur activité ?",
+      generer: "Générer le guide", generation: "Génération en cours (30 à 60 secondes)…",
+      videTitre: "Aucun guide pour l'instant",
+      videSous: "Décris ton thème de recherche, l'IA prépare un guide d'entretien complet et prêt à l'emploi.",
+      echec: "Échec de la génération : ",
+      exporterWord: "Exporter en Word",
+      supprimer: "Supprimer ce guide",
+      infosPratiques: "Informations pratiques",
+      type: "Type d'entretien", duree: "Durée estimée", population: "Population cible", materiel: "Matériel recommandé",
+      preambule: "Préambule à lire au participant",
+      conseils: "Conseils méthodologiques",
+      noteMethodologique: "Note méthodologique",
+      relances: "Relances possibles :",
+      objectif: "Objectif : ",
+      themeRequis: "Le thème de recherche est requis.",
+    },
   },
 
   en: {
@@ -367,6 +390,29 @@ export const TRADUCTIONS = {
     },
 
     cgu: { titre: "Terms & privacy", chargement: "Loading…" },
+
+    guide: {
+      titre: "Interview guides",
+      accueilBouton: "Interview guide",
+      nouveauGuide: "New guide",
+      theme: "Research theme", themePlaceholder: "E.g. Informal financing of traders",
+      questionRecherche: "Research question (optional)",
+      questionPlaceholder: "E.g. How do traders finance their business?",
+      generer: "Generate the guide", generation: "Generating (30 to 60 seconds)…",
+      videTitre: "No guide yet",
+      videSous: "Describe your research theme, the AI prepares a complete, ready-to-use interview guide.",
+      echec: "Generation failed: ",
+      exporterWord: "Export to Word",
+      supprimer: "Delete this guide",
+      infosPratiques: "Practical information",
+      type: "Interview type", duree: "Estimated duration", population: "Target population", materiel: "Recommended materials",
+      preambule: "Preamble to read to the participant",
+      conseils: "Methodological guidance",
+      noteMethodologique: "Methodological note",
+      relances: "Possible follow-ups:",
+      objectif: "Objective: ",
+      themeRequis: "The research theme is required.",
+    },
   },
 };
 

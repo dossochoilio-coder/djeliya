@@ -3,7 +3,7 @@ import { STATUTS, fmtDate } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
 import logo from "../assets/logo-full.png";
 
-export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
+export default function Accueil({ interviews, onOpen, onNouveau, onOuvrirGuides, backendOk }) {
   const { t } = useT();
   const [query, setQuery] = useState("");
 
@@ -22,6 +22,9 @@ export default function Accueil({ interviews, onOpen, onNouveau, backendOk }) {
           {Array.from({ length: 7 }).map((_, i) => <span key={i} />)}
         </span>
         <img src={logo} alt="Djeliya" className="brand-logo" />
+        <button className="icon-btn guide-entry" onClick={onOuvrirGuides} aria-label={t("guide.titre")}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 3.5h10a1 1 0 0 1 1 1v11.2l-1.5-.9-1.5.9-1.5-.9-1.5.9-1.5-.9-1.5.9V4.5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /><path d="M7.3 7.3h5.4M7.3 10h5.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+        </button>
       </header>
 
       {backendOk === false && (

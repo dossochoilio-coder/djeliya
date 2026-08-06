@@ -189,6 +189,44 @@ export function exporterXlsxCorpus(backendUrl, token, corpusId) {
   return telechargerFichier(`${clean(backendUrl)}/api/corpus/${corpusId}/export/xlsx`, token);
 }
 
+/* ---------------- Guide d'entretien ---------------- */
+
+export async function listerGuides(backendUrl, token) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/guides`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function detailGuide(backendUrl, token, guideId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/guides/${guideId}`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function creerGuide(backendUrl, token, { theme, questionRecherche, langue }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/guides`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ theme, question_recherche: questionRecherche || "", langue: langue || "fr" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function supprimerGuide(backendUrl, token, guideId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/guides/${guideId}`, { method: "DELETE", headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export function exporterDocxGuide(backendUrl, token, guideId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/guides/${guideId}/export/docx`, token);
+}
+
 export async function listerForfaits(backendUrl) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/forfaits`);

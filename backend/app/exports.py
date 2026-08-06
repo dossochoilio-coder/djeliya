@@ -124,6 +124,17 @@ L = {
         "duree_cumulee": "Durée cumulée", "nb_mots_total": "Nombre total de mots transcrits",
         "fiabilite_moy_corpus": "Fiabilité moyenne du corpus (%)", "rapport_genere_le": "Rapport généré le",
         "segments": "Segments", "mots": "Mots", "date": "Date",
+        # Guide d'entretien
+        "guide_sous_titre": "Guide d'entretien de recherche",
+        "guide_theme": "Thème : ", "guide_question": "Question de recherche : ",
+        "guide_infos_pratiques": "Informations pratiques",
+        "guide_type": "Type d'entretien", "guide_duree": "Durée estimée",
+        "guide_population": "Population cible", "guide_materiel": "Matériel recommandé",
+        "guide_preambule": "Préambule à lire au participant",
+        "guide_objectif": "Objectif : ",
+        "guide_conseils": "Conseils méthodologiques pour la conduite de l'entretien",
+        "guide_note": "Note méthodologique",
+        "guide_relances": "Relances possibles :",
     },
     "en": {
         "sous_titre_entretien": "Transcript and qualitative analysis",
@@ -191,6 +202,17 @@ L = {
         "duree_cumulee": "Cumulative duration", "nb_mots_total": "Total transcribed words",
         "fiabilite_moy_corpus": "Average corpus reliability (%)", "rapport_genere_le": "Report generated on",
         "segments": "Segments", "mots": "Words", "date": "Date",
+        # Guide d'entretien
+        "guide_sous_titre": "Research interview guide",
+        "guide_theme": "Theme: ", "guide_question": "Research question: ",
+        "guide_infos_pratiques": "Practical information",
+        "guide_type": "Interview type", "guide_duree": "Estimated duration",
+        "guide_population": "Target population", "guide_materiel": "Recommended materials",
+        "guide_preambule": "Preamble to read to the participant",
+        "guide_objectif": "Objective: ",
+        "guide_conseils": "Methodological guidance for conducting the interview",
+        "guide_note": "Methodological note",
+        "guide_relances": "Possible follow-ups:",
     },
 }
 
@@ -832,5 +854,78 @@ def generer_xlsx_etude(corpus: dict, entretiens: list, fiabilite: dict = None) -
 
     buf = io.BytesIO()
     wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ----------------------------------------------------------------- Word — guide d'entretien
+def generer_docx_guide(guide_data: dict) -> io.BytesIO:
+    langue = guide_data.get("langue") or "fr"
+    l = _l(langue)
+    g = guide_data.get("guide") or {}
+    doc = Document()
+
+    _page_de_garde(
+        doc, g.get("titre") or guide_data.get("theme") or "—", l["guide_sous_titre"],
+        [
+            f"{l['guide_theme']}{guide_data.get('theme', '—')}",
+            f"{l['guide_question']}{guide_data.get('question_recherche') or '—'}",
+            f"{l['genere_le']}{datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        ],
+    )
+
+    infos = g.get("informations_pratiques") or {}
+    if infos:
+        doc.add_heading(l["guide_infos_pratiques"], level=1)
+        tbl = doc.add_table(rows=0, cols=2)
+        tbl.style = "Light Grid Accent 1"
+        paires = [
+            (l["guide_type"], infos.get("type_entretien")),
+            (l["guide_duree"], infos.get("duree_estimee")),
+            (l["guide_population"], infos.get("population_cible")),
+            (l["guide_materiel"], infos.get("materiel_recommande")),
+        ]
+        for label, valeur in paires:
+            if not valeur:
+                continue
+            row = tbl.add_row().cells
+            row[0].text = label
+            row[0].paragraphs[0].runs[0].bold = True
+            row[1].text = valeur
+
+    if g.get("preambule"):
+        doc.add_heading(l["guide_preambule"], level=1)
+        p = doc.add_paragraph(g["preambule"])
+        for run in p.runs:
+            run.italic = True
+
+    for i, section in enumerate(g.get("sections", []), start=1):
+        doc.add_heading(f"{i}. {section.get('titre', '')}", level=1)
+        if section.get("objectif"):
+            obj = doc.add_paragraph()
+            obj.add_run(l["guide_objectif"]).bold = True
+            obj.add_run(section["objectif"])
+        for q in section.get("questions", []):
+            doc.add_paragraph(q.get("question", ""), style="List Bullet")
+            relances = q.get("relances") or []
+            if relances:
+                rp = doc.add_paragraph(style="List Bullet 2")
+                rp.add_run(l["guide_relances"]).italic = True
+                for rel in relances:
+                    doc.add_paragraph(rel, style="List Bullet 2")
+
+    if g.get("conseils_methodologiques"):
+        doc.add_heading(l["guide_conseils"], level=1)
+        doc.add_paragraph(g["conseils_methodologiques"])
+
+    if g.get("note_methodologique"):
+        doc.add_heading(l["guide_note"], level=1)
+        p = doc.add_paragraph(g["note_methodologique"])
+        for run in p.runs:
+            run.italic = True
+
+    _numero_page(doc, langue)
+    buf = io.BytesIO()
+    doc.save(buf)
     buf.seek(0)
     return buf

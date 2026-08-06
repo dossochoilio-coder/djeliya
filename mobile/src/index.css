@@ -251,6 +251,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   width: 1px; height: 100%;
   background: linear-gradient(180deg, transparent, rgba(228,176,74,0.35) 35%, rgba(228,176,74,0.35) 65%, transparent);
 }
+.guide-entry { position: absolute; right: 14px; top: calc(var(--safe-top) + 16px); z-index: 1; }
 
 /* ---- Menu du bas ---- */
 .with-tabbar { padding-bottom: calc(var(--safe-bottom) + 74px); }
