@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { listerForfaits, tarifRecharge, creerRecharge, listerRecharges } from "../lib/api.js";
+import { listerForfaits, tarifRecharge, creerRecharge, listerRecharges, verifierRecharge } from "../lib/api.js";
 import { useT } from "../lib/i18n.js";
 
 const CONTACT_ADMIN = "dosso.choilio@gmail.com";
 
-export default function Forfaits({ settings, token, utilisateur, onRetour, showToast }) {
+export default function Forfaits({ settings, token, utilisateur, onMajUtilisateur, onRetour, showToast }) {
   const { t } = useT();
   const [forfaits, setForfaits] = useState(null);
   const [erreur, setErreur] = useState(null);
@@ -57,6 +57,25 @@ export default function Forfaits({ settings, token, utilisateur, onRetour, showT
     s === "payee" ? t("forfaits.rechargeStatutPayee")
       : s === "echouee" || s === "expiree" ? t("forfaits.rechargeStatutEchouee")
       : t("forfaits.rechargeStatutEnAttente");
+
+  const [verificationEnCours, setVerificationEnCours] = useState(null);
+  const verifierMaintenant = async (id) => {
+    setVerificationEnCours(id);
+    try {
+      const r = await verifierRecharge(settings.backendUrl, token, id);
+      if (r.statut === "payee") {
+        showToast("✓ " + t("forfaits.rechargeStatutPayee"));
+        onMajUtilisateur?.({ ...utilisateur, credits: utilisateur.credits + r.credits });
+      } else {
+        showToast(libelleStatut(r.statut));
+      }
+      listerRecharges(settings.backendUrl, token).then(setHistorique).catch(() => {});
+    } catch (e) {
+      showToast(e.message || "");
+    } finally {
+      setVerificationEnCours(null);
+    }
+  };
 
   return (
     <div className="screen">
@@ -116,17 +135,25 @@ export default function Forfaits({ settings, token, utilisateur, onRetour, showT
             <h2 className="subsection-title">{t("forfaits.rechargeHistorique")}</h2>
             <ul className="gloss-list">
               {historique.map((h) => (
-                <li key={h.id} className="gloss-row">
+                <li key={h.id} className="gloss-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
                   <div>
                     <span className="gloss-terme">{h.credits} {t("reglages.credits")}</span>
                     <span className="gloss-sens"> — {h.montant_fcfa.toLocaleString("fr-FR")} FCFA</span>
                   </div>
-                  <span className="status-pill" style={{
-                    color: h.statut === "payee" ? "#5FC6A8" : h.statut === "echouee" || h.statut === "expiree" ? "#D96D5F" : "#E4B04A",
-                    borderColor: h.statut === "payee" ? "#5FC6A8" : h.statut === "echouee" || h.statut === "expiree" ? "#D96D5F" : "#E4B04A",
-                  }}>
-                    {libelleStatut(h.statut)}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    {h.statut === "en_attente" ? (
+                      <button className="link-btn" style={{ fontSize: 12 }}
+                        onClick={() => verifierMaintenant(h.id)} disabled={verificationEnCours === h.id}>
+                        {verificationEnCours === h.id ? "…" : t("forfaits.rechargeVerifier")}
+                      </button>
+                    ) : <span />}
+                    <span className="status-pill" style={{
+                      color: h.statut === "payee" ? "#5FC6A8" : h.statut === "echouee" || h.statut === "expiree" ? "#D96D5F" : "#E4B04A",
+                      borderColor: h.statut === "payee" ? "#5FC6A8" : h.statut === "echouee" || h.statut === "expiree" ? "#D96D5F" : "#E4B04A",
+                    }}>
+                      {libelleStatut(h.statut)}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

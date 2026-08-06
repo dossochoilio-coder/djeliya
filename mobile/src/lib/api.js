@@ -261,6 +261,15 @@ export async function detailRecharge(backendUrl, token, id) {
   return res.json();
 }
 
+export async function verifierRecharge(backendUrl, token, id) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/recharges/${id}/verifier`, {
+    method: "POST", headers: headersAuth(token),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export async function listerForfaits(backendUrl) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/forfaits`);

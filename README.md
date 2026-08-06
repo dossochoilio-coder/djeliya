@@ -129,6 +129,7 @@ Chaque poussée sur `main` redéploie le serveur automatiquement.
 | `GET` | `/api/recharges` | Historique de mes recharges |
 | `GET` | `/api/recharges/{id}` | Détail / statut d'une recharge |
 | `POST` | `/api/recharges/webhook/paydunya` | *(appelé par PayDunya)* Confirmation serveur à serveur du paiement |
+| `POST` | `/api/recharges/{id}/verifier` | Forcer une re-vérification du statut réel auprès de PayDunya (si le webhook n'est jamais arrivé) |
 | `GET` | `/api/methodes` | Méthodologies d'analyse disponibles |
 | `POST` | `/api/corpus` | Créer un corpus (retourne un code d'invitation) |
 | `GET` | `/api/corpus` | Lister mes corpus |

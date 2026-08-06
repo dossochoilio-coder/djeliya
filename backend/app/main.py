@@ -19,7 +19,7 @@ from itertools import combinations
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .db import (
@@ -316,6 +316,29 @@ class SegmentsIn(BaseModel):
 
 
 # ----------------------------------------------------------------- routes publiques
+@app.get("/", response_class=HTMLResponse)
+def accueil():
+    """Page d'accueil sommaire du serveur — sert aussi de page de retour après un
+    paiement PayDunya (return_url), pour éviter d'afficher un 404 brut au chercheur."""
+    return """<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Djeliya</title>
+<style>
+  body { background:#0E1226; color:#F4EFE3; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+         display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; text-align:center; padding:24px; }
+  .card { max-width:380px; }
+  h1 { color:#E4B04A; font-size:22px; margin-bottom:8px; }
+  p { color:#B7B2A6; font-size:15px; line-height:1.5; }
+</style></head>
+<body><div class="card">
+  <h1>Djeliya</h1>
+  <p>Le serveur fonctionne normalement.</p>
+  <p>Si tu reviens d'un paiement, retourne simplement dans l'application Djeliya sur ton téléphone —
+  ton solde de crédits se met à jour automatiquement une fois le paiement confirmé.</p>
+</div></body></html>"""
+
+
 @app.get("/health")
 def health():
     return {
@@ -1078,6 +1101,68 @@ def detail_recharge(commande_id: str, user: Utilisateur = Depends(utilisateur_co
         session.close()
 
 
+def _verifier_statut_paydunya(token: str) -> dict:
+    """Interroge directement l'API PayDunya pour connaître le VRAI statut d'une
+    facture, indépendamment de tout webhook — status : completed | pending |
+    canceled | failed, selon la documentation officielle."""
+    resp = requests.get(
+        f"{_paydunya_base_url()}/checkout-invoice/confirm/{token}",
+        headers=_paydunya_headers(), timeout=15,
+    )
+    return resp.json()
+
+
+def _confirmer_et_crediter(session, commande_id: str) -> Commande:
+    """Marque une commande payée et crédite le compte, de façon idempotente —
+    utilisée à la fois par le webhook et par la vérification manuelle, pour ne
+    jamais avoir deux logiques de crédit divergentes."""
+    commande = session.get(Commande, commande_id)
+    if not commande or commande.statut == "payee":
+        return commande
+    commande.statut = "payee"
+    commande.payee_le = datetime.now(timezone.utc)
+    u = session.get(Utilisateur, commande.utilisateur_id)
+    u.credits += commande.credits
+    session.add(MouvementCredit(
+        id=uuid.uuid4().hex[:16], utilisateur_id=u.id, delta=commande.credits,
+        motif=f"Recharge payée — {commande.montant_fcfa} FCFA via PayDunya",
+    ))
+    session.commit()
+    return commande
+
+
+@app.post("/api/recharges/{commande_id}/verifier")
+def verifier_recharge_manuellement(commande_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    """Permet au chercheur (ou à l'app, automatiquement) de forcer une nouvelle
+    vérification du statut réel auprès de PayDunya — utile si le webhook n'est
+    jamais arrivé (pare-feu, latence réseau...) alors que le paiement a bien
+    été effectué côté PayDunya."""
+    session = get_session()
+    try:
+        commande = session.get(Commande, commande_id)
+        if not commande or commande.utilisateur_id != user.id:
+            raise HTTPException(404, "Commande introuvable.")
+        if commande.statut == "payee":
+            return _commande_vers_dict(commande)
+        if not commande.reference_fournisseur:
+            raise HTTPException(409, "Cette commande n'a pas de référence de paiement à vérifier.")
+
+        try:
+            verif = _verifier_statut_paydunya(commande.reference_fournisseur)
+        except Exception:  # noqa: BLE001
+            raise HTTPException(502, "Impossible de joindre PayDunya pour vérifier ce paiement.")
+
+        statut_paydunya = verif.get("status")
+        if statut_paydunya == "completed":
+            commande = _confirmer_et_crediter(session, commande_id)
+        elif statut_paydunya in ("canceled", "fail"):
+            commande.statut = "echouee"
+            session.commit()
+        return {**_commande_vers_dict(commande), "statut_paydunya_brut": statut_paydunya}
+    finally:
+        session.close()
+
+
 @app.post("/api/recharges/webhook/{fournisseur}")
 async def webhook_paiement(fournisseur: str, request: Request):
     """Point de confirmation de paiement appelé par le fournisseur (serveur à serveur).
@@ -1113,11 +1198,7 @@ async def webhook_paiement(fournisseur: str, request: Request):
         raise HTTPException(400, "Données de webhook incomplètes.")
 
     try:
-        resp = requests.get(
-            f"{_paydunya_base_url()}/checkout-invoice/confirm/{token}",
-            headers=_paydunya_headers(), timeout=15,
-        )
-        verif = resp.json()
+        verif = _verifier_statut_paydunya(token)
     except Exception:  # noqa: BLE001
         raise HTTPException(502, "Impossible de vérifier le paiement auprès de PayDunya.")
 
@@ -1126,18 +1207,7 @@ async def webhook_paiement(fournisseur: str, request: Request):
 
     session = get_session()
     try:
-        commande = session.get(Commande, commande_id)
-        if not commande or commande.statut == "payee":
-            return {"ok": True, "traite": False}  # idempotence : déjà traité ou introuvable
-        commande.statut = "payee"
-        commande.payee_le = datetime.now(timezone.utc)
-        u = session.get(Utilisateur, commande.utilisateur_id)
-        u.credits += commande.credits
-        session.add(MouvementCredit(
-            id=uuid.uuid4().hex[:16], utilisateur_id=u.id, delta=commande.credits,
-            motif=f"Recharge payée — {commande.montant_fcfa} FCFA via PayDunya",
-        ))
-        session.commit()
+        _confirmer_et_crediter(session, commande_id)
         return {"ok": True, "traite": True}
     finally:
         session.close()

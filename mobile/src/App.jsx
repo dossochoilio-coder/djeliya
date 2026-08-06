@@ -371,7 +371,7 @@ export default function App() {
     );
   } else if (current.screen === "forfaits") {
     overlay = (
-      <Forfaits settings={settings} token={auth.token} utilisateur={auth.utilisateur} onRetour={retour} showToast={showToast} />
+      <Forfaits settings={settings} token={auth.token} utilisateur={auth.utilisateur} onMajUtilisateur={majUtilisateur} onRetour={retour} showToast={showToast} />
     );
   } else if (current.screen === "cgu") {
     overlay = <Cgu backendUrl={settings.backendUrl} onRetour={retour} />;
