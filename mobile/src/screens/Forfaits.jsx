@@ -12,6 +12,7 @@ export default function Forfaits({ settings, token, utilisateur, onRetour, showT
   const [credits, setCredits] = useState("10");
   const [envoi, setEnvoi] = useState(false);
   const [historique, setHistorique] = useState(null);
+  const [lienEnAttente, setLienEnAttente] = useState(null);
 
   useEffect(() => {
     listerForfaits(settings.backendUrl).then(setForfaits).catch((e) => setErreur(e.message));
@@ -26,14 +27,26 @@ export default function Forfaits({ settings, token, utilisateur, onRetour, showT
   const payer = async () => {
     if (creditsNum < min) { showToast(t("forfaits.rechargeMin", { min })); return; }
     setEnvoi(true);
+    setLienEnAttente(null);
+    // Ouverture synchrone AVANT l'appel réseau : la plupart des navigateurs/WebView
+    // bloquent silencieusement une fenêtre ouverte après un await, même légitime.
+    const fenetre = window.open("", "_blank");
     try {
       const commande = await creerRecharge(settings.backendUrl, token, creditsNum);
       if (commande.lien_paiement) {
-        window.open(commande.lien_paiement, "_blank");
+        if (fenetre && !fenetre.closed) {
+          fenetre.location.href = commande.lien_paiement;
+        } else {
+          window.open(commande.lien_paiement, "_blank");
+        }
+        // Filet de sécurité : le lien reste toujours affichable manuellement,
+        // au cas où l'ouverture automatique aurait quand même été bloquée.
+        setLienEnAttente(commande.lien_paiement);
       }
       listerRecharges(settings.backendUrl, token).then(setHistorique).catch(() => {});
       showToast("✓");
     } catch (e) {
+      if (fenetre && !fenetre.closed) fenetre.close();
       showToast(e.message || "");
     } finally {
       setEnvoi(false);
@@ -89,6 +102,11 @@ export default function Forfaits({ settings, token, utilisateur, onRetour, showT
               </button>
             ) : (
               <p className="note-banner">{t("forfaits.rechargeIndisponible")}</p>
+            )}
+            {lienEnAttente && (
+              <a className="btn ghost sm" href={lienEnAttente} target="_blank" rel="noreferrer">
+                {t("forfaits.rechargeOuvrirPage")}
+              </a>
             )}
           </div>
         )}
