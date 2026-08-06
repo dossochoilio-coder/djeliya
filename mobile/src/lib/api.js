@@ -227,6 +227,40 @@ export function exporterDocxGuide(backendUrl, token, guideId) {
   return telechargerFichier(`${clean(backendUrl)}/api/guides/${guideId}/export/docx`, token);
 }
 
+/* ---------------- Recharge de crédits à la carte ---------------- */
+
+export async function tarifRecharge(backendUrl) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/recharges/tarif`);
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function creerRecharge(backendUrl, token, credits) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/recharges`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ credits }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function listerRecharges(backendUrl, token) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/recharges`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function detailRecharge(backendUrl, token, id) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/recharges/${id}`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export async function listerForfaits(backendUrl) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/forfaits`);

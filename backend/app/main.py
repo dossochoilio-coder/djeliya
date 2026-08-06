@@ -10,19 +10,21 @@ import re
 import json
 import uuid
 import secrets
+import hashlib
 import tempfile
 import threading
+import requests
 from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .db import (
     init_db, get_session, Utilisateur, Corpus, MembreCorpus, Entretien, Codage,
-    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, ADMIN_EMAIL,
+    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, Commande, ADMIN_EMAIL,
 )
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
 from .email_utils import envoyer_code_verification, envoyer_code_reinitialisation, EMAIL_CONFIGURE
@@ -41,6 +43,36 @@ CREDITS_ESSAI_GRATUIT = float(os.getenv("CREDITS_ESSAI_GRATUIT", "20"))
 COUT_CREDIT_TRANSCRIPTION = float(os.getenv("COUT_CREDIT_TRANSCRIPTION", "1"))
 COUT_CREDIT_ANALYSE = float(os.getenv("COUT_CREDIT_ANALYSE", "2"))
 COUT_CREDIT_GUIDE = float(os.getenv("COUT_CREDIT_GUIDE", "1"))
+
+# Recharge de crédits à la carte (paiement réel par les utilisateurs)
+PRIX_CREDIT_FCFA = int(os.getenv("PRIX_CREDIT_FCFA", "150"))
+CREDITS_MIN_RECHARGE = float(os.getenv("CREDITS_MIN_RECHARGE", "10"))
+PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER")  # ex. "cinetpay", "paydunya" — à confirmer
+BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL", "").rstrip("/")
+
+# PayDunya exige TROIS identifiants pour authentifier chaque requête — la clé
+# maîtresse seule ne suffit jamais (voir developers.paydunya.com).
+PAYDUNYA_MASTER_KEY = os.getenv("PAYDUNYA_MASTER_KEY")
+PAYDUNYA_PRIVATE_KEY = os.getenv("PAYDUNYA_PRIVATE_KEY")
+PAYDUNYA_TOKEN = os.getenv("PAYDUNYA_TOKEN")
+PAYDUNYA_MODE = os.getenv("PAYDUNYA_MODE", "test")  # "test" (bac à sable) ou "live" — jamais "live" par défaut
+
+
+def _paydunya_pret() -> bool:
+    return bool(PAYDUNYA_MASTER_KEY and PAYDUNYA_PRIVATE_KEY and PAYDUNYA_TOKEN and BACKEND_PUBLIC_URL)
+
+
+def _paydunya_base_url() -> str:
+    return "https://app.paydunya.com/api/v1" if PAYDUNYA_MODE == "live" else "https://app.paydunya.com/sandbox-api/v1"
+
+
+def _paydunya_headers() -> dict:
+    return {
+        "Content-Type": "application/json",
+        "PAYDUNYA-MASTER-KEY": PAYDUNYA_MASTER_KEY,
+        "PAYDUNYA-PRIVATE-KEY": PAYDUNYA_PRIVATE_KEY,
+        "PAYDUNYA-TOKEN": PAYDUNYA_TOKEN,
+    }
 
 app = FastAPI(title="Djeliya API", version="0.3.0")
 app.add_middleware(
@@ -233,6 +265,10 @@ class GuideEntretienIn(BaseModel):
     theme: str
     question_recherche: str = ""
     langue: str = "fr"
+
+
+class RechargeIn(BaseModel):
+    credits: float
 
 
 class ForfaitIn(BaseModel):
@@ -913,6 +949,196 @@ def lister_forfaits():
             {"id": f.id, "nom": f.nom, "prix_fcfa": f.prix_fcfa, "credits_inclus": f.credits_inclus, "description": f.description}
             for f in forfaits
         ]
+    finally:
+        session.close()
+
+
+# ----------------------------------------------------------------- recharge de crédits à la carte
+@app.get("/api/recharges/tarif")
+def tarif_recharge():
+    """Grille tarifaire publique de la recharge à la carte, affichée dans l'app avant paiement."""
+    disponible = _paydunya_pret() if PAYMENT_PROVIDER == "paydunya" else bool(PAYMENT_PROVIDER)
+    return {
+        "prix_credit_fcfa": PRIX_CREDIT_FCFA, "credits_min": CREDITS_MIN_RECHARGE,
+        "paiement_disponible": disponible,
+    }
+
+
+def _commande_vers_dict(c: Commande) -> dict:
+    return {
+        "id": c.id, "credits": c.credits, "montant_fcfa": c.montant_fcfa, "statut": c.statut,
+        "lien_paiement": c.lien_paiement, "cree_le": c.cree_le.isoformat() if c.cree_le else None,
+    }
+
+
+def _initier_paiement_fournisseur(commande: Commande, utilisateur: Utilisateur) -> str:
+    """Point d'intégration avec l'agrégateur de paiement. PayDunya est implémenté ;
+    d'autres fournisseurs pourront être ajoutés selon le même principe."""
+    if PAYMENT_PROVIDER == "paydunya":
+        if not (PAYDUNYA_MASTER_KEY and PAYDUNYA_PRIVATE_KEY and PAYDUNYA_TOKEN):
+            raise NotImplementedError(
+                "PayDunya n'est pas complètement configuré : PAYDUNYA_PRIVATE_KEY et/ou "
+                "PAYDUNYA_TOKEN manquent dans les variables Railway (la clé maîtresse seule "
+                "ne suffit jamais à authentifier une requête PayDunya)."
+            )
+        if not BACKEND_PUBLIC_URL:
+            raise NotImplementedError(
+                "BACKEND_PUBLIC_URL doit être configurée (adresse publique du serveur Railway, "
+                "utilisée pour recevoir la confirmation de paiement)."
+            )
+        payload = {
+            "invoice": {
+                "total_amount": commande.montant_fcfa,
+                "description": f"Djeliya — {commande.credits:g} crédits",
+            },
+            "store": {"name": "Djeliya"},
+            "actions": {
+                "callback_url": f"{BACKEND_PUBLIC_URL}/api/recharges/webhook/paydunya",
+                "return_url": BACKEND_PUBLIC_URL,
+            },
+            "custom_data": {"commande_id": commande.id},
+        }
+        try:
+            resp = requests.post(
+                f"{_paydunya_base_url()}/checkout-invoice/create",
+                json=payload, headers=_paydunya_headers(), timeout=15,
+            )
+            data = resp.json()
+        except Exception as ex:  # noqa: BLE001
+            raise NotImplementedError(f"Erreur de connexion à PayDunya : {ex}")
+
+        if data.get("response_code") != "00":
+            raise NotImplementedError(
+                f"PayDunya a refusé la création de la facture : {data.get('response_text') or data}"
+            )
+        commande.reference_fournisseur = data["token"]
+        return data["response_text"]  # URL de paiement à ouvrir dans l'app
+
+    raise HTTPException(
+        501,
+        "Le paiement en ligne n'est pas encore configuré sur ce serveur "
+        "(variable PAYMENT_PROVIDER absente). Contacte l'administrateur.",
+    )
+
+
+@app.post("/api/recharges")
+def creer_recharge(payload: RechargeIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if payload.credits < CREDITS_MIN_RECHARGE:
+        raise HTTPException(422, f"Le minimum est de {CREDITS_MIN_RECHARGE:g} crédits par recharge.")
+    if not user.email_verifie:
+        raise HTTPException(403, "Vérifie ton adresse e-mail avant d'effectuer un paiement.")
+
+    montant = round(payload.credits * PRIX_CREDIT_FCFA)
+    session = get_session()
+    try:
+        commande = Commande(
+            id=uuid.uuid4().hex[:16], utilisateur_id=user.id, credits=payload.credits,
+            montant_fcfa=montant, statut="en_attente", fournisseur=PAYMENT_PROVIDER,
+        )
+        session.add(commande)
+        session.commit()
+
+        try:
+            lien = _initier_paiement_fournisseur(commande, user)
+            commande.lien_paiement = lien
+            session.commit()
+        except HTTPException:
+            session.delete(commande)
+            session.commit()
+            raise
+        except NotImplementedError as ex:
+            session.delete(commande)
+            session.commit()
+            raise HTTPException(501, str(ex))
+
+        return _commande_vers_dict(commande)
+    finally:
+        session.close()
+
+
+@app.get("/api/recharges")
+def lister_recharges(user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        commandes = session.query(Commande).filter_by(utilisateur_id=user.id).order_by(Commande.cree_le.desc()).all()
+        return [_commande_vers_dict(c) for c in commandes]
+    finally:
+        session.close()
+
+
+@app.get("/api/recharges/{commande_id}")
+def detail_recharge(commande_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        c = session.get(Commande, commande_id)
+        if not c or c.utilisateur_id != user.id:
+            raise HTTPException(404, "Commande introuvable.")
+        return _commande_vers_dict(c)
+    finally:
+        session.close()
+
+
+@app.post("/api/recharges/webhook/{fournisseur}")
+async def webhook_paiement(fournisseur: str, request: Request):
+    """Point de confirmation de paiement appelé par le fournisseur (serveur à serveur).
+
+    Sécurité à deux niveaux, jamais l'un sans l'autre :
+    1. Vérification de la signature du webhook (hash SHA-512 de la clé maîtresse,
+       tel que documenté par PayDunya) — rejette toute requête forgée.
+    2. Re-vérification indépendante du statut du paiement directement auprès de
+       l'API PayDunya (jamais confiance aveugle au contenu du webhook, même signé).
+    """
+    if fournisseur != "paydunya":
+        raise HTTPException(501, f"Webhook « {fournisseur} » non configuré sur ce serveur.")
+    if not PAYDUNYA_MASTER_KEY:
+        raise HTTPException(501, "PayDunya n'est pas configuré sur ce serveur.")
+
+    contenu_type = request.headers.get("content-type", "")
+    try:
+        if "application/json" in contenu_type:
+            charge = await request.json()
+        else:
+            form = await request.form()
+            charge = json.loads(form.get("data", "{}"))
+    except Exception:  # noqa: BLE001
+        raise HTTPException(400, "Corps de requête invalide.")
+
+    hash_attendu = hashlib.sha512(PAYDUNYA_MASTER_KEY.encode()).hexdigest()
+    if charge.get("hash") != hash_attendu:
+        raise HTTPException(403, "Signature invalide — requête rejetée.")
+
+    commande_id = (charge.get("custom_data") or {}).get("commande_id")
+    token = (charge.get("invoice") or {}).get("token") or charge.get("token")
+    if not commande_id or not token:
+        raise HTTPException(400, "Données de webhook incomplètes.")
+
+    try:
+        resp = requests.get(
+            f"{_paydunya_base_url()}/checkout-invoice/confirm/{token}",
+            headers=_paydunya_headers(), timeout=15,
+        )
+        verif = resp.json()
+    except Exception:  # noqa: BLE001
+        raise HTTPException(502, "Impossible de vérifier le paiement auprès de PayDunya.")
+
+    if verif.get("status") != "completed":
+        return {"ok": True, "traite": False}
+
+    session = get_session()
+    try:
+        commande = session.get(Commande, commande_id)
+        if not commande or commande.statut == "payee":
+            return {"ok": True, "traite": False}  # idempotence : déjà traité ou introuvable
+        commande.statut = "payee"
+        commande.payee_le = datetime.now(timezone.utc)
+        u = session.get(Utilisateur, commande.utilisateur_id)
+        u.credits += commande.credits
+        session.add(MouvementCredit(
+            id=uuid.uuid4().hex[:16], utilisateur_id=u.id, delta=commande.credits,
+            motif=f"Recharge payée — {commande.montant_fcfa} FCFA via PayDunya",
+        ))
+        session.commit()
+        return {"ok": True, "traite": True}
     finally:
         session.close()
 

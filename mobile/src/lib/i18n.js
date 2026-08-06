@@ -165,6 +165,12 @@ export const TRADUCTIONS = {
       creditsInclus: "crédits inclus",
       commentSouscrire: "Pour souscrire : envoie le montant du forfait par Mobile Money (Orange Money, MTN Money, Moov Money) ou virement, puis écris à",
       commentSouscrireSuite: "avec ton e-mail de compte Djeliya et la preuve de paiement. Ton forfait sera activé sous peu.",
+      rechargeTitre: "Recharger des crédits", rechargeCredits: "Nombre de crédits (minimum {min})",
+      rechargeMontant: "Montant à payer", rechargePayer: "Payer avec PayDunya",
+      rechargeIndisponible: "Le paiement en ligne n'est pas encore disponible — contacte l'administrateur pour un forfait manuel.",
+      rechargeHistorique: "Historique des recharges",
+      rechargeStatutEnAttente: "En attente", rechargeStatutPayee: "Payée", rechargeStatutEchouee: "Échouée",
+      rechargeMin: "Le minimum est de {min} crédits par recharge.",
     },
 
     admin: {
@@ -378,6 +384,12 @@ export const TRADUCTIONS = {
       creditsInclus: "credits included",
       commentSouscrire: "To subscribe: send the plan's amount by Mobile Money (Orange Money, MTN Money, Moov Money) or bank transfer, then write to",
       commentSouscrireSuite: "with your Djeliya account email and proof of payment. Your plan will be activated shortly.",
+      rechargeTitre: "Top up credits", rechargeCredits: "Number of credits (minimum {min})",
+      rechargeMontant: "Amount to pay", rechargePayer: "Pay with PayDunya",
+      rechargeIndisponible: "Online payment isn't available yet — contact the administrator for a manual plan.",
+      rechargeHistorique: "Top-up history",
+      rechargeStatutEnAttente: "Pending", rechargeStatutPayee: "Paid", rechargeStatutEchouee: "Failed",
+      rechargeMin: "The minimum is {min} credits per top-up.",
     },
 
     admin: {

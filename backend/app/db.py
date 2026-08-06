@@ -142,6 +142,24 @@ class MouvementCredit(Base):
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Commande(Base):
+    """Commande de recharge de crédits à la carte (paiement réel, hors forfaits
+    prédéfinis) — 150 FCFA par crédit, 10 crédits minimum, sans limite de nombre
+    d'achats. Le statut passe de en_attente à payee (webhook du fournisseur) ou
+    a echouee/expiree."""
+    __tablename__ = "commandes"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    utilisateur_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
+    credits: Mapped[float] = mapped_column()
+    montant_fcfa: Mapped[int] = mapped_column()
+    statut: Mapped[str] = mapped_column(default="en_attente")  # en_attente | payee | echouee | expiree
+    fournisseur: Mapped[str | None] = mapped_column(nullable=True)
+    reference_fournisseur: Mapped[str | None] = mapped_column(nullable=True, index=True)
+    lien_paiement: Mapped[str | None] = mapped_column(nullable=True)
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    payee_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class GuideEntretien(Base):
     """Guide d'entretien de recherche généré par l'IA à partir d'un thème et d'une
     question de recherche — outil de préparation, distinct des entretiens transcrits."""
