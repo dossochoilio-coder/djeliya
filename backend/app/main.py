@@ -615,7 +615,7 @@ SCHEMA_ETUDE_ETAPE2 = """{
     "population_cible": "description précise du profil des répondants visés (1 à 2 phrases)",
     "echantillon": "taille d'échantillon recommandée avec justification et méthode d'échantillonnage proposée (2 à 3 phrases maximum)",
     "hypotheses": [{"code": "H1", "enonce": "hypothèse testable formulée précisément et concisément, reliant les variables (1 phrase par hypothèse, 5 hypothèses maximum)"}],
-    "variables": [{"nom": "nom du construit/variable", "type": "indépendante|dépendante|médiatrice|modératrice|de contrôle", "definition": "définition opérationnelle en 1 phrase courte"}]
+    "variables": [{"nom": "nom du construit/variable (6 variables maximum au total)", "type": "indépendante|dépendante|médiatrice|modératrice|de contrôle", "definition": "définition opérationnelle en 1 phrase courte"}]
   }
 }"""
 
@@ -675,6 +675,12 @@ def _appel_ia_json(prompt: str, max_tokens: int) -> dict:
     client = get_anthropic()
     resp = client.messages.create(model=ANALYSE_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}])
     texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+    if not texte.strip():
+        # Une réponse vide (aucun bloc texte) plutôt qu'un JSON tronqué ou mal formé —
+        # cas distinct qu'on isole pour un diagnostic clair au lieu d'une erreur JSON
+        # cryptique ("Expecting value: line 1 column 1"), et qui bénéficie de la même
+        # reprise automatique que les autres échecs de génération.
+        raise ValueError(f"Réponse vide du modèle (motif d'arrêt : {getattr(resp, 'stop_reason', 'inconnu')}).")
     return _extraire_json(texte)
 
 
