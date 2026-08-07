@@ -355,6 +355,10 @@ def health():
         "diarisation_disponible": bool(HF_TOKEN),
         "email_configure": EMAIL_CONFIGURE,
         "time": datetime.now(timezone.utc).isoformat(),
+        # Fournis automatiquement par Railway lors du build — permet de vérifier
+        # sans ambiguïté que le déploiement en ligne correspond bien au dernier
+        # commit poussé sur GitHub (comparer avec le SHA affiché sur github.com).
+        "commit_deploye": os.getenv("RAILWAY_GIT_COMMIT_SHA", "inconnu — pas sur Railway ou variable absente"),
     }
 
 
@@ -592,24 +596,24 @@ REFERENCES_APA_METHODO_QUANT = [
 ]
 
 SCHEMA_ETUDE_ETAPE1A = """{
-  "titre": "titre concis et professionnel de l'étude",
-  "cadre_theorique": "développement de niveau doctoral (3 à 5 paragraphes) situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné",
+  "titre": "titre concis et professionnel de l'étude (15 mots maximum)",
+  "cadre_theorique": "développement de niveau doctoral, 350 à 500 mots STRICTEMENT (soit l'ordre de grandeur conventionnel d'une section de cadre théorique dans un article scientifique), situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné",
   "concepts_theoriques": [
     {"concept": "nom de la théorie ou du courant mobilisé (ex. Théorie de l'échange social)", "auteur_associe": "nom du ou des auteurs fondateurs largement reconnus de cette théorie (ex. Blau, 1964)"}
   ]
 }"""
 
 SCHEMA_ETUDE_ETAPE1B = """{
-  "revue_litterature": "synthèse de niveau doctoral de l'état de la recherche sur ce thème (3 à 5 paragraphes), structurée par grands axes/débats"
+  "revue_litterature": "synthèse de niveau doctoral, 350 à 500 mots STRICTEMENT (ordre de grandeur conventionnel d'une revue de littérature dans un article scientifique), structurée par grands axes/débats"
 }"""
 
 SCHEMA_ETUDE_ETAPE2 = """{
   "methodologie": {
-    "type_etude": "ex. étude quantitative transversale par questionnaire auto-administré",
-    "population_cible": "description précise du profil des répondants visés",
-    "echantillon": "taille d'échantillon recommandée avec justification et méthode d'échantillonnage proposée",
-    "hypotheses": [{"code": "H1", "enonce": "hypothèse testable formulée précisément, reliant les variables"}],
-    "variables": [{"nom": "nom du construit/variable", "type": "indépendante|dépendante|médiatrice|modératrice|de contrôle", "definition": "définition opérationnelle"}]
+    "type_etude": "ex. étude quantitative transversale par questionnaire auto-administré (1 phrase)",
+    "population_cible": "description précise du profil des répondants visés (1 à 2 phrases)",
+    "echantillon": "taille d'échantillon recommandée avec justification et méthode d'échantillonnage proposée (2 à 3 phrases maximum)",
+    "hypotheses": [{"code": "H1", "enonce": "hypothèse testable formulée précisément et concisément, reliant les variables (1 phrase par hypothèse, 5 hypothèses maximum)"}],
+    "variables": [{"nom": "nom du construit/variable", "type": "indépendante|dépendante|médiatrice|modératrice|de contrôle", "definition": "définition opérationnelle en 1 phrase courte"}]
   }
 }"""
 
@@ -620,12 +624,14 @@ SCHEMA_ETUDE_ETAPE3 = """{
         "titre": "libellé de section",
         "variable_associee": "nom EXACT d'une variable listée dans la méthodologie si cette section mesure ce construit par échelle de Likert, sinon omettre ce champ",
         "items": [
-          {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["modalités si choix_unique/choix_multiple, ou les 5 libellés si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
+          {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item, une phrase concise", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["modalités si choix_unique/choix_multiple, ou les 5 libellés si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
         ]
       }
     ]
   }
 }"""
+# Limite volontaire : 6 sections maximum, 5 items maximum par section (indiqué au
+# modèle dans les instructions de l'étape, pas dans le schéma lui-même).
 
 SCHEMA_ETUDE_ETAPE4 = """{
   "note_methodologique": "paragraphe de niveau doctoral justifiant les choix méthodologiques (type d'échelle, structure du questionnaire, validité de construit)"
@@ -712,9 +718,10 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         contexte3 = f"{base}\n\nMéthodologie déjà établie (hypothèses et variables) :\n{json.dumps(contenu['methodologie'], ensure_ascii=False)}"
         instructions3 = (
             "Conçois le questionnaire complet mesurant ces variables : items clairs, échelles de "
-            "Likert à 5 points cohérentes (au moins 3 items par construit mesuré par échelle, pour "
+            "Likert à 5 points cohérentes (3 à 5 items par construit mesuré par échelle, pour "
             "permettre un calcul ultérieur de fiabilité), plus les variables de contrôle/"
-            "sociodémographiques pertinentes."
+            "sociodémographiques pertinentes. Limite stricte : 6 sections maximum, 5 items maximum "
+            "par section — reste concis, un questionnaire trop long décourage les répondants."
         )
         etape3 = _appel_ia_json(f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}", 7000)
         _valider_etape(etape3, ("questionnaire",))
