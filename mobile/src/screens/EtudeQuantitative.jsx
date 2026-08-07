@@ -150,6 +150,8 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
               {selection.etape === "cadre" ? t("etudeQuant.etapeCadre")
                 : selection.etape === "revue" ? t("etudeQuant.etapeRevue")
                 : selection.etape === "methodologie" ? t("etudeQuant.etapeMethodologie")
+                : selection.etape?.startsWith("questionnaire:")
+                  ? `${t("etudeQuant.etapeQuestionnaire").replace("…", "")} (section ${selection.etape.split(":")[1]})…`
                 : selection.etape === "questionnaire" ? t("etudeQuant.etapeQuestionnaire")
                 : selection.etape === "references" ? t("etudeQuant.etapeReferences")
                 : t("etudeQuant.generation")}

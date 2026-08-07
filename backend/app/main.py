@@ -619,21 +619,19 @@ SCHEMA_ETUDE_ETAPE2 = """{
   }
 }"""
 
-SCHEMA_ETUDE_ETAPE3 = """{
-  "questionnaire": {
-    "sections": [
-      {
-        "titre": "libellé de section",
-        "variable_associee": "nom EXACT d'une variable listée dans la méthodologie si cette section mesure ce construit par échelle de Likert, sinon omettre ce champ",
-        "items": [
-          {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item, une phrase concise", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["modalités si choix_unique/choix_multiple, ou les 5 libellés si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
-        ]
-      }
-    ]
-  }
+SCHEMA_ETUDE_ETAPE3_PLAN = """{
+  "sections": [
+    {"titre": "libellé de section", "variable_associee": "nom EXACT d'une variable listée dans la méthodologie si cette section mesure ce construit par échelle de Likert, sinon omettre ce champ"}
+  ]
 }"""
-# Limite volontaire : 6 sections maximum, 5 items maximum par section (indiqué au
-# modèle dans les instructions de l'étape, pas dans le schéma lui-même).
+# Limite volontaire : 6 sections maximum (indiqué dans les instructions de l'étape).
+
+SCHEMA_ETUDE_ETAPE3_ITEMS = """{
+  "items": [
+    {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item, une phrase concise", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["modalités si choix_unique/choix_multiple, ou les 5 libellés si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
+  ]
+}"""
+# Limite volontaire : 5 items maximum par section.
 
 SCHEMA_ETUDE_ETAPE4 = """{
   "note_methodologique": "paragraphe de niveau doctoral justifiant les choix méthodologiques (type d'échelle, structure du questionnaire, validité de construit)"
@@ -759,22 +757,47 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         e.etape = "questionnaire"
         session.commit()
         contexte3 = f"{base}\n\nMéthodologie déjà établie (hypothèses et variables) :\n{json.dumps(contenu['methodologie'], ensure_ascii=False)}"
-        instructions3 = (
-            "Conçois le questionnaire complet mesurant ces variables : items clairs, échelles de "
-            "Likert à 5 points cohérentes (3 à 5 items par construit mesuré par échelle, pour "
-            "permettre un calcul ultérieur de fiabilité), plus les variables de contrôle/"
-            "sociodémographiques pertinentes. Limite stricte : 6 sections maximum, 5 items maximum "
-            "par section — reste concis, un questionnaire trop long décourage les répondants."
+
+        # 3a. Plan du questionnaire seul (léger) : titres de sections + variable
+        # mesurée, sans les items — évite de faire porter tout le poids de la
+        # génération (structure + contenu détaillé) sur un seul appel volumineux.
+        instructions_plan = (
+            "Conçois le PLAN du questionnaire mesurant ces variables (titres de sections uniquement, "
+            "pas encore les questions) : une section par construit mesuré par échelle de Likert, plus "
+            "une section sociodémographique/de contrôle si pertinent. Limite stricte : 6 sections "
+            "maximum."
         )
 
-        def _verifier_questionnaire(r):
-            _valider_etape(r, ("questionnaire",))
-            if not r["questionnaire"].get("sections"):
-                raise ValueError("Le questionnaire généré ne contient aucune section.")
+        def _verifier_plan(r):
+            _valider_etape(r, ("sections",))
+            if not r["sections"]:
+                raise ValueError("Le plan du questionnaire généré ne contient aucune section.")
 
-        prompt3 = f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}"
-        etape3 = _appel_etape_avec_reprise(prompt3, 7000, _verifier_questionnaire)
-        contenu.update(etape3)
+        prompt_plan = f"{contexte3}\n\n{instructions_plan}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3_PLAN}"
+        plan = _appel_etape_avec_reprise(prompt_plan, 1500, _verifier_plan)
+        sections_plan = plan["sections"][:6]
+
+        # 3b. Items de chaque section, un appel séparé et léger par section — un
+        # échec isolé sur une section n'oblige pas à tout régénérer.
+        sections_completes = []
+        for i, section in enumerate(sections_plan):
+            e.etape = f"questionnaire:{i + 1}/{len(sections_plan)}"
+            session.commit()
+            instructions_items = (
+                f"Rédige les items de la section « {section.get('titre', '')} » du questionnaire "
+                f"{('mesurant le construit « ' + section['variable_associee'] + '» par échelle de Likert à 5 points (3 à 5 items)') if section.get('variable_associee') else '(items sociodémographiques/de contrôle pertinents, 5 items maximum)'}."
+            )
+            prompt_items = f"{contexte3}\n\n{instructions_items}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3_ITEMS}"
+
+            def _verifier_items(r):
+                _valider_etape(r, ("items",))
+                if not r["items"]:
+                    raise ValueError(f"Aucun item généré pour la section « {section.get('titre', '')} ».")
+
+            items_resultat = _appel_etape_avec_reprise(prompt_items, 2000, _verifier_items)
+            sections_completes.append({**section, "items": items_resultat["items"][:5]})
+
+        contenu["questionnaire"] = {"sections": sections_completes}
         e.contenu = dict(contenu)
         session.commit()
 
