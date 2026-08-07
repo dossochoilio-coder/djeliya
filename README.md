@@ -42,7 +42,7 @@ git push -u origin main
 - **Analyse transversale de corpus** : au-delà d'un entretien, analyse conjointe de tous les entretiens terminés d'un même corpus (minimum 2), avec attribution de chaque verbatim à son entretien d'origine et commentaire sur la convergence/divergence entre cas et la saturation théorique.
 - **Codage collaboratif et fiabilité inter-codeurs** : chaque chercheur code les segments indépendamment ; l'app calcule le kappa de Cohen entre codeurs, un indicateur de rigueur attendu en recherche qualitative.
 - **Écran d'accueil** : liste réelle des entretiens (recherche, statut, date), bouton flottant pour en démarrer un nouveau.
-- **Enregistrement natif** : dictaphone intégré avec vumètre réactif au micro réel, **pause et reprise sans coupure ni perte** (l'audio repart exactement où il s'était arrêté), écran maintenu actif pendant l'enregistrement pour éviter toute interruption par la mise en veille du téléphone. Fonctionne entièrement hors connexion — seul l'envoi final pour transcription nécessite le réseau, et l'audio reste sauvegardé sur l'appareil si cet envoi échoue (bouton « Relancer »).
+- **Enregistrement natif** : dictaphone intégré avec vumètre réactif au micro réel, **pause et reprise sans coupure ni perte** (l'audio repart exactement où il s'était arrêté), écran maintenu actif pendant l'enregistrement pour éviter toute interruption par la mise en veille du téléphone. Fonctionne entièrement hors connexion — seul l'envoi final pour transcription nécessite le réseau, et l'audio reste sauvegardé sur l'appareil si cet envoi échoue (bouton « Relancer »). **Envoi fractionné automatique pour les entretiens longs** (> 6 Mo) : Railway limite chaque requête HTTP publique à 5 minutes, ce qui pouvait interrompre l'envoi d'un enregistrement d'1h+ sur une connexion mobile instable (« Failed to fetch »). Au-delà du seuil, l'app découpe l'envoi en petits morceaux de 2 Mo, chacun réessayé individuellement en cas de coupure, puis réassemblés côté serveur — testé avec vérification d'intégrité binaire complète.
 - **Fiche entretien** : lecture avec vraie forme d'onde, surlignage du segment en cours, mots peu fiables soulignés et corrigibles d'un geste.
 - **Glossaire** : centralise le vocabulaire local relevé au fil des entretiens.
 - **Export** : copie du texte dans le presse-papiers, ou partage natif (Android) vers WhatsApp, e-mail, etc.
@@ -136,7 +136,10 @@ Chaque poussée sur `main` redéploie le serveur automatiquement.
 | `GET` | `/api/corpus/{id}` | Détail d'un corpus, dont son analyse transversale |
 | `POST` | `/api/corpus/rejoindre` | Rejoindre un corpus via son code |
 | `POST` | `/api/corpus/{id}/analyser` | Lancer l'analyse transversale du corpus (≥ 2 entretiens terminés) |
-| `POST` | `/api/transcriptions` | Envoi d'un audio |
+| `POST` | `/api/transcriptions` | Envoi d'un audio (fichiers ≤ 6 Mo) |
+| `POST` | `/api/transcriptions/envoi/init` | Démarrer un envoi fractionné (fichiers > 6 Mo, entretiens longs) |
+| `POST` | `/api/transcriptions/envoi/{session}/morceau` | Envoyer un morceau du fichier |
+| `POST` | `/api/transcriptions/envoi/{session}/terminer` | Assembler les morceaux et lancer la transcription |
 | `GET` | `/api/transcriptions` | Lister mes entretiens (et ceux de mes corpus) |
 | `GET` | `/api/transcriptions/{id}` | Détail : segments, locuteurs, analyse |
 | `POST` | `/api/transcriptions/{id}/segments` | Persister une correction manuelle de transcription |

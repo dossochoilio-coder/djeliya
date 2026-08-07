@@ -416,6 +416,15 @@ export async function lancerAnalyseCorpus(backendUrl, token, corpusId, contexte,
 export async function createTranscription(backendUrl, token, { blob, filename, langue, vocabulaire, corpusId, titre }) {
   const base = clean(backendUrl);
   if (!base) throw new Error("Configure d'abord l'adresse du serveur dans Réglages.");
+
+  // Au-delà de ~6 Mo, un envoi en un seul morceau risque de dépasser la limite de
+  // 5 minutes par requête HTTP imposée par l'hébergeur sur une connexion mobile —
+  // on bascule alors sur un envoi fractionné, beaucoup plus robuste.
+  const SEUIL_FRACTIONNE = 6 * 1024 * 1024;
+  if (blob.size > SEUIL_FRACTIONNE) {
+    return createTranscriptionFractionnee(backendUrl, token, { blob, filename, langue, vocabulaire, corpusId, titre });
+  }
+
   const form = new FormData();
   form.append("audio", blob, filename || "entretien.webm");
   form.append("langue", langue || "auto");
@@ -426,6 +435,57 @@ export async function createTranscription(backendUrl, token, { blob, filename, l
   const res = await fetch(`${base}/api/transcriptions`, { method: "POST", body: form, headers: headersAuth(token) });
   if (!res.ok) throw new Error(`Le serveur a refusé l'envoi (${res.status}). ${await lireErreur(res)}`.slice(0, 200));
   return res.json(); // { id, statut }
+}
+
+async function createTranscriptionFractionnee(backendUrl, token, { blob, filename, langue, vocabulaire, corpusId, titre }) {
+  const base = clean(backendUrl);
+  const TAILLE_MORCEAU = 2 * 1024 * 1024; // 2 Mo par morceau — largement sous la limite de 5 min, même sur réseau lent
+
+  const rInit = await fetch(`${base}/api/transcriptions/envoi/init`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({
+      nom_fichier: filename || "entretien.webm", langue: langue || "auto",
+      vocabulaire: vocabulaire || "", corpus_id: corpusId || "", titre: titre || "",
+    }),
+  });
+  if (!rInit.ok) throw new Error(`Impossible de démarrer l'envoi (${rInit.status}). ${await lireErreur(rInit)}`.slice(0, 200));
+  const { session_id } = await rInit.json();
+
+  const nbMorceaux = Math.ceil(blob.size / TAILLE_MORCEAU);
+  for (let index = 0; index < nbMorceaux; index++) {
+    const debut = index * TAILLE_MORCEAU;
+    const morceau = blob.slice(debut, debut + TAILLE_MORCEAU);
+
+    // Chaque morceau est petit : une coupure réseau ponctuelle se rattrape par un
+    // nouvel essai localisé, plutôt que de perdre tout l'envoi comme avant.
+    let dernierEchec = null;
+    let reussi = false;
+    for (let essai = 0; essai < 3 && !reussi; essai++) {
+      if (essai > 0) await new Promise((r) => setTimeout(r, 1500 * essai));
+      try {
+        const form = new FormData();
+        form.append("morceau", morceau, "chunk");
+        form.append("index", String(index));
+        const rMorceau = await fetch(`${base}/api/transcriptions/envoi/${session_id}/morceau`, {
+          method: "POST", body: form, headers: headersAuth(token),
+        });
+        if (!rMorceau.ok) throw new Error(`${rMorceau.status}`);
+        reussi = true;
+      } catch (e) {
+        dernierEchec = e;
+      }
+    }
+    if (!reussi) {
+      throw new Error(`Échec de l'envoi du fichier (partie ${index + 1}/${nbMorceaux}) : ${dernierEchec?.message || "réseau instable"}. Réessaie quand la connexion sera meilleure.`);
+    }
+  }
+
+  const rFin = await fetch(`${base}/api/transcriptions/envoi/${session_id}/terminer`, {
+    method: "POST", headers: headersAuth(token),
+  });
+  if (!rFin.ok) throw new Error(`Le serveur n'a pas pu finaliser l'envoi (${rFin.status}). ${await lireErreur(rFin)}`.slice(0, 200));
+  return rFin.json(); // { id, statut }
 }
 
 export async function getTranscription(backendUrl, token, jobId) {

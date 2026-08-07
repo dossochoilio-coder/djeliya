@@ -1384,6 +1384,44 @@ def lancer_analyse_corpus(corpus_id: str, payload: AnalyseCorpusIn, user: Utilis
 
 
 # ----------------------------------------------------------------- transcriptions
+def _finaliser_transcription(user: Utilisateur, tmp_path: str, langue: str, vocabulaire: str, corpus_id: str, titre: str, nom_fichier: str) -> dict:
+    """Valide, débite les crédits et lance la transcription — logique partagée entre
+    l'envoi direct (petits fichiers) et l'envoi fractionné (fichiers longs, > 5 min
+    d'envoi sur mobile, pour respecter la limite de requête HTTP de Railway)."""
+    entretien_id = uuid.uuid4().hex[:12]
+    session = get_session()
+    try:
+        if not user.email_verifie:
+            os.unlink(tmp_path)
+            raise HTTPException(403, "Vérifie ton adresse e-mail avant de lancer une transcription.")
+        if not user.est_admin and user.credits < COUT_CREDIT_TRANSCRIPTION:
+            os.unlink(tmp_path)
+            raise HTTPException(402, "Crédits insuffisants. Consulte les forfaits disponibles dans l'app.")
+        if corpus_id and not session.query(MembreCorpus).filter_by(corpus_id=corpus_id, utilisateur_id=user.id).first():
+            os.unlink(tmp_path)
+            raise HTTPException(403, "Tu n'as pas accès à ce corpus.")
+
+        if not user.est_admin:
+            u = session.get(Utilisateur, user.id)
+            u.credits -= COUT_CREDIT_TRANSCRIPTION
+            session.add(MouvementCredit(
+                id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_TRANSCRIPTION,
+                motif=f"Transcription — {titre or nom_fichier}",
+            ))
+
+        e = Entretien(
+            id=entretien_id, proprietaire_id=user.id, corpus_id=corpus_id or None,
+            titre=titre or nom_fichier or "Entretien sans titre", langue=langue, statut="en_attente",
+        )
+        session.add(e)
+        session.commit()
+    finally:
+        session.close()
+
+    threading.Thread(target=_run_job, args=(entretien_id, tmp_path, langue, vocabulaire), daemon=True).start()
+    return {"id": entretien_id, "statut": "en_attente"}
+
+
 @app.post("/api/transcriptions")
 async def creer_transcription(
     audio: UploadFile = File(...),
@@ -1396,7 +1434,6 @@ async def creer_transcription(
     if langue not in LANGUES_SUPPORTEES:
         raise HTTPException(422, f"Langue inconnue : {langue}")
 
-    entretien_id = uuid.uuid4().hex[:12]
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(audio.filename or "a.wav")[1])
     size = 0
     with tmp as f:
@@ -1407,37 +1444,83 @@ async def creer_transcription(
                 raise HTTPException(413, f"Fichier trop volumineux (max {MAX_UPLOAD_MB} Mo)")
             f.write(chunk)
 
-    session = get_session()
-    try:
-        if not user.email_verifie:
-            os.unlink(tmp.name)
-            raise HTTPException(403, "Vérifie ton adresse e-mail avant de lancer une transcription.")
-        if not user.est_admin and user.credits < COUT_CREDIT_TRANSCRIPTION:
-            os.unlink(tmp.name)
-            raise HTTPException(402, "Crédits insuffisants. Consulte les forfaits disponibles dans l'app.")
-        if corpus_id and not session.query(MembreCorpus).filter_by(corpus_id=corpus_id, utilisateur_id=user.id).first():
-            os.unlink(tmp.name)
-            raise HTTPException(403, "Tu n'as pas accès à ce corpus.")
+    return _finaliser_transcription(user, tmp.name, langue, vocabulaire, corpus_id, titre, audio.filename)
 
-        if not user.est_admin:
-            u = session.get(Utilisateur, user.id)
-            u.credits -= COUT_CREDIT_TRANSCRIPTION
-            session.add(MouvementCredit(
-                id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_TRANSCRIPTION,
-                motif=f"Transcription — {titre or audio.filename}",
-            ))
 
-        e = Entretien(
-            id=entretien_id, proprietaire_id=user.id, corpus_id=corpus_id or None,
-            titre=titre or audio.filename or "Entretien sans titre", langue=langue, statut="en_attente",
-        )
-        session.add(e)
-        session.commit()
-    finally:
-        session.close()
+# ------------------------------------------------------------- envoi fractionné (fichiers longs)
+# Railway impose une limite plate-forme de 5 minutes par requête HTTP publique, non
+# modifiable. Un enregistrement de 1h+ envoyé en une seule requête sur une connexion
+# mobile instable peut dépasser ce délai et être coupé en plein transfert (l'app
+# affiche alors "Failed to fetch" — la coupure vient du réseau, pas du serveur).
+# On découpe donc l'envoi en petits morceaux (quelques Mo chacun, bien sous la limite),
+# assemblés côté serveur une fois tous reçus.
+SESSIONS_ENVOI: dict[str, dict] = {}
 
-    threading.Thread(target=_run_job, args=(entretien_id, tmp.name, langue, vocabulaire), daemon=True).start()
-    return {"id": entretien_id, "statut": "en_attente"}
+
+class InitEnvoiIn(BaseModel):
+    nom_fichier: str = ""
+    langue: str = "auto"
+    vocabulaire: str = ""
+    corpus_id: str = ""
+    titre: str = ""
+
+
+@app.post("/api/transcriptions/envoi/init")
+def init_envoi_fractionne(payload: InitEnvoiIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if payload.langue not in LANGUES_SUPPORTEES:
+        raise HTTPException(422, f"Langue inconnue : {payload.langue}")
+    session_id = uuid.uuid4().hex[:20]
+    dossier = os.path.join(tempfile.gettempdir(), f"envoi_{session_id}")
+    os.makedirs(dossier, exist_ok=True)
+    SESSIONS_ENVOI[session_id] = {
+        "utilisateur_id": user.id, "dossier": dossier,
+        "nom_fichier": payload.nom_fichier, "langue": payload.langue,
+        "vocabulaire": payload.vocabulaire, "corpus_id": payload.corpus_id, "titre": payload.titre,
+        "taille": 0,
+    }
+    return {"session_id": session_id}
+
+
+@app.post("/api/transcriptions/envoi/{session_id}/morceau")
+async def envoyer_morceau(session_id: str, index: int = Form(...), morceau: UploadFile = File(...), user: Utilisateur = Depends(utilisateur_courant)):
+    s = SESSIONS_ENVOI.get(session_id)
+    if not s or s["utilisateur_id"] != user.id:
+        raise HTTPException(404, "Session d'envoi introuvable ou expirée — recommence l'envoi.")
+    chemin_morceau = os.path.join(s["dossier"], f"{index:06d}.part")
+    taille = 0
+    with open(chemin_morceau, "wb") as f:
+        while chunk := await morceau.read(1024 * 1024):
+            taille += len(chunk)
+            if s["taille"] + taille > MAX_UPLOAD_MB * 1024 * 1024:
+                raise HTTPException(413, f"Fichier trop volumineux (max {MAX_UPLOAD_MB} Mo)")
+            f.write(chunk)
+    s["taille"] += taille
+    return {"ok": True, "index": index}
+
+
+@app.post("/api/transcriptions/envoi/{session_id}/terminer")
+def terminer_envoi_fractionne(session_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    s = SESSIONS_ENVOI.pop(session_id, None)
+    if not s or s["utilisateur_id"] != user.id:
+        raise HTTPException(404, "Session d'envoi introuvable ou expirée — recommence l'envoi.")
+
+    morceaux = sorted(os.listdir(s["dossier"]))
+    if not morceaux:
+        raise HTTPException(422, "Aucun morceau reçu pour cet envoi.")
+
+    suffixe = os.path.splitext(s["nom_fichier"] or "a.wav")[1]
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffixe)
+    with tmp as f:
+        for nom in morceaux:
+            with open(os.path.join(s["dossier"], nom), "rb") as morceau:
+                f.write(morceau.read())
+    for nom in morceaux:
+        os.unlink(os.path.join(s["dossier"], nom))
+    os.rmdir(s["dossier"])
+
+    return _finaliser_transcription(
+        user, tmp.name, s["langue"], s["vocabulaire"], s["corpus_id"], s["titre"], s["nom_fichier"],
+    )
 
 
 @app.get("/api/transcriptions")
