@@ -412,6 +412,8 @@ def detail_guide(guide_id: str, user: Utilisateur = Depends(utilisateur_courant)
 def creer_guide(payload: GuideEntretienIn, user: Utilisateur = Depends(utilisateur_courant)):
     if not payload.theme.strip():
         raise HTTPException(422, "Le thème de recherche est requis.")
+    theme = _nettoyer_texte_utilisateur(payload.theme.strip())
+    question_recherche = _nettoyer_texte_utilisateur(payload.question_recherche.strip())
     langue = payload.langue if payload.langue in ("fr", "en") else "fr"
     session = get_session()
     try:
@@ -424,19 +426,19 @@ def creer_guide(payload: GuideEntretienIn, user: Utilisateur = Depends(utilisate
             u.credits -= COUT_CREDIT_GUIDE
             session.add(MouvementCredit(
                 id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_GUIDE,
-                motif=f"Guide d'entretien — {payload.theme[:60]}",
+                motif=f"Guide d'entretien — {theme[:60]}",
             ))
         guide_id = uuid.uuid4().hex[:16]
         g = GuideEntretien(
-            id=guide_id, proprietaire_id=user.id, theme=payload.theme.strip(),
-            question_recherche=payload.question_recherche.strip(), langue=langue, statut="en_cours",
+            id=guide_id, proprietaire_id=user.id, theme=theme,
+            question_recherche=question_recherche, langue=langue, statut="en_cours",
         )
         session.add(g)
         session.commit()
     finally:
         session.close()
 
-    threading.Thread(target=_run_guide, args=(guide_id, payload.theme.strip(), payload.question_recherche.strip(), langue, user.id), daemon=True).start()
+    threading.Thread(target=_run_guide, args=(guide_id, theme, question_recherche, langue, user.id), daemon=True).start()
     return {"id": guide_id, "statut": "en_cours"}
 
 
@@ -638,6 +640,18 @@ SCHEMA_ETUDE_ETAPE4 = """{
 }"""
 
 
+def _nettoyer_texte_utilisateur(texte: str) -> str:
+    """Neutralise les guillemets doubles (et variantes typographiques) dans un
+    texte saisi par l'utilisateur avant de l'injecter dans un prompt IA — un
+    guillemet repris tel quel par le modèle dans sa réponse JSON (ex. dans un
+    titre reprenant le thème) peut casser le parsing strict si mal échappé."""
+    if not texte:
+        return texte
+    for car in ('"', "\u201c", "\u201d", "\u201e", "\u00ab", "\u00bb"):
+        texte = texte.replace(car, "'")
+    return texte
+
+
 def _prompt_etude_base(theme: str, question_recherche: str, langue: str) -> str:
     consigne_langue = "Rédige l'intégralité en anglais." if langue == "en" else "Rédige l'intégralité en français."
     return f"""Tu es méthodologue quantitatif et directeur de recherche, de niveau recherche doctorale, \
@@ -664,6 +678,22 @@ def _appel_ia_json(prompt: str, max_tokens: int) -> dict:
     return _extraire_json(texte)
 
 
+def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier) -> dict:
+    """Exécute une étape de génération avec une nouvelle tentative automatique si
+    la réponse échoue à la validation (« verifier » lève une exception sinon) —
+    absorbe les échecs ponctuels de génération sans faire perdre de crédit à
+    l'utilisateur pour un simple aléa d'un seul appel au modèle."""
+    try:
+        resultat = _appel_ia_json(prompt, max_tokens)
+        verifier(resultat)
+        return resultat
+    except Exception:  # noqa: BLE001
+        prompt_renforce = f"{prompt}\n\nATTENTION : ta précédente tentative était incomplète ou mal formée. Respecte scrupuleusement le schéma demandé, sans en omettre aucune partie."
+        resultat = _appel_ia_json(prompt_renforce, max_tokens)
+        verifier(resultat)
+        return resultat
+
+
 def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
     """Génère l'étude en 4 étapes indépendantes (cadre théorique, méthodologie,
     questionnaire, note méthodologique), chacune avec sa propre marge de tokens —
@@ -680,13 +710,20 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "bibliographique précise (auteur + année + titre exact d'article) qui n'existerait pas "
             "réellement. Reste au niveau des courants théoriques et notions établies du champ dans le "
             "texte ; ne nomme dans « concepts_theoriques » que des théories réellement célèbres et "
-            "incontestables du champ, avec leur(s) auteur(s) fondateur(s) largement reconnu(s)."
+            "incontestables du champ, avec leur(s) auteur(s) fondateur(s) largement reconnu(s).\n\n"
+            "Consigne de citation dans le texte : quand tu mobilises une théorie réellement célèbre et "
+            "incontestable (ex. théorie de l'échange social, modèle de l'engagement organisationnel), "
+            "cite-la au format APA standard « Auteur (Année) » directement dans le corps du texte — pas "
+            "seulement le nom de l'auteur seul — mais UNIQUEMENT si tu es certain que cette année de "
+            "publication est exacte et largement citée dans le champ (ex. Blau (1964), Meyer et Allen "
+            "(1991)) ; en cas de doute sur l'année exacte, nomme la théorie et l'auteur sans donner "
+            "d'année plutôt que de risquer une date inventée."
         )
 
         e.etape = "cadre"
         session.commit()
-        etape1a = _appel_ia_json(f"{base}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1A}", 3000)
-        _valider_etape(etape1a, ("titre", "cadre_theorique"))
+        prompt1a = f"{base}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1A}"
+        etape1a = _appel_etape_avec_reprise(prompt1a, 3000, lambda r: _valider_etape(r, ("titre", "cadre_theorique")))
         contenu.update(etape1a)
         e.contenu = dict(contenu)
         session.commit()
@@ -694,8 +731,8 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         e.etape = "revue"
         session.commit()
         contexte1b = f"{base}\n\nCadre théorique déjà établi :\n{contenu['cadre_theorique'][:1500]}"
-        etape1b = _appel_ia_json(f"{contexte1b}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1B}", 3000)
-        _valider_etape(etape1b, ("revue_litterature",))
+        prompt1b = f"{contexte1b}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1B}"
+        etape1b = _appel_etape_avec_reprise(prompt1b, 3000, lambda r: _valider_etape(r, ("revue_litterature",)))
         contenu.update(etape1b)
         e.contenu = dict(contenu)
         session.commit()
@@ -707,8 +744,8 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "Conçois la méthodologie quantitative de cette étude, cohérente avec le cadre théorique "
             "ci-dessus. Chaque hypothèse doit relier des variables précisément définies."
         )
-        etape2 = _appel_ia_json(f"{contexte2}\n\n{instructions2}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE2}", 4500)
-        _valider_etape(etape2, ("methodologie",))
+        prompt2 = f"{contexte2}\n\n{instructions2}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE2}"
+        etape2 = _appel_etape_avec_reprise(prompt2, 4500, lambda r: _valider_etape(r, ("methodologie",)))
         contenu.update(etape2)
         e.contenu = dict(contenu)
         session.commit()
@@ -723,10 +760,14 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "sociodémographiques pertinentes. Limite stricte : 6 sections maximum, 5 items maximum "
             "par section — reste concis, un questionnaire trop long décourage les répondants."
         )
-        etape3 = _appel_ia_json(f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}", 7000)
-        _valider_etape(etape3, ("questionnaire",))
-        if not etape3["questionnaire"].get("sections"):
-            raise ValueError("Le questionnaire généré ne contient aucune section.")
+
+        def _verifier_questionnaire(r):
+            _valider_etape(r, ("questionnaire",))
+            if not r["questionnaire"].get("sections"):
+                raise ValueError("Le questionnaire généré ne contient aucune section.")
+
+        prompt3 = f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}"
+        etape3 = _appel_etape_avec_reprise(prompt3, 7000, _verifier_questionnaire)
         contenu.update(etape3)
         e.contenu = dict(contenu)
         session.commit()
@@ -738,8 +779,8 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "structure du questionnaire, validité de construit), sans citer de référence précise "
             "(les références méthodologiques sont ajoutées séparément par l'application)."
         )
-        etape4 = _appel_ia_json(f"{base}\n\n{instructions4}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE4}", 2500)
-        _valider_etape(etape4, ("note_methodologique",))
+        prompt4 = f"{base}\n\n{instructions4}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE4}"
+        etape4 = _appel_etape_avec_reprise(prompt4, 2500, lambda r: _valider_etape(r, ("note_methodologique",)))
         contenu.update(etape4)
 
         # Table de références APA : uniquement des sources réellement vérifiées —
@@ -814,6 +855,8 @@ def detail_etude_quant(etude_id: str, user: Utilisateur = Depends(utilisateur_co
 def creer_etude_quant(payload: EtudeQuantIn, user: Utilisateur = Depends(utilisateur_courant)):
     if not payload.theme.strip():
         raise HTTPException(422, "Le thème de recherche est requis.")
+    theme = _nettoyer_texte_utilisateur(payload.theme.strip())
+    question_recherche = _nettoyer_texte_utilisateur(payload.question_recherche.strip())
     langue = payload.langue if payload.langue in ("fr", "en") else "fr"
     session = get_session()
     try:
@@ -826,19 +869,19 @@ def creer_etude_quant(payload: EtudeQuantIn, user: Utilisateur = Depends(utilisa
             u.credits -= COUT_CREDIT_ETUDE_QUANT
             session.add(MouvementCredit(
                 id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_ETUDE_QUANT,
-                motif=f"Étude quantitative — {payload.theme[:60]}",
+                motif=f"Étude quantitative — {theme[:60]}",
             ))
         etude_id = uuid.uuid4().hex[:16]
         e = EtudeQuantitative(
-            id=etude_id, proprietaire_id=user.id, theme=payload.theme.strip(),
-            question_recherche=payload.question_recherche.strip(), langue=langue, statut="en_cours",
+            id=etude_id, proprietaire_id=user.id, theme=theme,
+            question_recherche=question_recherche, langue=langue, statut="en_cours",
         )
         session.add(e)
         session.commit()
     finally:
         session.close()
 
-    threading.Thread(target=_run_etude_quant, args=(etude_id, payload.theme.strip(), payload.question_recherche.strip(), langue, user.id), daemon=True).start()
+    threading.Thread(target=_run_etude_quant, args=(etude_id, theme, question_recherche, langue, user.id), daemon=True).start()
     return {"id": etude_id, "statut": "en_cours"}
 
 
@@ -2462,10 +2505,47 @@ les guillemets internes aux chaînes de caractères (\\") et ne laisse aucune ch
 {SCHEMA_ANALYSE}"""
 
 
+def _echapper_controles_dans_chaines(texte: str) -> str:
+    """Corrige les sauts de ligne/tabulations LITTÉRAUX insérés par erreur à
+    l'intérieur des valeurs de chaîne JSON — le modèle doit les échapper en \\n,
+    mais l'omet parfois sur un texte long en plusieurs paragraphes. Sans ce
+    correctif, ces caractères de contrôle cassent le parsing JSON strict, et
+    l'ancien mécanisme de réparation (pensé pour une vraie troncature) tronquait
+    alors le contenu bien plus tôt que nécessaire, perdant silencieusement des
+    champs pourtant bien présents dans la réponse du modèle."""
+    resultat = []
+    dans_chaine = False
+    echappement = False
+    for ch in texte:
+        if echappement:
+            resultat.append(ch)
+            echappement = False
+            continue
+        if ch == "\\":
+            resultat.append(ch)
+            echappement = True
+            continue
+        if ch == '"':
+            dans_chaine = not dans_chaine
+            resultat.append(ch)
+            continue
+        if dans_chaine and ch == "\n":
+            resultat.append("\\n")
+            continue
+        if dans_chaine and ch == "\t":
+            resultat.append("\\t")
+            continue
+        if dans_chaine and ch == "\r":
+            continue
+        resultat.append(ch)
+    return "".join(resultat)
+
+
 def _extraire_json(texte: str) -> dict:
     """Nettoie et parse la réponse du modèle, avec une tentative de réparation si le JSON
     a été coupé net (troncature liée à la limite de tokens)."""
     texte = texte.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    texte = _echapper_controles_dans_chaines(texte)
     try:
         return json.loads(texte)
     except json.JSONDecodeError:
