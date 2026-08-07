@@ -682,20 +682,24 @@ def _appel_ia_json(prompt: str, max_tokens: int) -> dict:
     return _extraire_json(texte)
 
 
-def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier) -> dict:
-    """Exécute une étape de génération avec une nouvelle tentative automatique si
+def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier, tentatives: int = 2) -> dict:
+    """Exécute une étape de génération avec de nouvelles tentatives automatiques si
     la réponse échoue à la validation (« verifier » lève une exception sinon) —
     absorbe les échecs ponctuels de génération sans faire perdre de crédit à
-    l'utilisateur pour un simple aléa d'un seul appel au modèle."""
-    try:
-        resultat = _appel_ia_json(prompt, max_tokens)
-        verifier(resultat)
-        return resultat
-    except Exception:  # noqa: BLE001
-        prompt_renforce = f"{prompt}\n\nATTENTION : ta précédente tentative était incomplète ou mal formée. Respecte scrupuleusement le schéma demandé, sans en omettre aucune partie."
-        resultat = _appel_ia_json(prompt_renforce, max_tokens)
-        verifier(resultat)
-        return resultat
+    l'utilisateur pour un simple aléa d'un ou plusieurs appels au modèle."""
+    derniere_erreur = None
+    for essai in range(tentatives):
+        try:
+            prompt_essai = prompt if essai == 0 else (
+                f"{prompt}\n\nATTENTION : ta précédente tentative était incomplète, vide ou mal "
+                "formée. Respecte scrupuleusement le schéma demandé, sans en omettre aucune partie."
+            )
+            resultat = _appel_ia_json(prompt_essai, max_tokens)
+            verifier(resultat)
+            return resultat
+        except Exception as ex:  # noqa: BLE001
+            derniere_erreur = ex
+    raise derniere_erreur
 
 
 def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
@@ -814,7 +818,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             # (une justification, pas le cadre théorique, la méthodologie ou le
             # questionnaire eux-mêmes) — un échec ici, même après reprise, ne doit
             # jamais empêcher l'étude d'être considérée prête et exportable.
-            etape4 = _appel_etape_avec_reprise(prompt4, 2500, lambda r: _valider_etape(r, ("note_methodologique",)))
+            etape4 = _appel_etape_avec_reprise(prompt4, 2500, lambda r: _valider_etape(r, ("note_methodologique",)), tentatives=3)
             contenu.update(etape4)
         except Exception:  # noqa: BLE001
             pass
