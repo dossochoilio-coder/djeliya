@@ -20,6 +20,32 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
     if (token) listerRecharges(settings.backendUrl, token).then(setHistorique).catch(() => {});
   }, [settings.backendUrl, token]);
 
+  /* Vérification automatique en arrière-plan des recharges en attente — évite de
+     devoir appuyer manuellement sur « Vérifier maintenant » si le webhook PayDunya
+     n'arrive pas jusqu'au serveur (latence réseau, etc.). */
+  useEffect(() => {
+    if (!historique || !token) return;
+    const enAttente = historique.filter((h) => h.statut === "en_attente");
+    if (enAttente.length === 0) return;
+
+    const it = setInterval(async () => {
+      let creditsGagnes = 0;
+      for (const h of enAttente) {
+        try {
+          const r = await verifierRecharge(settings.backendUrl, token, h.id);
+          if (r.statut === "payee") creditsGagnes += r.credits;
+        } catch { /* nouvel essai au prochain intervalle */ }
+      }
+      if (creditsGagnes > 0) {
+        onMajUtilisateur?.({ ...utilisateur, credits: utilisateur.credits + creditsGagnes });
+        showToast("✓ " + t("forfaits.rechargeStatutPayee"));
+      }
+      listerRecharges(settings.backendUrl, token).then(setHistorique).catch(() => {});
+    }, 8000);
+    return () => clearInterval(it);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historique, token, settings.backendUrl]);
+
   const creditsNum = Math.max(0, parseInt(credits, 10) || 0);
   const min = tarif?.credits_min ?? 10;
   const montant = tarif ? creditsNum * tarif.prix_credit_fcfa : 0;
