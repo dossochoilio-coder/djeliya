@@ -3,7 +3,7 @@ import { STATUTS, fmtDate } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
 import logo from "../assets/logo-full.png";
 
-export default function Accueil({ interviews, onOpen, onNouveau, onOuvrirGuides, backendOk }) {
+export default function Accueil({ interviews, onOpen, onNouveau, onOuvrirGuides, onOuvrirEtudesQuant, backendOk }) {
   const { t } = useT();
   const [query, setQuery] = useState("");
 
@@ -40,6 +40,17 @@ export default function Accueil({ interviews, onOpen, onNouveau, onOuvrirGuides,
         <span className="guide-card-texte">
           <span className="guide-card-titre">{t("guide.accueilBouton")}</span>
           <span className="guide-card-sous">{t("guide.videSous")}</span>
+        </span>
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="guide-card-chevron"><path d="M7.5 15 13 10 7.5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+
+      <button className="guide-card" onClick={onOuvrirEtudesQuant}>
+        <span className="guide-card-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none"><path d="M3.5 16.5V4M3.5 16.5h13M6.5 13.5v-4M10 13.5v-7M13.5 13.5v-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        <span className="guide-card-texte">
+          <span className="guide-card-titre">{t("etudeQuant.accueilBouton")}</span>
+          <span className="guide-card-sous">{t("etudeQuant.accueilSous")}</span>
         </span>
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="guide-card-chevron"><path d="M7.5 15 13 10 7.5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>

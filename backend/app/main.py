@@ -24,12 +24,17 @@ from pydantic import BaseModel
 
 from .db import (
     init_db, get_session, Utilisateur, Corpus, MembreCorpus, Entretien, Codage,
-    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, Commande, ADMIN_EMAIL,
+    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, Commande,
+    EtudeQuantitative, AnalyseQuantitative, ADMIN_EMAIL,
 )
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
 from .email_utils import envoyer_code_verification, envoyer_code_reinitialisation, EMAIL_CONFIGURE
 from .cgu import CGU_TEXTE, CGU_VERSION
-from .exports import generer_docx_entretien, generer_xlsx_entretien, generer_docx_etude, generer_xlsx_etude, generer_docx_guide
+from .exports import (
+    generer_docx_entretien, generer_xlsx_entretien, generer_docx_etude, generer_xlsx_etude, generer_docx_guide,
+    generer_docx_etude_quant, generer_xlsx_template_questionnaire, generer_docx_analyse_quant, generer_xlsx_analyse_quant,
+)
+from .stats_quant import analyser_donnees
 
 # ----------------------------------------------------------------- config
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
@@ -43,6 +48,8 @@ CREDITS_ESSAI_GRATUIT = float(os.getenv("CREDITS_ESSAI_GRATUIT", "5"))
 COUT_CREDIT_TRANSCRIPTION = float(os.getenv("COUT_CREDIT_TRANSCRIPTION", "1"))
 COUT_CREDIT_ANALYSE = float(os.getenv("COUT_CREDIT_ANALYSE", "2"))
 COUT_CREDIT_GUIDE = float(os.getenv("COUT_CREDIT_GUIDE", "1"))
+COUT_CREDIT_ETUDE_QUANT = float(os.getenv("COUT_CREDIT_ETUDE_QUANT", "3"))
+COUT_CREDIT_ANALYSE_QUANT = float(os.getenv("COUT_CREDIT_ANALYSE_QUANT", "2"))
 
 # Recharge de crédits à la carte (paiement réel par les utilisateurs)
 PRIX_CREDIT_FCFA = int(os.getenv("PRIX_CREDIT_FCFA", "150"))
@@ -570,6 +577,384 @@ def _run_guide(guide_id: str, theme: str, question_recherche: str, langue: str, 
             session.commit()
     finally:
         session.close()
+
+
+# ----------------------------------------------------------------- étude quantitative
+SCHEMA_ETUDE_QUANT = """{
+  "titre": "titre concis et professionnel de l'étude",
+  "cadre_theorique": "développement de niveau doctoral (plusieurs paragraphes) situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné, en expliquant leur pertinence pour cette question de recherche précise",
+  "revue_litterature": "synthèse de niveau doctoral de l'état de la recherche sur ce thème, structurée par grands axes/débats plutôt qu'une simple liste, qui EXPOSE les courants et notions établis du champ SANS jamais inventer de référence bibliographique précise et vérifiable (pas de nom d'auteur associé à une année et un titre d'article précis sauf s'il s'agit d'une référence réellement célèbre et incontestable du champ) — reste au niveau des courants théoriques et notions, pas de fausses citations exactes",
+  "methodologie": {
+    "type_etude": "ex. étude quantitative transversale par questionnaire auto-administré",
+    "population_cible": "description précise du profil des répondants visés",
+    "echantillon": "taille d'échantillon recommandée avec justification (règle de pouce, ratio items/répondants...) et méthode d'échantillonnage proposée",
+    "hypotheses": [{"code": "H1", "enonce": "hypothèse testable formulée précisément, reliant les variables"}],
+    "variables": [{"nom": "nom du construit/variable", "type": "indépendante|dépendante|médiatrice|modératrice|de contrôle", "definition": "définition opérationnelle"}]
+  },
+  "questionnaire": {
+    "sections": [
+      {
+        "titre": "libellé de section (ex. Informations sociodémographiques, ou le nom d'un construit)",
+        "variable_associee": "nom EXACT d'une variable listée ci-dessus si cette section mesure ce construit par échelle de Likert, sinon omettre ce champ",
+        "items": [
+          {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["liste des modalités si choix_unique/choix_multiple, ou les 5 libellés de l'échelle si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
+        ]
+      }
+    ]
+  },
+  "note_methodologique": "paragraphe de niveau doctoral justifiant les choix méthodologiques (type d'échelle, structure du questionnaire, validité de construit) avec au moins une référence bibliographique reconnue et réelle sur la méthodologie quantitative elle-même (ex. Fornell & Larcker, 1981 ; Nunnally & Bernstein, 1994 ; Churchill, 1979 — n'utilise que des références méthodologiques authentiques et largement établies, jamais inventées)"
+}"""
+
+
+def _construire_prompt_etude_quant(theme: str, question_recherche: str, langue: str) -> str:
+    consigne_langue = "Rédige l'intégralité en anglais." if langue == "en" else "Rédige l'intégralité en français."
+    return f"""Tu es méthodologue quantitatif et directeur de recherche, de niveau recherche doctorale, \
+expert en sciences de gestion, économie, sociologie ou sciences connexes selon le thème fourni.
+
+Conçois le cadre théorique, la revue de littérature, la méthodologie scientifique et le questionnaire \
+quantitatif complets pour l'étude suivante :
+
+Thème de recherche : {theme}
+Question de recherche : {question_recherche or "non précisée — déduis un axe pertinent à partir du thème"}
+
+Le questionnaire doit être directement administrable : items clairs, échelles de Likert à 5 points \
+cohérentes pour chaque construit mesuré (au moins 3 items par construit mesuré par échelle, pour \
+permettre un calcul ultérieur de fiabilité), plus les variables de contrôle/sociodémographiques \
+pertinentes. Chaque hypothèse formulée doit correspondre à une relation testable entre des variables \
+elles-mêmes mesurées par le questionnaire.
+
+{consigne_langue}
+
+{CONSIGNE_ORIGINALITE}
+
+Consigne d'intégrité scientifique impérative : ne fabrique JAMAIS de référence bibliographique précise \
+et vérifiable (auteur + année + titre exact d'article) qui n'existerait pas réellement — c'est une faute \
+grave en recherche académique. Reste au niveau des courants théoriques et notions établies du champ \
+pour le cadre théorique et la revue de littérature ; les références nommées précises ne sont admises \
+que dans la note méthodologique, et uniquement pour des travaux méthodologiques réels et largement \
+reconnus (ex. Cronbach, Nunnally, Fornell & Larcker, Churchill, Hair et al.).
+
+Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
+aucune balise markdown. Assure-toi que le JSON est syntaxiquement valide : échappe tous les guillemets \
+internes aux chaînes de caractères (\\") et ne laisse aucune chaîne non terminée :
+{SCHEMA_ETUDE_QUANT}"""
+
+
+def _valider_etude_quant(contenu: dict):
+    for cle in ("titre", "cadre_theorique", "revue_litterature", "methodologie", "questionnaire", "note_methodologique"):
+        if cle not in contenu:
+            raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
+    if not contenu["questionnaire"].get("sections"):
+        raise ValueError("Le questionnaire généré ne contient aucune section.")
+
+
+def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
+    session = get_session()
+    try:
+        client = get_anthropic()
+        prompt = _construire_prompt_etude_quant(theme, question_recherche, langue)
+        resp = client.messages.create(
+            model=ANALYSE_MODEL,
+            max_tokens=9500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+        contenu = _extraire_json(texte)
+        _valider_etude_quant(contenu)
+
+        e = session.get(EtudeQuantitative, etude_id)
+        e.contenu = contenu
+        e.statut = "termine"
+        e.modele = ANALYSE_MODEL
+        session.commit()
+    except Exception as ex:  # noqa: BLE001
+        e = session.get(EtudeQuantitative, etude_id)
+        if e:
+            e.statut = "erreur"
+            e.erreur = str(ex)
+            u = session.get(Utilisateur, payeur_id)
+            if u and not u.est_admin:
+                u.credits += COUT_CREDIT_ETUDE_QUANT
+                session.add(MouvementCredit(
+                    id=uuid.uuid4().hex[:16], utilisateur_id=u.id, delta=COUT_CREDIT_ETUDE_QUANT,
+                    motif="Remboursement — échec de la génération de l'étude quantitative",
+                ))
+            session.commit()
+    finally:
+        session.close()
+
+
+def _etude_quant_vers_dict(e: EtudeQuantitative) -> dict:
+    return {
+        "id": e.id, "theme": e.theme, "question_recherche": e.question_recherche,
+        "langue": e.langue, "statut": e.statut, "contenu": e.contenu, "erreur": e.erreur,
+        "modele": e.modele, "cree_le": e.cree_le.isoformat() if e.cree_le else None,
+    }
+
+
+class EtudeQuantIn(BaseModel):
+    theme: str
+    question_recherche: str = ""
+    langue: str = "fr"
+
+
+@app.get("/api/etudes-quantitatives")
+def lister_etudes_quant(user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        etudes = session.query(EtudeQuantitative).filter_by(proprietaire_id=user.id).order_by(EtudeQuantitative.cree_le.desc()).all()
+        return [_etude_quant_vers_dict(e) for e in etudes]
+    finally:
+        session.close()
+
+
+@app.get("/api/etudes-quantitatives/{etude_id}")
+def detail_etude_quant(etude_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        if not e or e.proprietaire_id != user.id:
+            raise HTTPException(404, "Étude introuvable.")
+        return _etude_quant_vers_dict(e)
+    finally:
+        session.close()
+
+
+@app.post("/api/etudes-quantitatives")
+def creer_etude_quant(payload: EtudeQuantIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if not payload.theme.strip():
+        raise HTTPException(422, "Le thème de recherche est requis.")
+    langue = payload.langue if payload.langue in ("fr", "en") else "fr"
+    session = get_session()
+    try:
+        if not user.email_verifie:
+            raise HTTPException(403, "Vérifie ton adresse e-mail avant de générer une étude quantitative.")
+        if not user.est_admin and user.credits < COUT_CREDIT_ETUDE_QUANT:
+            raise HTTPException(402, "Crédits insuffisants. Consulte les forfaits disponibles dans l'app.")
+        if not user.est_admin:
+            u = session.get(Utilisateur, user.id)
+            u.credits -= COUT_CREDIT_ETUDE_QUANT
+            session.add(MouvementCredit(
+                id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_ETUDE_QUANT,
+                motif=f"Étude quantitative — {payload.theme[:60]}",
+            ))
+        etude_id = uuid.uuid4().hex[:16]
+        e = EtudeQuantitative(
+            id=etude_id, proprietaire_id=user.id, theme=payload.theme.strip(),
+            question_recherche=payload.question_recherche.strip(), langue=langue, statut="en_cours",
+        )
+        session.add(e)
+        session.commit()
+    finally:
+        session.close()
+
+    threading.Thread(target=_run_etude_quant, args=(etude_id, payload.theme.strip(), payload.question_recherche.strip(), langue, user.id), daemon=True).start()
+    return {"id": etude_id, "statut": "en_cours"}
+
+
+@app.delete("/api/etudes-quantitatives/{etude_id}")
+def supprimer_etude_quant(etude_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        if not e or e.proprietaire_id != user.id:
+            raise HTTPException(404, "Étude introuvable.")
+        session.query(AnalyseQuantitative).filter_by(etude_id=etude_id).delete()
+        session.delete(e)
+        session.commit()
+        return {"ok": True}
+    finally:
+        session.close()
+
+
+@app.get("/api/etudes-quantitatives/{etude_id}/export/docx")
+def export_docx_etude_quant(etude_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        if not e or e.proprietaire_id != user.id:
+            raise HTTPException(404, "Étude introuvable.")
+        if e.statut != "termine" or not e.contenu:
+            raise HTTPException(409, "Cette étude n'est pas encore prête.")
+        data = _etude_quant_vers_dict(e)
+    finally:
+        session.close()
+    buf = generer_docx_etude_quant(data)
+    nom = _nom_fichier(data["theme"])
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="etude_{nom}.docx"'},
+    )
+
+
+@app.get("/api/etudes-quantitatives/{etude_id}/export/template")
+def export_template_etude_quant(etude_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        if not e or e.proprietaire_id != user.id:
+            raise HTTPException(404, "Étude introuvable.")
+        if e.statut != "termine" or not e.contenu:
+            raise HTTPException(409, "Cette étude n'est pas encore prête.")
+        data = _etude_quant_vers_dict(e)
+    finally:
+        session.close()
+    buf = generer_xlsx_template_questionnaire(data)
+    nom = _nom_fichier(data["theme"])
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="gabarit_{nom}.xlsx"'},
+    )
+
+
+def _analyse_quant_vers_dict(a: AnalyseQuantitative) -> dict:
+    return {
+        "id": a.id, "etude_id": a.etude_id, "nom_fichier": a.nom_fichier, "statut": a.statut,
+        "resultats": a.resultats, "erreur": a.erreur, "modele": a.modele,
+        "cree_le": a.cree_le.isoformat() if a.cree_le else None,
+    }
+
+
+def _lire_donnees_xlsx(chemin: str, questionnaire: dict) -> list[dict]:
+    """Lit le fichier Excel importé par l'utilisateur (rempli à partir du gabarit) et
+    le convertit en liste de dicts {code_item: valeur}, une entrée par répondant."""
+    from openpyxl import load_workbook
+    wb = load_workbook(chemin, data_only=True)
+    ws = wb["Réponses"] if "Réponses" in wb.sheetnames else wb.active
+
+    codes_valides = {
+        item["code"]
+        for section in questionnaire.get("sections", [])
+        for item in section.get("items", [])
+    }
+    entetes = [str(c.value).strip() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+
+    lignes = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if all(v is None for v in row):
+            continue
+        ligne = {}
+        for code, valeur in zip(entetes, row):
+            if code in codes_valides and valeur is not None:
+                ligne[code] = valeur
+        if ligne:
+            lignes.append(ligne)
+    return lignes
+
+
+@app.post("/api/etudes-quantitatives/{etude_id}/donnees")
+async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...), user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        if not e or e.proprietaire_id != user.id:
+            raise HTTPException(404, "Étude introuvable.")
+        if e.statut != "termine" or not e.contenu:
+            raise HTTPException(409, "Cette étude n'est pas encore prête.")
+        if not user.est_admin and user.credits < COUT_CREDIT_ANALYSE_QUANT:
+            raise HTTPException(402, "Crédits insuffisants. Consulte les forfaits disponibles dans l'app.")
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+        with tmp as f:
+            f.write(await fichier.read())
+
+        try:
+            lignes = _lire_donnees_xlsx(tmp.name, e.contenu["questionnaire"])
+        except Exception as ex:  # noqa: BLE001
+            os.unlink(tmp.name)
+            raise HTTPException(422, f"Impossible de lire ce fichier Excel : {ex}")
+        os.unlink(tmp.name)
+
+        if len(lignes) < 3:
+            raise HTTPException(422, "Au moins 3 répondants sont nécessaires pour une analyse statistique.")
+
+        if not user.est_admin:
+            u = session.get(Utilisateur, user.id)
+            u.credits -= COUT_CREDIT_ANALYSE_QUANT
+            session.add(MouvementCredit(
+                id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=-COUT_CREDIT_ANALYSE_QUANT,
+                motif=f"Analyse quantitative — {e.theme[:60]}",
+            ))
+
+        try:
+            resultats = analyser_donnees(lignes, e.contenu["questionnaire"])
+            statut, erreur = "termine", None
+        except Exception as ex:  # noqa: BLE001
+            resultats, statut, erreur = None, "erreur", str(ex)
+            if not user.est_admin:
+                u = session.get(Utilisateur, user.id)
+                u.credits += COUT_CREDIT_ANALYSE_QUANT
+                session.add(MouvementCredit(
+                    id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=COUT_CREDIT_ANALYSE_QUANT,
+                    motif="Remboursement — échec de l'analyse quantitative",
+                ))
+
+        analyse_id = uuid.uuid4().hex[:16]
+        a = AnalyseQuantitative(
+            id=analyse_id, etude_id=etude_id, proprietaire_id=user.id,
+            nom_fichier=fichier.filename or "donnees.xlsx", statut=statut,
+            resultats=resultats, erreur=erreur,
+        )
+        session.add(a)
+        session.commit()
+        return _analyse_quant_vers_dict(a)
+    finally:
+        session.close()
+
+
+@app.get("/api/etudes-quantitatives/{etude_id}/donnees")
+def lister_analyses_quant(etude_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        if not e or e.proprietaire_id != user.id:
+            raise HTTPException(404, "Étude introuvable.")
+        analyses = session.query(AnalyseQuantitative).filter_by(etude_id=etude_id).order_by(AnalyseQuantitative.cree_le.desc()).all()
+        return [_analyse_quant_vers_dict(a) for a in analyses]
+    finally:
+        session.close()
+
+
+@app.get("/api/etudes-quantitatives/{etude_id}/donnees/{analyse_id}/export/docx")
+def export_docx_analyse_quant(etude_id: str, analyse_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        a = session.get(AnalyseQuantitative, analyse_id)
+        if not e or e.proprietaire_id != user.id or not a or a.etude_id != etude_id:
+            raise HTTPException(404, "Introuvable.")
+        if a.statut != "termine" or not a.resultats:
+            raise HTTPException(409, "Cette analyse n'est pas disponible.")
+        data_etude, data_analyse = _etude_quant_vers_dict(e), _analyse_quant_vers_dict(a)
+    finally:
+        session.close()
+    buf = generer_docx_analyse_quant(data_etude, data_analyse)
+    nom = _nom_fichier(data_etude["theme"])
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="analyse_{nom}.docx"'},
+    )
+
+
+@app.get("/api/etudes-quantitatives/{etude_id}/donnees/{analyse_id}/export/xlsx")
+def export_xlsx_analyse_quant(etude_id: str, analyse_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        e = session.get(EtudeQuantitative, etude_id)
+        a = session.get(AnalyseQuantitative, analyse_id)
+        if not e or e.proprietaire_id != user.id or not a or a.etude_id != etude_id:
+            raise HTTPException(404, "Introuvable.")
+        if a.statut != "termine" or not a.resultats:
+            raise HTTPException(409, "Cette analyse n'est pas disponible.")
+        data_etude, data_analyse = _etude_quant_vers_dict(e), _analyse_quant_vers_dict(a)
+    finally:
+        session.close()
+    buf = generer_xlsx_analyse_quant(data_etude, data_analyse)
+    nom = _nom_fichier(data_etude["theme"])
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="analyse_{nom}.xlsx"'},
+    )
 
 
 # ----------------------------------------------------------------- authentification

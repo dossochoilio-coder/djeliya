@@ -160,6 +160,38 @@ class Commande(Base):
     payee_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class EtudeQuantitative(Base):
+    """Cadre théorique, revue de littérature, méthodologie et questionnaire générés
+    par l'IA à partir d'un thème et d'une question de recherche — pendant quantitatif
+    du guide d'entretien qualitatif."""
+    __tablename__ = "etudes_quantitatives"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    proprietaire_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
+    theme: Mapped[str] = mapped_column()
+    question_recherche: Mapped[str] = mapped_column(default="")
+    langue: Mapped[str] = mapped_column(default="fr")
+    statut: Mapped[str] = mapped_column(default="en_cours")  # en_cours | termine | erreur
+    contenu: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
+    modele: Mapped[str | None] = mapped_column(nullable=True)
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AnalyseQuantitative(Base):
+    """Résultats de l'analyse statistique d'un jeu de données importé (rempli à
+    partir du gabarit Excel généré pour une étude quantitative donnée)."""
+    __tablename__ = "analyses_quantitatives"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    etude_id: Mapped[str] = mapped_column(ForeignKey("etudes_quantitatives.id"), index=True)
+    proprietaire_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
+    nom_fichier: Mapped[str] = mapped_column(default="")
+    statut: Mapped[str] = mapped_column(default="en_cours")  # en_cours | termine | erreur
+    resultats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
+    modele: Mapped[str | None] = mapped_column(nullable=True)
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class GuideEntretien(Base):
     """Guide d'entretien de recherche généré par l'IA à partir d'un thème et d'une
     question de recherche — outil de préparation, distinct des entretiens transcrits."""

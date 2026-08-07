@@ -14,6 +14,7 @@ import Forfaits from "./screens/Forfaits.jsx";
 import Admin from "./screens/Admin.jsx";
 import Cgu from "./screens/Cgu.jsx";
 import GuideEntretien from "./screens/GuideEntretien.jsx";
+import EtudeQuantitative from "./screens/EtudeQuantitative.jsx";
 import TabBar from "./components/TabBar.jsx";
 import { LangueProvider } from "./lib/i18n.js";
 
@@ -383,6 +384,10 @@ export default function App() {
         showToast={showToast}
       />
     );
+  } else if (current.screen === "etudes-quant") {
+    overlay = (
+      <EtudeQuantitative settings={settings} token={auth.token} onRetour={retour} showToast={showToast} />
+    );
   } else if (current.screen === "admin") {
     overlay = auth.utilisateur.est_admin ? (
       <Admin settings={settings} token={auth.token} onRetour={retour} showToast={showToast} />
@@ -401,6 +406,7 @@ export default function App() {
         onOpen={(id) => push("fiche", id)}
         onNouveau={() => push("nouveau")}
         onOuvrirGuides={() => push("guides")}
+        onOuvrirEtudesQuant={() => push("etudes-quant")}
       />
     );
   } else if (tab === "corpus") {

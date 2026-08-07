@@ -34,6 +34,7 @@ git push -u origin main
 - **Statistiques qualitatives** : le rapport d'étude calcule désormais la convergence entre entretiens (sur combien de cas un thème apparaît — logique de triangulation) et la saturation théorique (nombre de concepts nouveaux apportés par chaque entretien, dans l'ordre chronologique).
 - **Bilingue français / anglais** : toute l'interface (boutons, titres, messages) se traduit selon le réglage choisi dans Réglages. **L'analyse qualitative générée par l'IA suit aussi cette langue** (démarche méthodologique, thèmes, synthèse rédigés en anglais si demandé), avec une règle méthodologique stricte : les verbatims (citations) ne sont jamais traduits, ils restent dans la langue exacte de l'entretien. Les rapports Word/Excel exportés suivent également cette langue. Seul le texte légal des CGU reste en français dans les deux langues, pour ne pas s'écarter du texte de référence fondé sur la loi ivoirienne.
 - **Guide d'entretien généré par l'IA** : à partir d'un thème et d'une question de recherche, conception d'un guide d'entretien semi-directif complet — préambule de consentement, sections thématiques en entonnoir avec questions et relances, **grille de cohérence** (chaque question mise en correspondance avec la dimension théorique qu'elle vise à explorer, avec justification), conseils méthodologiques, note méthodologique référencée (Kvale & Brinkmann, Patton, Blanchet & Gotman). Exportable en Word, suit la langue de l'interface. Accessible depuis la carte dédiée en haut de l'écran Entretiens.
+- **Étude quantitative générée par l'IA** : à partir d'un thème et d'une question de recherche, l'app produit le cadre théorique, la revue de littérature (sans jamais inventer de référence bibliographique précise et vérifiable — consigne d'intégrité scientifique explicite), la méthodologie (population, échantillon, hypothèses, variables) et un questionnaire complet à échelles de Likert. Un **gabarit Excel est généré dynamiquement à partir du questionnaire réel** (pas un modèle générique) pour la collecte de données. Une fois les données collectées et le fichier réimporté, l'app calcule une analyse statistique complète et vérifiée : statistiques descriptives enrichies (médiane, asymétrie, aplatissement, IC 95%), fiabilité des construits (alpha de Cronbach, corrélation item-total corrigée, alpha si item supprimé), test de normalité (Shapiro-Wilk), et corrélations entre construits avec bascule automatique Pearson/Spearman selon la normalité détectée. Résultats exportables en Word et Excel.
 - **Avertissement systématique sur le contenu généré par l'IA** : tout contenu produit par l'IA (guide d'entretien, analyse qualitative d'un entretien ou d'un corpus) porte une mention claire — dans l'app et dans les exports Word/Excel — rappelant qu'il s'agit d'un outil d'aide à valider, relire et adapter par le chercheur, et non d'un instrument scientifiquement validé au sens psychométrique du terme.
 - **Persistance réelle** : transcriptions, analyses et codages sont stockés dans PostgreSQL — ils survivent aux redémarrages et redéploiements du serveur (voir configuration Railway ci-dessous).
 - **Corpus d'équipe** : crée un corpus, partage son code d'invitation avec tes collègues, codez ensemble les mêmes entretiens.
@@ -124,6 +125,16 @@ Chaque poussée sur `main` redéploie le serveur automatiquement.
 | `GET` | `/api/guides/{id}` | Détail / statut d'un guide |
 | `DELETE` | `/api/guides/{id}` | Supprimer un guide |
 | `GET` | `/api/guides/{id}/export/docx` | Exporter le guide en Word |
+| `GET` | `/api/etudes-quantitatives` | Lister mes études quantitatives |
+| `POST` | `/api/etudes-quantitatives` | Générer une étude (cadre théorique, revue, méthodologie, questionnaire) |
+| `GET` | `/api/etudes-quantitatives/{id}` | Détail / statut d'une étude |
+| `DELETE` | `/api/etudes-quantitatives/{id}` | Supprimer une étude |
+| `GET` | `/api/etudes-quantitatives/{id}/export/docx` | Exporter l'étude (cadre théorique...) en Word |
+| `GET` | `/api/etudes-quantitatives/{id}/export/template` | Télécharger le gabarit Excel du questionnaire |
+| `POST` | `/api/etudes-quantitatives/{id}/donnees` | Importer les données remplies et lancer l'analyse statistique |
+| `GET` | `/api/etudes-quantitatives/{id}/donnees` | Historique des analyses de cette étude |
+| `GET` | `/api/etudes-quantitatives/{id}/donnees/{analyse}/export/docx` | Exporter les résultats de l'analyse en Word |
+| `GET` | `/api/etudes-quantitatives/{id}/donnees/{analyse}/export/xlsx` | Exporter les résultats de l'analyse en Excel |
 | `GET` | `/api/recharges/tarif` | Grille tarifaire publique de la recharge à la carte |
 | `POST` | `/api/recharges` | Créer une commande de recharge et obtenir le lien de paiement PayDunya |
 | `GET` | `/api/recharges` | Historique de mes recharges |

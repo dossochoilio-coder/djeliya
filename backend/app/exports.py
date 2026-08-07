@@ -135,6 +135,44 @@ L = {
         "guide_conseils": "Conseils méthodologiques pour la conduite de l'entretien",
         "guide_note": "Note méthodologique",
         "guide_relances": "Relances possibles :",
+        # Étude quantitative
+        "eq_sous_titre": "Cadre théorique, revue de littérature et méthodologie quantitative",
+        "eq_theme": "Thème : ", "eq_question": "Question de recherche : ",
+        "eq_cadre": "1. Cadre théorique", "eq_revue": "2. Revue de littérature",
+        "eq_methodo": "3. Méthodologie", "eq_type_etude": "Type d'étude",
+        "eq_population": "Population cible", "eq_echantillon": "Échantillon",
+        "eq_hypotheses": "Hypothèses de recherche", "eq_hyp_col": "Code", "eq_hyp_enonce": "Énoncé",
+        "eq_variables": "Variables du modèle", "eq_var_nom": "Variable", "eq_var_type": "Type", "eq_var_def": "Définition",
+        "eq_questionnaire": "4. Questionnaire", "eq_note": "Note méthodologique",
+        "eq_item_type": "Type", "eq_item_options": "Modalités / échelle",
+        # Gabarit Excel
+        "eq_feuille_reponses": "Réponses", "eq_feuille_guide": "Guide de saisie",
+        "eq_guide_code": "Code", "eq_guide_libelle": "Libellé", "eq_guide_type": "Type de réponse attendue",
+        "eq_guide_valeurs": "Valeurs possibles", "eq_guide_intro": "Une ligne = un·e répondant·e. Remplis la feuille « Réponses » en respectant les codes de colonnes ci-dessous ; consulte cette feuille pour connaître le type de réponse attendu pour chaque question.",
+        "eq_type_libelle": {
+            "choix_unique": "Choix unique parmi les modalités listées",
+            "choix_multiple": "Un ou plusieurs choix, séparés par une virgule",
+            "echelle_likert": "Nombre entier sur l'échelle indiquée",
+            "numerique": "Valeur numérique",
+            "texte_libre": "Texte libre",
+        },
+        # Analyse quantitative
+        "aq_sous_titre": "Résultats de l'analyse statistique",
+        "aq_apercu": "Aperçu de l'échantillon", "aq_n_repondants": "Nombre de répondants",
+        "aq_descriptives": "1. Statistiques descriptives", "aq_desc_col": "Item", "aq_desc_n": "n",
+        "aq_desc_moy": "Moyenne", "aq_desc_et": "Écart-type", "aq_desc_min": "Min", "aq_desc_max": "Max",
+        "aq_desc_mediane": "Médiane", "aq_desc_ic95": "IC 95% de la moyenne",
+        "aq_desc_asymetrie": "Asymétrie", "aq_desc_aplatissement": "Aplatissement",
+        "aq_frequences": "2. Tableaux de fréquences", "aq_freq_modalite": "Modalité", "aq_freq_effectif": "Effectif", "aq_freq_pct": "%",
+        "aq_fiabilite": "3. Fiabilité des construits (alpha de Cronbach)", "aq_fiab_intro": "L'alpha de Cronbach mesure la cohérence interne d'un ensemble d'items censés mesurer le même construit (0 = aucune cohérence, 1 = cohérence parfaite). Un seuil ≥ 0,70 est généralement considéré satisfaisant en sciences sociales.",
+        "aq_fiab_variable": "Construit", "aq_fiab_nb_items": "Nb items", "aq_fiab_alpha": "Alpha", "aq_fiab_interpretation": "Interprétation",
+        "aq_fiab_detail_titre": "Détail par item", "aq_fiab_item_total": "Corrélation item-total corrigée", "aq_fiab_alpha_supprime": "Alpha si item supprimé",
+        "aq_fiab_normalite": "Normalité du score composite (Shapiro-Wilk)", "aq_fiab_normalite_oui": "distribution normale (p ≥ 0,05)",
+        "aq_fiab_normalite_non": "distribution non normale (p < 0,05)",
+        "aq_correlations": "4. Corrélations entre construits", "aq_corr_intro": "Corrélation de Pearson entre les scores composites de chaque construit, avec test de significativité.",
+        "aq_corr_v1": "Variable 1", "aq_corr_v2": "Variable 2", "aq_corr_r": "r", "aq_corr_p": "p", "aq_corr_methode": "Méthode",
+        "aq_feuille_desc": "Statistiques descriptives", "aq_feuille_freq": "Tableaux de fréquences",
+        "aq_feuille_fiab": "Fiabilité (alpha)", "aq_feuille_corr": "Corrélations",
         "guide_grille_titre": "Grille de cohérence",
         "guide_grille_intro": "Chaque question principale du guide, mise en correspondance avec la dimension théorique qu'elle vise à explorer — à vérifier et amender par le chercheur.",
         "guide_grille_question": "Question", "guide_grille_dimension": "Dimension visée", "guide_grille_justif": "Justification",
@@ -222,6 +260,44 @@ L = {
         "guide_conseils": "Methodological guidance for conducting the interview",
         "guide_note": "Methodological note",
         "guide_relances": "Possible follow-ups:",
+        # Étude quantitative
+        "eq_sous_titre": "Theoretical framework, literature review and quantitative methodology",
+        "eq_theme": "Theme: ", "eq_question": "Research question: ",
+        "eq_cadre": "1. Theoretical framework", "eq_revue": "2. Literature review",
+        "eq_methodo": "3. Methodology", "eq_type_etude": "Study type",
+        "eq_population": "Target population", "eq_echantillon": "Sample",
+        "eq_hypotheses": "Research hypotheses", "eq_hyp_col": "Code", "eq_hyp_enonce": "Statement",
+        "eq_variables": "Model variables", "eq_var_nom": "Variable", "eq_var_type": "Type", "eq_var_def": "Definition",
+        "eq_questionnaire": "4. Questionnaire", "eq_note": "Methodological note",
+        "eq_item_type": "Type", "eq_item_options": "Response options / scale",
+        # Gabarit Excel
+        "eq_feuille_reponses": "Responses", "eq_feuille_guide": "Data entry guide",
+        "eq_guide_code": "Code", "eq_guide_libelle": "Label", "eq_guide_type": "Expected answer type",
+        "eq_guide_valeurs": "Possible values", "eq_guide_intro": "One row = one respondent. Fill in the “Responses” sheet following the column codes below; refer to this sheet to know the expected answer type for each question.",
+        "eq_type_libelle": {
+            "choix_unique": "Single choice among the listed options",
+            "choix_multiple": "One or more choices, comma-separated",
+            "echelle_likert": "Whole number on the indicated scale",
+            "numerique": "Numeric value",
+            "texte_libre": "Free text",
+        },
+        # Analyse quantitative
+        "aq_sous_titre": "Statistical analysis results",
+        "aq_apercu": "Sample overview", "aq_n_repondants": "Number of respondents",
+        "aq_descriptives": "1. Descriptive statistics", "aq_desc_col": "Item", "aq_desc_n": "n",
+        "aq_desc_moy": "Mean", "aq_desc_et": "Std. dev.", "aq_desc_min": "Min", "aq_desc_max": "Max",
+        "aq_desc_mediane": "Median", "aq_desc_ic95": "95% CI of the mean",
+        "aq_desc_asymetrie": "Skewness", "aq_desc_aplatissement": "Kurtosis",
+        "aq_frequences": "2. Frequency tables", "aq_freq_modalite": "Category", "aq_freq_effectif": "Count", "aq_freq_pct": "%",
+        "aq_fiabilite": "3. Construct reliability (Cronbach's alpha)", "aq_fiab_intro": "Cronbach's alpha measures the internal consistency of a set of items intended to measure the same construct (0 = no consistency, 1 = perfect consistency). A threshold ≥ 0.70 is generally considered satisfactory in social sciences.",
+        "aq_fiab_variable": "Construct", "aq_fiab_nb_items": "Nb. items", "aq_fiab_alpha": "Alpha", "aq_fiab_interpretation": "Interpretation",
+        "aq_fiab_detail_titre": "Item-level detail", "aq_fiab_item_total": "Corrected item-total correlation", "aq_fiab_alpha_supprime": "Alpha if item deleted",
+        "aq_fiab_normalite": "Composite score normality (Shapiro-Wilk)", "aq_fiab_normalite_oui": "normal distribution (p ≥ 0.05)",
+        "aq_fiab_normalite_non": "non-normal distribution (p < 0.05)",
+        "aq_correlations": "4. Correlations between constructs", "aq_corr_intro": "Pearson correlation between the composite scores of each construct, with significance testing.",
+        "aq_corr_v1": "Variable 1", "aq_corr_v2": "Variable 2", "aq_corr_r": "r", "aq_corr_p": "p", "aq_corr_methode": "Method",
+        "aq_feuille_desc": "Descriptive statistics", "aq_feuille_freq": "Frequency tables",
+        "aq_feuille_fiab": "Reliability (alpha)", "aq_feuille_corr": "Correlations",
         "guide_grille_titre": "Coherence grid",
         "guide_grille_intro": "Each main question in the guide, mapped to the theoretical dimension it aims to explore — to be reviewed and amended by the researcher.",
         "guide_grille_question": "Question", "guide_grille_dimension": "Dimension targeted", "guide_grille_justif": "Rationale",
@@ -982,5 +1058,330 @@ def generer_docx_guide(guide_data: dict) -> io.BytesIO:
     _numero_page(doc, langue)
     buf = io.BytesIO()
     doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ----------------------------------------------------------------- Word — étude quantitative
+def generer_docx_etude_quant(etude_data: dict) -> io.BytesIO:
+    langue = etude_data.get("langue") or "fr"
+    l = _l(langue)
+    c = etude_data.get("contenu") or {}
+    doc = Document()
+
+    _page_de_garde(
+        doc, c.get("titre") or etude_data.get("theme") or "—", l["eq_sous_titre"],
+        [
+            f"{l['eq_theme']}{etude_data.get('theme', '—')}",
+            f"{l['eq_question']}{etude_data.get('question_recherche') or '—'}",
+            f"{l['genere_le']}{datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        ],
+    )
+    _champ_toc(doc, langue)
+    _avertissement_ia(doc, langue)
+    doc.add_page_break()
+
+    if c.get("cadre_theorique"):
+        doc.add_heading(l["eq_cadre"], level=1)
+        doc.add_paragraph(c["cadre_theorique"])
+
+    if c.get("revue_litterature"):
+        doc.add_heading(l["eq_revue"], level=1)
+        doc.add_paragraph(c["revue_litterature"])
+
+    m = c.get("methodologie") or {}
+    if m:
+        doc.add_heading(l["eq_methodo"], level=1)
+        tbl = doc.add_table(rows=0, cols=2)
+        tbl.style = "Light Grid Accent 1"
+        for label, cle in [(l["eq_type_etude"], "type_etude"), (l["eq_population"], "population_cible"), (l["eq_echantillon"], "echantillon")]:
+            if m.get(cle):
+                row = tbl.add_row().cells
+                row[0].text = label
+                row[0].paragraphs[0].runs[0].bold = True
+                row[1].text = m[cle]
+
+        if m.get("hypotheses"):
+            doc.add_heading(l["eq_hypotheses"], level=2)
+            tblh = doc.add_table(rows=1, cols=2)
+            tblh.style = "Light Grid Accent 1"
+            tblh.rows[0].cells[0].text = l["eq_hyp_col"]
+            tblh.rows[0].cells[1].text = l["eq_hyp_enonce"]
+            for h in m["hypotheses"]:
+                row = tblh.add_row().cells
+                row[0].text = h.get("code", "")
+                row[1].text = h.get("enonce", "")
+
+        if m.get("variables"):
+            doc.add_heading(l["eq_variables"], level=2)
+            tblv = doc.add_table(rows=1, cols=3)
+            tblv.style = "Light Grid Accent 1"
+            for i, hh in enumerate([l["eq_var_nom"], l["eq_var_type"], l["eq_var_def"]]):
+                tblv.rows[0].cells[i].text = hh
+            for v in m["variables"]:
+                row = tblv.add_row().cells
+                row[0].text = v.get("nom", "")
+                row[1].text = v.get("type", "")
+                row[2].text = v.get("definition", "")
+
+    q = c.get("questionnaire") or {}
+    if q.get("sections"):
+        doc.add_heading(l["eq_questionnaire"], level=1)
+        for section in q["sections"]:
+            doc.add_heading(section.get("titre", ""), level=2)
+            for item in section.get("items", []):
+                p = doc.add_paragraph(style="List Bullet")
+                p.add_run(f"[{item.get('code', '')}] ").bold = True
+                p.add_run(item.get("libelle", ""))
+                if item.get("options"):
+                    doc.add_paragraph(" / ".join(item["options"]), style="List Bullet 2")
+
+    if c.get("note_methodologique"):
+        doc.add_heading(l["eq_note"], level=1)
+        p = doc.add_paragraph(c["note_methodologique"])
+        for run in p.runs:
+            run.italic = True
+
+    _numero_page(doc, langue)
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ----------------------------------------------------------------- Excel — gabarit du questionnaire
+def generer_xlsx_template_questionnaire(etude_data: dict) -> io.BytesIO:
+    langue = etude_data.get("langue") or "fr"
+    l = _l(langue)
+    q = (etude_data.get("contenu") or {}).get("questionnaire") or {}
+    items = [item for section in q.get("sections", []) for item in section.get("items", [])]
+
+    wb = Workbook()
+    ws_r = wb.active
+    ws_r.title = l["eq_feuille_reponses"]
+    _entete(ws_r, [item["code"] for item in items])
+    for i in range(1, len(items) + 1):
+        ws_r.column_dimensions[get_column_letter(i)].width = 16
+
+    ws_g = wb.create_sheet(l["eq_feuille_guide"])
+    ws_g.cell(1, 1, l["eq_guide_intro"]).font = Font(italic=True)
+    ws_g.merge_cells(start_row=1, start_column=1, end_row=1, end_column=4)
+    ws_g.row_dimensions[1].height = 45
+    _entete(ws_g, [l["eq_guide_code"], l["eq_guide_libelle"], l["eq_guide_type"], l["eq_guide_valeurs"]], ligne=2)
+    for i, item in enumerate(items, start=3):
+        ws_g.cell(i, 1, item["code"])
+        ws_g.cell(i, 2, item.get("libelle", ""))
+        ws_g.cell(i, 3, l["eq_type_libelle"].get(item.get("type", ""), item.get("type", "")))
+        if item.get("type") == "echelle_likert":
+            valeurs = f"{item.get('echelle_min', 1)} à {item.get('echelle_max', 5)}"
+            if item.get("options"):
+                valeurs += " (" + " / ".join(item["options"]) + ")"
+        else:
+            valeurs = " / ".join(item.get("options", [])) if item.get("options") else "—"
+        ws_g.cell(i, 4, valeurs)
+    ws_g.column_dimensions["B"].width = 45
+    ws_g.column_dimensions["D"].width = 50
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ----------------------------------------------------------------- Word — analyse quantitative
+def generer_docx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.BytesIO:
+    langue = etude_data.get("langue") or "fr"
+    l = _l(langue)
+    r = analyse_data.get("resultats") or {}
+    c = etude_data.get("contenu") or {}
+    doc = Document()
+
+    _page_de_garde(
+        doc, c.get("titre") or etude_data.get("theme") or "—", l["aq_sous_titre"],
+        [
+            f"{l['aq_n_repondants']} : {r.get('n_repondants', '—')}",
+            f"{l['genere_le']}{datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        ],
+    )
+    _avertissement_ia(doc, langue)
+    doc.add_page_break()
+
+    if r.get("descriptives"):
+        doc.add_heading(l["aq_descriptives"], level=1)
+        tbl = doc.add_table(rows=1, cols=9)
+        tbl.style = "Light Grid Accent 1"
+        entetes = [l["aq_desc_col"], l["aq_desc_n"], l["aq_desc_moy"], l["aq_desc_ic95"], l["aq_desc_mediane"],
+                   l["aq_desc_et"], l["aq_desc_asymetrie"], l["aq_desc_aplatissement"], f"{l['aq_desc_min']}/{l['aq_desc_max']}"]
+        for i, h in enumerate(entetes):
+            tbl.rows[0].cells[i].text = h
+        for d in r["descriptives"]:
+            row = tbl.add_row().cells
+            row[0].text = f"{d['code']} — {d['libelle']}"
+            row[1].text = str(d["n"])
+            row[2].text = str(d["moyenne"])
+            row[3].text = f"[{d['ic95_bas']} ; {d['ic95_haut']}]" if d.get("ic95_bas") is not None else "—"
+            row[4].text = str(d["mediane"])
+            row[5].text = str(d["ecart_type"]) if d["ecart_type"] is not None else "—"
+            row[6].text = str(d["asymetrie"]) if d.get("asymetrie") is not None else "—"
+            row[7].text = str(d["aplatissement"]) if d.get("aplatissement") is not None else "—"
+            row[8].text = f"{d['min']} / {d['max']}"
+
+    if r.get("frequences"):
+        doc.add_heading(l["aq_frequences"], level=1)
+        for f in r["frequences"]:
+            doc.add_heading(f"{f['code']} — {f['libelle']}", level=2)
+            tbl = doc.add_table(rows=1, cols=3)
+            tbl.style = "Light Grid Accent 1"
+            for i, h in enumerate([l["aq_freq_modalite"], l["aq_freq_effectif"], l["aq_freq_pct"]]):
+                tbl.rows[0].cells[i].text = h
+            for m in f["modalites"]:
+                row = tbl.add_row().cells
+                row[0].text = str(m["valeur"])
+                row[1].text = str(m["effectif"])
+                row[2].text = f"{m['pourcentage']} %"
+
+    if r.get("fiabilite"):
+        doc.add_heading(l["aq_fiabilite"], level=1)
+        doc.add_paragraph(l["aq_fiab_intro"])
+        tbl = doc.add_table(rows=1, cols=4)
+        tbl.style = "Light Grid Accent 1"
+        for i, h in enumerate([l["aq_fiab_variable"], l["aq_fiab_nb_items"], l["aq_fiab_alpha"], l["aq_fiab_interpretation"]]):
+            tbl.rows[0].cells[i].text = h
+        for f in r["fiabilite"]:
+            row = tbl.add_row().cells
+            row[0].text = f["variable"]
+            row[1].text = str(f["nb_items"])
+            row[2].text = str(f["alpha_cronbach"]) if f["alpha_cronbach"] is not None else "—"
+            row[3].text = f["interpretation"]
+
+        for f in r["fiabilite"]:
+            doc.add_heading(f"{f['variable']} — {l['aq_fiab_detail_titre']}", level=2)
+            norm = f.get("normalite_score") or {}
+            if norm.get("p_valeur") is not None:
+                texte_norm = l["aq_fiab_normalite_oui"] if norm.get("distribution_normale") else l["aq_fiab_normalite_non"]
+                doc.add_paragraph(f"{l['aq_fiab_normalite']} : W = {norm['statistique_shapiro']}, p = {norm['p_valeur']} — {texte_norm}").italic = True
+            tbld = doc.add_table(rows=1, cols=3)
+            tbld.style = "Light Grid Accent 1"
+            for i, h in enumerate([l["aq_desc_col"], l["aq_fiab_item_total"], l["aq_fiab_alpha_supprime"]]):
+                tbld.rows[0].cells[i].text = h
+            for di in f.get("detail_items", []):
+                row = tbld.add_row().cells
+                row[0].text = di["code"]
+                row[1].text = str(di["correlation_item_total"]) if di["correlation_item_total"] is not None else "—"
+                row[2].text = str(di["alpha_si_supprime"]) if di["alpha_si_supprime"] is not None else "—"
+
+    if r.get("correlations"):
+        doc.add_heading(l["aq_correlations"], level=1)
+        doc.add_paragraph(l["aq_corr_intro"])
+        tbl = doc.add_table(rows=1, cols=6)
+        tbl.style = "Light Grid Accent 1"
+        for i, h in enumerate([l["aq_corr_v1"], l["aq_corr_v2"], l["aq_corr_methode"], l["aq_corr_r"], l["aq_corr_p"], l["interpretation_col"]]):
+            tbl.rows[0].cells[i].text = h
+        for cr in r["correlations"]:
+            row = tbl.add_row().cells
+            row[0].text = cr["variable_1"]
+            row[1].text = cr["variable_2"]
+            row[2].text = cr.get("methode", "Pearson")
+            row[3].text = str(cr["r"])
+            row[4].text = str(cr["p_valeur"])
+            row[5].text = cr["interpretation"]
+
+    _numero_page(doc, langue)
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ----------------------------------------------------------------- Excel — analyse quantitative
+def generer_xlsx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.BytesIO:
+    langue = etude_data.get("langue") or "fr"
+    l = _l(langue)
+    r = analyse_data.get("resultats") or {}
+    wb = Workbook()
+
+    ws_v = wb.active
+    ws_v.title = l["feuille_vue_ensemble"]
+    _entete(ws_v, [l["indicateur"], l["valeur"]])
+    ws_v.cell(2, 1, l["aq_n_repondants"]).font = Font(bold=True)
+    ws_v.cell(2, 2, r.get("n_repondants", "—"))
+    ws_v.cell(3, 1, l["genere_le"]).font = Font(bold=True)
+    ws_v.cell(3, 2, datetime.now().strftime("%d/%m/%Y %H:%M"))
+    ws_v.column_dimensions["B"].width = 40
+    _note_avertissement_xlsx(ws_v, 5, langue)
+
+    if r.get("descriptives"):
+        ws_d = wb.create_sheet(l["aq_feuille_desc"])
+        _entete(ws_d, [l["aq_desc_col"], l["aq_desc_n"], l["aq_desc_moy"], l["aq_desc_ic95"], l["aq_desc_mediane"],
+                       l["aq_desc_et"], l["aq_desc_asymetrie"], l["aq_desc_aplatissement"], l["aq_desc_min"], l["aq_desc_max"]])
+        for i, d in enumerate(r["descriptives"], start=2):
+            ws_d.cell(i, 1, f"{d['code']} — {d['libelle']}")
+            ws_d.cell(i, 2, d["n"])
+            ws_d.cell(i, 3, d["moyenne"])
+            ws_d.cell(i, 4, f"[{d['ic95_bas']} ; {d['ic95_haut']}]" if d.get("ic95_bas") is not None else "—")
+            ws_d.cell(i, 5, d["mediane"])
+            ws_d.cell(i, 6, d["ecart_type"])
+            ws_d.cell(i, 7, d.get("asymetrie"))
+            ws_d.cell(i, 8, d.get("aplatissement"))
+            ws_d.cell(i, 9, d["min"])
+            ws_d.cell(i, 10, d["max"])
+        ws_d.column_dimensions["A"].width = 40
+
+    if r.get("frequences"):
+        ws_f = wb.create_sheet(l["aq_feuille_freq"])
+        _entete(ws_f, [l["aq_desc_col"], l["aq_freq_modalite"], l["aq_freq_effectif"], l["aq_freq_pct"]])
+        row = 2
+        for f in r["frequences"]:
+            for m in f["modalites"]:
+                ws_f.cell(row, 1, f"{f['code']} — {f['libelle']}")
+                ws_f.cell(row, 2, m["valeur"])
+                ws_f.cell(row, 3, m["effectif"])
+                ws_f.cell(row, 4, m["pourcentage"])
+                row += 1
+        ws_f.column_dimensions["A"].width = 40
+
+    if r.get("fiabilite"):
+        ws_r = wb.create_sheet(l["aq_feuille_fiab"])
+        _entete(ws_r, [l["aq_fiab_variable"], l["aq_fiab_nb_items"], l["aq_fiab_alpha"], l["aq_fiab_interpretation"], l["aq_fiab_normalite"]])
+        for i, f in enumerate(r["fiabilite"], start=2):
+            ws_r.cell(i, 1, f["variable"])
+            ws_r.cell(i, 2, f["nb_items"])
+            ws_r.cell(i, 3, f["alpha_cronbach"])
+            ws_r.cell(i, 4, f["interpretation"])
+            norm = f.get("normalite_score") or {}
+            if norm.get("p_valeur") is not None:
+                texte_norm = l["aq_fiab_normalite_oui"] if norm.get("distribution_normale") else l["aq_fiab_normalite_non"]
+                ws_r.cell(i, 5, f"W={norm['statistique_shapiro']}, p={norm['p_valeur']} — {texte_norm}")
+        ws_r.column_dimensions["A"].width = 30
+        ws_r.column_dimensions["E"].width = 45
+
+        ws_ri = wb.create_sheet(l["aq_fiab_detail_titre"])
+        _entete(ws_ri, [l["aq_fiab_variable"], l["aq_desc_col"], l["aq_fiab_item_total"], l["aq_fiab_alpha_supprime"]])
+        row = 2
+        for f in r["fiabilite"]:
+            for di in f.get("detail_items", []):
+                ws_ri.cell(row, 1, f["variable"])
+                ws_ri.cell(row, 2, di["code"])
+                ws_ri.cell(row, 3, di["correlation_item_total"])
+                ws_ri.cell(row, 4, di["alpha_si_supprime"])
+                row += 1
+        ws_ri.column_dimensions["A"].width = 30
+
+    if r.get("correlations"):
+        ws_c = wb.create_sheet(l["aq_feuille_corr"])
+        _entete(ws_c, [l["aq_corr_v1"], l["aq_corr_v2"], l["aq_corr_methode"], l["aq_corr_r"], l["aq_corr_p"], l["interpretation_col"]])
+        for i, cr in enumerate(r["correlations"], start=2):
+            ws_c.cell(i, 1, cr["variable_1"])
+            ws_c.cell(i, 2, cr["variable_2"])
+            ws_c.cell(i, 3, cr.get("methode", "Pearson"))
+            ws_c.cell(i, 4, cr["r"])
+            ws_c.cell(i, 5, cr["p_valeur"])
+            ws_c.cell(i, 6, cr["interpretation"])
+        ws_c.column_dimensions["A"].width = 26
+        ws_c.column_dimensions["B"].width = 26
+        ws_c.column_dimensions["F"].width = 40
+
+    buf = io.BytesIO()
+    wb.save(buf)
     buf.seek(0)
     return buf

@@ -227,6 +227,74 @@ export function exporterDocxGuide(backendUrl, token, guideId) {
   return telechargerFichier(`${clean(backendUrl)}/api/guides/${guideId}/export/docx`, token);
 }
 
+/* ---------------- Étude quantitative ---------------- */
+
+export async function listerEtudesQuant(backendUrl, token) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/etudes-quantitatives`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function detailEtudeQuant(backendUrl, token, etudeId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/etudes-quantitatives/${etudeId}`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function creerEtudeQuant(backendUrl, token, { theme, questionRecherche, langue }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/etudes-quantitatives`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ theme, question_recherche: questionRecherche || "", langue: langue || "fr" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function supprimerEtudeQuant(backendUrl, token, etudeId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/etudes-quantitatives/${etudeId}`, { method: "DELETE", headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export function exporterDocxEtudeQuant(backendUrl, token, etudeId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/etudes-quantitatives/${etudeId}/export/docx`, token);
+}
+
+export function exporterTemplateEtudeQuant(backendUrl, token, etudeId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/etudes-quantitatives/${etudeId}/export/template`, token);
+}
+
+export async function listerAnalysesQuant(backendUrl, token, etudeId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/etudes-quantitatives/${etudeId}/donnees`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function importerDonneesQuant(backendUrl, token, etudeId, fichier) {
+  const base = clean(backendUrl);
+  const form = new FormData();
+  form.append("fichier", fichier, fichier.name || "donnees.xlsx");
+  const res = await fetch(`${base}/api/etudes-quantitatives/${etudeId}/donnees`, {
+    method: "POST", body: form, headers: headersAuth(token),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export function exporterDocxAnalyseQuant(backendUrl, token, etudeId, analyseId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/etudes-quantitatives/${etudeId}/donnees/${analyseId}/export/docx`, token);
+}
+
+export function exporterXlsxAnalyseQuant(backendUrl, token, etudeId, analyseId) {
+  return telechargerFichier(`${clean(backendUrl)}/api/etudes-quantitatives/${etudeId}/donnees/${analyseId}/export/xlsx`, token);
+}
+
 /* ---------------- Recharge de crédits à la carte ---------------- */
 
 export async function tarifRecharge(backendUrl) {
