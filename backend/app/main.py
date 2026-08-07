@@ -591,13 +591,16 @@ REFERENCES_APA_METHODO_QUANT = [
     "Hair, J. F., Black, W. C., Babin, B. J., & Anderson, R. E. (2019). Multivariate data analysis (8th ed.). Cengage.",
 ]
 
-SCHEMA_ETUDE_ETAPE1 = """{
+SCHEMA_ETUDE_ETAPE1A = """{
   "titre": "titre concis et professionnel de l'étude",
-  "cadre_theorique": "développement de niveau doctoral (plusieurs paragraphes) situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné",
-  "revue_litterature": "synthèse de niveau doctoral de l'état de la recherche sur ce thème, structurée par grands axes/débats",
+  "cadre_theorique": "développement de niveau doctoral (3 à 5 paragraphes) situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné",
   "concepts_theoriques": [
     {"concept": "nom de la théorie ou du courant mobilisé (ex. Théorie de l'échange social)", "auteur_associe": "nom du ou des auteurs fondateurs largement reconnus de cette théorie (ex. Blau, 1964)"}
   ]
+}"""
+
+SCHEMA_ETUDE_ETAPE1B = """{
+  "revue_litterature": "synthèse de niveau doctoral de l'état de la recherche sur ce thème (3 à 5 paragraphes), structurée par grands axes/débats"
 }"""
 
 SCHEMA_ETUDE_ETAPE2 = """{
@@ -666,8 +669,6 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         base = _prompt_etude_base(theme, question_recherche, langue)
 
         e = session.get(EtudeQuantitative, etude_id)
-        e.etape = "cadre"
-        session.commit()
         consigne_integrite = (
             "Consigne d'intégrité scientifique impérative : ne fabrique JAMAIS de référence "
             "bibliographique précise (auteur + année + titre exact d'article) qui n'existerait pas "
@@ -675,9 +676,21 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "texte ; ne nomme dans « concepts_theoriques » que des théories réellement célèbres et "
             "incontestables du champ, avec leur(s) auteur(s) fondateur(s) largement reconnu(s)."
         )
-        etape1 = _appel_ia_json(f"{base}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1}", 4000)
-        _valider_etape(etape1, ("titre", "cadre_theorique", "revue_litterature"))
-        contenu.update(etape1)
+
+        e.etape = "cadre"
+        session.commit()
+        etape1a = _appel_ia_json(f"{base}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1A}", 3000)
+        _valider_etape(etape1a, ("titre", "cadre_theorique"))
+        contenu.update(etape1a)
+        e.contenu = dict(contenu)
+        session.commit()
+
+        e.etape = "revue"
+        session.commit()
+        contexte1b = f"{base}\n\nCadre théorique déjà établi :\n{contenu['cadre_theorique'][:1500]}"
+        etape1b = _appel_ia_json(f"{contexte1b}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1B}", 3000)
+        _valider_etape(etape1b, ("revue_litterature",))
+        contenu.update(etape1b)
         e.contenu = dict(contenu)
         session.commit()
 
@@ -688,7 +701,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "Conçois la méthodologie quantitative de cette étude, cohérente avec le cadre théorique "
             "ci-dessus. Chaque hypothèse doit relier des variables précisément définies."
         )
-        etape2 = _appel_ia_json(f"{contexte2}\n\n{instructions2}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE2}", 4000)
+        etape2 = _appel_ia_json(f"{contexte2}\n\n{instructions2}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE2}", 4500)
         _valider_etape(etape2, ("methodologie",))
         contenu.update(etape2)
         e.contenu = dict(contenu)
@@ -703,7 +716,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "permettre un calcul ultérieur de fiabilité), plus les variables de contrôle/"
             "sociodémographiques pertinentes."
         )
-        etape3 = _appel_ia_json(f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}", 6000)
+        etape3 = _appel_ia_json(f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}", 7000)
         _valider_etape(etape3, ("questionnaire",))
         if not etape3["questionnaire"].get("sections"):
             raise ValueError("Le questionnaire généré ne contient aucune section.")
@@ -718,7 +731,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "structure du questionnaire, validité de construit), sans citer de référence précise "
             "(les références méthodologiques sont ajoutées séparément par l'application)."
         )
-        etape4 = _appel_ia_json(f"{base}\n\n{instructions4}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE4}", 2000)
+        etape4 = _appel_ia_json(f"{base}\n\n{instructions4}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE4}", 2500)
         _valider_etape(etape4, ("note_methodologique",))
         contenu.update(etape4)
 

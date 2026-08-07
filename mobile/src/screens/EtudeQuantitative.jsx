@@ -23,17 +23,22 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
   const charger = () => listerEtudesQuant(settings.backendUrl, token).then(setEtudes).catch(() => setEtudes([]));
   useEffect(() => { charger(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Sondage pendant la génération */
+  /* Sondage pendant la génération — un appel immédiat pour éviter le message
+     générique le temps du premier intervalle, puis toutes les 3 secondes */
   useEffect(() => {
     if (!selection || selection.statut !== "en_cours") return;
-    const it = setInterval(async () => {
+    let annule = false;
+    const sonder = async () => {
       try {
         const d = await detailEtudeQuant(settings.backendUrl, token, selection.id);
+        if (annule) return;
         setSelection(d);
-        if (d.statut !== "en_cours") { clearInterval(it); charger(); }
+        if (d.statut !== "en_cours") charger();
       } catch { /* nouvel essai au prochain intervalle */ }
-    }, 3000);
-    return () => clearInterval(it);
+    };
+    if (!selection.etape) sonder();
+    const it = setInterval(sonder, 3000);
+    return () => { annule = true; clearInterval(it); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection]);
 
@@ -143,6 +148,7 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
             <div className="pending-card">
               <span className="spinner" />
               {selection.etape === "cadre" ? t("etudeQuant.etapeCadre")
+                : selection.etape === "revue" ? t("etudeQuant.etapeRevue")
                 : selection.etape === "methodologie" ? t("etudeQuant.etapeMethodologie")
                 : selection.etape === "questionnaire" ? t("etudeQuant.etapeQuestionnaire")
                 : selection.etape === "references" ? t("etudeQuant.etapeReferences")
