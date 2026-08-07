@@ -580,91 +580,160 @@ def _run_guide(guide_id: str, theme: str, question_recherche: str, langue: str, 
 
 
 # ----------------------------------------------------------------- étude quantitative
-SCHEMA_ETUDE_QUANT = """{
+# Références méthodologiques réellement vérifiées (jamais générées par le modèle) —
+# seules citations exactes garanties authentiques dans le rapport, pour éviter tout
+# risque de référence fabriquée sur la partie théorique, spécifique à chaque thème.
+REFERENCES_APA_METHODO_QUANT = [
+    "Cronbach, L. J. (1951). Coefficient alpha and the internal structure of tests. Psychometrika, 16(3), 297-334.",
+    "Nunnally, J. C., & Bernstein, I. H. (1994). Psychometric theory (3rd ed.). McGraw-Hill.",
+    "Fornell, C., & Larcker, D. F. (1981). Evaluating structural equation models with unobservable variables and measurement error. Journal of Marketing Research, 18(1), 39-50.",
+    "Churchill, G. A. (1979). A paradigm for developing better measures of marketing constructs. Journal of Marketing Research, 16(1), 64-73.",
+    "Hair, J. F., Black, W. C., Babin, B. J., & Anderson, R. E. (2019). Multivariate data analysis (8th ed.). Cengage.",
+]
+
+SCHEMA_ETUDE_ETAPE1 = """{
   "titre": "titre concis et professionnel de l'étude",
-  "cadre_theorique": "développement de niveau doctoral (plusieurs paragraphes) situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné, en expliquant leur pertinence pour cette question de recherche précise",
-  "revue_litterature": "synthèse de niveau doctoral de l'état de la recherche sur ce thème, structurée par grands axes/débats plutôt qu'une simple liste, qui EXPOSE les courants et notions établis du champ SANS jamais inventer de référence bibliographique précise et vérifiable (pas de nom d'auteur associé à une année et un titre d'article précis sauf s'il s'agit d'une référence réellement célèbre et incontestable du champ) — reste au niveau des courants théoriques et notions, pas de fausses citations exactes",
+  "cadre_theorique": "développement de niveau doctoral (plusieurs paragraphes) situant le sujet dans un ou plusieurs cadres théoriques reconnus du champ disciplinaire concerné",
+  "revue_litterature": "synthèse de niveau doctoral de l'état de la recherche sur ce thème, structurée par grands axes/débats",
+  "concepts_theoriques": [
+    {"concept": "nom de la théorie ou du courant mobilisé (ex. Théorie de l'échange social)", "auteur_associe": "nom du ou des auteurs fondateurs largement reconnus de cette théorie (ex. Blau, 1964)"}
+  ]
+}"""
+
+SCHEMA_ETUDE_ETAPE2 = """{
   "methodologie": {
     "type_etude": "ex. étude quantitative transversale par questionnaire auto-administré",
     "population_cible": "description précise du profil des répondants visés",
-    "echantillon": "taille d'échantillon recommandée avec justification (règle de pouce, ratio items/répondants...) et méthode d'échantillonnage proposée",
+    "echantillon": "taille d'échantillon recommandée avec justification et méthode d'échantillonnage proposée",
     "hypotheses": [{"code": "H1", "enonce": "hypothèse testable formulée précisément, reliant les variables"}],
     "variables": [{"nom": "nom du construit/variable", "type": "indépendante|dépendante|médiatrice|modératrice|de contrôle", "definition": "définition opérationnelle"}]
-  },
+  }
+}"""
+
+SCHEMA_ETUDE_ETAPE3 = """{
   "questionnaire": {
     "sections": [
       {
-        "titre": "libellé de section (ex. Informations sociodémographiques, ou le nom d'un construit)",
-        "variable_associee": "nom EXACT d'une variable listée ci-dessus si cette section mesure ce construit par échelle de Likert, sinon omettre ce champ",
+        "titre": "libellé de section",
+        "variable_associee": "nom EXACT d'une variable listée dans la méthodologie si cette section mesure ce construit par échelle de Likert, sinon omettre ce champ",
         "items": [
-          {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["liste des modalités si choix_unique/choix_multiple, ou les 5 libellés de l'échelle si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
+          {"code": "Q1", "libelle": "énoncé exact de la question ou de l'item", "type": "choix_unique|choix_multiple|echelle_likert|numerique|texte_libre", "options": ["modalités si choix_unique/choix_multiple, ou les 5 libellés si echelle_likert"], "echelle_min": 1, "echelle_max": 5}
         ]
       }
     ]
-  },
-  "note_methodologique": "paragraphe de niveau doctoral justifiant les choix méthodologiques (type d'échelle, structure du questionnaire, validité de construit) avec au moins une référence bibliographique reconnue et réelle sur la méthodologie quantitative elle-même (ex. Fornell & Larcker, 1981 ; Nunnally & Bernstein, 1994 ; Churchill, 1979 — n'utilise que des références méthodologiques authentiques et largement établies, jamais inventées)"
+  }
+}"""
+
+SCHEMA_ETUDE_ETAPE4 = """{
+  "note_methodologique": "paragraphe de niveau doctoral justifiant les choix méthodologiques (type d'échelle, structure du questionnaire, validité de construit)"
 }"""
 
 
-def _construire_prompt_etude_quant(theme: str, question_recherche: str, langue: str) -> str:
+def _prompt_etude_base(theme: str, question_recherche: str, langue: str) -> str:
     consigne_langue = "Rédige l'intégralité en anglais." if langue == "en" else "Rédige l'intégralité en français."
     return f"""Tu es méthodologue quantitatif et directeur de recherche, de niveau recherche doctorale, \
 expert en sciences de gestion, économie, sociologie ou sciences connexes selon le thème fourni.
 
-Conçois le cadre théorique, la revue de littérature, la méthodologie scientifique et le questionnaire \
-quantitatif complets pour l'étude suivante :
-
 Thème de recherche : {theme}
 Question de recherche : {question_recherche or "non précisée — déduis un axe pertinent à partir du thème"}
 
-Le questionnaire doit être directement administrable : items clairs, échelles de Likert à 5 points \
-cohérentes pour chaque construit mesuré (au moins 3 items par construit mesuré par échelle, pour \
-permettre un calcul ultérieur de fiabilité), plus les variables de contrôle/sociodémographiques \
-pertinentes. Chaque hypothèse formulée doit correspondre à une relation testable entre des variables \
-elles-mêmes mesurées par le questionnaire.
-
 {consigne_langue}
 
-{CONSIGNE_ORIGINALITE}
-
-Consigne d'intégrité scientifique impérative : ne fabrique JAMAIS de référence bibliographique précise \
-et vérifiable (auteur + année + titre exact d'article) qui n'existerait pas réellement — c'est une faute \
-grave en recherche académique. Reste au niveau des courants théoriques et notions établies du champ \
-pour le cadre théorique et la revue de littérature ; les références nommées précises ne sont admises \
-que dans la note méthodologique, et uniquement pour des travaux méthodologiques réels et largement \
-reconnus (ex. Cronbach, Nunnally, Fornell & Larcker, Churchill, Hair et al.).
-
-Réponds UNIQUEMENT avec un objet JSON strictement conforme à ce schéma — aucun texte avant ou après, \
-aucune balise markdown. Assure-toi que le JSON est syntaxiquement valide : échappe tous les guillemets \
-internes aux chaînes de caractères (\\") et ne laisse aucune chaîne non terminée :
-{SCHEMA_ETUDE_QUANT}"""
+{CONSIGNE_ORIGINALITE}"""
 
 
-def _valider_etude_quant(contenu: dict):
-    for cle in ("titre", "cadre_theorique", "revue_litterature", "methodologie", "questionnaire", "note_methodologique"):
+def _valider_etape(contenu: dict, cles: tuple):
+    for cle in cles:
         if cle not in contenu:
             raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
-    if not contenu["questionnaire"].get("sections"):
-        raise ValueError("Le questionnaire généré ne contient aucune section.")
+
+
+def _appel_ia_json(prompt: str, max_tokens: int) -> dict:
+    client = get_anthropic()
+    resp = client.messages.create(model=ANALYSE_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}])
+    texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+    return _extraire_json(texte)
 
 
 def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
+    """Génère l'étude en 4 étapes indépendantes (cadre théorique, méthodologie,
+    questionnaire, note méthodologique), chacune avec sa propre marge de tokens —
+    un thème riche produit trop de contenu pour tenir en un seul appel sans risquer
+    une troncature en plein milieu du JSON."""
     session = get_session()
+    contenu: dict = {}
     try:
-        client = get_anthropic()
-        prompt = _construire_prompt_etude_quant(theme, question_recherche, langue)
-        resp = client.messages.create(
-            model=ANALYSE_MODEL,
-            max_tokens=9500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
-        contenu = _extraire_json(texte)
-        _valider_etude_quant(contenu)
+        base = _prompt_etude_base(theme, question_recherche, langue)
 
         e = session.get(EtudeQuantitative, etude_id)
+        e.etape = "cadre"
+        session.commit()
+        consigne_integrite = (
+            "Consigne d'intégrité scientifique impérative : ne fabrique JAMAIS de référence "
+            "bibliographique précise (auteur + année + titre exact d'article) qui n'existerait pas "
+            "réellement. Reste au niveau des courants théoriques et notions établies du champ dans le "
+            "texte ; ne nomme dans « concepts_theoriques » que des théories réellement célèbres et "
+            "incontestables du champ, avec leur(s) auteur(s) fondateur(s) largement reconnu(s)."
+        )
+        etape1 = _appel_ia_json(f"{base}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1}", 4000)
+        _valider_etape(etape1, ("titre", "cadre_theorique", "revue_litterature"))
+        contenu.update(etape1)
+        e.contenu = dict(contenu)
+        session.commit()
+
+        e.etape = "methodologie"
+        session.commit()
+        contexte2 = f"{base}\n\nCadre théorique déjà établi :\n{contenu['cadre_theorique'][:1500]}"
+        instructions2 = (
+            "Conçois la méthodologie quantitative de cette étude, cohérente avec le cadre théorique "
+            "ci-dessus. Chaque hypothèse doit relier des variables précisément définies."
+        )
+        etape2 = _appel_ia_json(f"{contexte2}\n\n{instructions2}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE2}", 4000)
+        _valider_etape(etape2, ("methodologie",))
+        contenu.update(etape2)
+        e.contenu = dict(contenu)
+        session.commit()
+
+        e.etape = "questionnaire"
+        session.commit()
+        contexte3 = f"{base}\n\nMéthodologie déjà établie (hypothèses et variables) :\n{json.dumps(contenu['methodologie'], ensure_ascii=False)}"
+        instructions3 = (
+            "Conçois le questionnaire complet mesurant ces variables : items clairs, échelles de "
+            "Likert à 5 points cohérentes (au moins 3 items par construit mesuré par échelle, pour "
+            "permettre un calcul ultérieur de fiabilité), plus les variables de contrôle/"
+            "sociodémographiques pertinentes."
+        )
+        etape3 = _appel_ia_json(f"{contexte3}\n\n{instructions3}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3}", 6000)
+        _valider_etape(etape3, ("questionnaire",))
+        if not etape3["questionnaire"].get("sections"):
+            raise ValueError("Le questionnaire généré ne contient aucune section.")
+        contenu.update(etape3)
+        e.contenu = dict(contenu)
+        session.commit()
+
+        e.etape = "references"
+        session.commit()
+        instructions4 = (
+            "Rédige la note méthodologique justifiant les choix méthodologiques (type d'échelle, "
+            "structure du questionnaire, validité de construit), sans citer de référence précise "
+            "(les références méthodologiques sont ajoutées séparément par l'application)."
+        )
+        etape4 = _appel_ia_json(f"{base}\n\n{instructions4}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE4}", 2000)
+        _valider_etape(etape4, ("note_methodologique",))
+        contenu.update(etape4)
+
+        # Table de références APA : uniquement des sources réellement vérifiées —
+        # le socle méthodologique fixe, plus les concepts théoriques nommés par le
+        # modèle à l'étape 1, présentés comme à vérifier par le chercheur (jamais
+        # comme des citations exactes garanties).
+        contenu["references_apa"] = {
+            "methodologie": list(REFERENCES_APA_METHODO_QUANT),
+            "concepts_a_referencer": contenu.get("concepts_theoriques", []),
+        }
+
         e.contenu = contenu
         e.statut = "termine"
+        e.etape = "termine"
         e.modele = ANALYSE_MODEL
         session.commit()
     except Exception as ex:  # noqa: BLE001
@@ -672,6 +741,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         if e:
             e.statut = "erreur"
             e.erreur = str(ex)
+            e.contenu = contenu or e.contenu  # conserve ce qui a déjà été généré avec succès
             u = session.get(Utilisateur, payeur_id)
             if u and not u.est_admin:
                 u.credits += COUT_CREDIT_ETUDE_QUANT
@@ -687,7 +757,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
 def _etude_quant_vers_dict(e: EtudeQuantitative) -> dict:
     return {
         "id": e.id, "theme": e.theme, "question_recherche": e.question_recherche,
-        "langue": e.langue, "statut": e.statut, "contenu": e.contenu, "erreur": e.erreur,
+        "langue": e.langue, "statut": e.statut, "etape": e.etape, "contenu": e.contenu, "erreur": e.erreur,
         "modele": e.modele, "cree_le": e.cree_le.isoformat() if e.cree_le else None,
     }
 

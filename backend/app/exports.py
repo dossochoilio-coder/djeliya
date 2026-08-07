@@ -144,6 +144,8 @@ L = {
         "eq_hypotheses": "Hypothèses de recherche", "eq_hyp_col": "Code", "eq_hyp_enonce": "Énoncé",
         "eq_variables": "Variables du modèle", "eq_var_nom": "Variable", "eq_var_type": "Type", "eq_var_def": "Définition",
         "eq_questionnaire": "4. Questionnaire", "eq_note": "Note méthodologique",
+        "eq_references": "5. Références", "eq_ref_methodo_intro": "Références méthodologiques vérifiées :",
+        "eq_ref_concepts_intro": "Concepts théoriques mobilisés — références précises à compléter par le chercheur :",
         "eq_item_type": "Type", "eq_item_options": "Modalités / échelle",
         # Gabarit Excel
         "eq_feuille_reponses": "Réponses", "eq_feuille_guide": "Guide de saisie",
@@ -269,6 +271,8 @@ L = {
         "eq_hypotheses": "Research hypotheses", "eq_hyp_col": "Code", "eq_hyp_enonce": "Statement",
         "eq_variables": "Model variables", "eq_var_nom": "Variable", "eq_var_type": "Type", "eq_var_def": "Definition",
         "eq_questionnaire": "4. Questionnaire", "eq_note": "Methodological note",
+        "eq_references": "5. References", "eq_ref_methodo_intro": "Verified methodological references:",
+        "eq_ref_concepts_intro": "Theoretical concepts used — precise references to be completed by the researcher:",
         "eq_item_type": "Type", "eq_item_options": "Response options / scale",
         # Gabarit Excel
         "eq_feuille_reponses": "Responses", "eq_feuille_guide": "Data entry guide",
@@ -1141,6 +1145,20 @@ def generer_docx_etude_quant(etude_data: dict) -> io.BytesIO:
         p = doc.add_paragraph(c["note_methodologique"])
         for run in p.runs:
             run.italic = True
+
+    refs = c.get("references_apa") or {}
+    if refs.get("methodologie") or refs.get("concepts_a_referencer"):
+        doc.add_heading(l["eq_references"], level=1)
+        if refs.get("methodologie"):
+            p_intro_m = doc.add_paragraph()
+            p_intro_m.add_run(l["eq_ref_methodo_intro"]).bold = True
+            for ref in refs["methodologie"]:
+                doc.add_paragraph(ref, style="List Bullet")
+        if refs.get("concepts_a_referencer"):
+            p_intro = doc.add_paragraph()
+            p_intro.add_run(l["eq_ref_concepts_intro"]).bold = True
+            for concept in refs["concepts_a_referencer"]:
+                doc.add_paragraph(f"{concept.get('concept', '')} — {concept.get('auteur_associe', '')}", style="List Bullet")
 
     _numero_page(doc, langue)
     buf = io.BytesIO()

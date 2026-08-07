@@ -140,7 +140,14 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
         </header>
         <div className="content">
           {selection.statut === "en_cours" && (
-            <div className="pending-card"><span className="spinner" />{t("etudeQuant.generation")}</div>
+            <div className="pending-card">
+              <span className="spinner" />
+              {selection.etape === "cadre" ? t("etudeQuant.etapeCadre")
+                : selection.etape === "methodologie" ? t("etudeQuant.etapeMethodologie")
+                : selection.etape === "questionnaire" ? t("etudeQuant.etapeQuestionnaire")
+                : selection.etape === "references" ? t("etudeQuant.etapeReferences")
+                : t("etudeQuant.generation")}
+            </div>
           )}
           {selection.statut === "erreur" && (
             <>
@@ -217,6 +224,28 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
                 <div className="analyse-texte-card limites">
                   <h3 className="subsection-title">{t("etudeQuant.noteMethodologique")}</h3>
                   <p className="analyse-texte">{c.note_methodologique}</p>
+                </div>
+              )}
+
+              {(c.references_apa?.methodologie?.length > 0 || c.references_apa?.concepts_a_referencer?.length > 0) && (
+                <div className="analyse-texte-card">
+                  <h3 className="subsection-title">{t("etudeQuant.references")}</h3>
+                  {c.references_apa.methodologie?.length > 0 && (
+                    <>
+                      <p className="theme-desc" style={{ fontWeight: 700 }}>{t("etudeQuant.referencesMethodo")}</p>
+                      {c.references_apa.methodologie.map((ref, i) => (
+                        <p key={i} className="analyse-texte" style={{ fontSize: 12.5 }}>{ref}</p>
+                      ))}
+                    </>
+                  )}
+                  {c.references_apa.concepts_a_referencer?.length > 0 && (
+                    <>
+                      <p className="theme-desc" style={{ fontWeight: 700, marginTop: 10 }}>{t("etudeQuant.referencesConcepts")}</p>
+                      {c.references_apa.concepts_a_referencer.map((concept, i) => (
+                        <p key={i} className="analyse-texte" style={{ fontSize: 12.5 }}>{concept.concept} — {concept.auteur_associe}</p>
+                      ))}
+                    </>
+                  )}
                 </div>
               )}
 
