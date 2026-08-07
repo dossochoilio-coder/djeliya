@@ -158,10 +158,15 @@ def get_diarisation():
 # ----------------------------------------------------------------- utilitaires
 def _nom_fichier(texte: str) -> str:
     """Translittère en ASCII pur : les en-têtes HTTP n'acceptent pas les accents,
-    et un nom de fichier avec un « é » brut cassait le téléchargement."""
+    et un nom de fichier avec un « é » brut cassait le téléchargement. Plafonné à
+    60 caractères — un thème de recherche long (fréquent) peut sinon dépasser la
+    limite de longueur de chemin du système de fichiers Android ("File name too
+    long"), qui se déclenche parfois sur un export mais pas un autre selon le
+    préfixe du nom (quelques caractères de différence suffisent à basculer)."""
     import unicodedata
     ascii_txt = unicodedata.normalize("NFKD", texte or "").encode("ascii", "ignore").decode("ascii")
-    return re.sub(r"[^\w\-]+", "_", ascii_txt).strip("_") or "export"
+    nettoye = re.sub(r"[^\w\-]+", "_", ascii_txt).strip("_") or "export"
+    return nettoye[:60].rstrip("_")
 
 
 def _entretien_vers_dict(e: Entretien) -> dict:
@@ -604,10 +609,17 @@ SCHEMA_ETUDE_ETAPE1A = """{
     {"concept": "nom de la théorie ou du courant mobilisé (ex. Théorie de l'échange social)", "auteur_associe": "nom du ou des auteurs fondateurs largement reconnus de cette théorie (ex. Blau, 1964)"}
   ]
 }"""
+# Consigne quantitative (donnée dans les instructions de l'étape) : au moins 5 à 8
+# concepts théoriques distincts et réellement établis, pas seulement le cadre
+# théorique principal — variables secondaires, modèles connexes, notions du champ.
 
 SCHEMA_ETUDE_ETAPE1B = """{
-  "revue_litterature": "synthèse de niveau doctoral, 350 à 500 mots STRICTEMENT (ordre de grandeur conventionnel d'une revue de littérature dans un article scientifique), structurée par grands axes/débats"
+  "revue_litterature": "synthèse de niveau doctoral, 350 à 500 mots STRICTEMENT (ordre de grandeur conventionnel d'une revue de littérature dans un article scientifique), structurée par grands axes/débats",
+  "concepts_theoriques_complementaires": [
+    {"concept": "nom d'une théorie/modèle/notion supplémentaire abordé dans cette revue, DISTINCT de ceux déjà cités dans le cadre théorique", "auteur_associe": "nom du ou des auteurs fondateurs largement reconnus (ex. Meyer et Allen, 1991)"}
+  ]
 }"""
+# Consigne quantitative : 3 à 5 concepts supplémentaires, distincts de l'étape précédente.
 
 SCHEMA_ETUDE_ETAPE2 = """{
   "methodologie": {
@@ -719,6 +731,13 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "réellement. Reste au niveau des courants théoriques et notions établies du champ dans le "
             "texte ; ne nomme dans « concepts_theoriques » que des théories réellement célèbres et "
             "incontestables du champ, avec leur(s) auteur(s) fondateur(s) largement reconnu(s).\n\n"
+            "Consigne de richesse bibliographique : un travail de niveau doctoral s'appuie sur "
+            "plusieurs cadres théoriques, pas un seul. Identifie 5 à 8 concepts/théories/modèles "
+            "distincts et réellement établis, en mobilisant le cadre théorique principal MAIS AUSSI "
+            "les variables secondaires, modèles connexes, notions méthodologiques du champ (ex. pour "
+            "une étude sur l'engagement au travail : le modèle d'engagement lui-même, mais aussi la "
+            "théorie de l'échange social qui l'explique, le modèle des pratiques RH mobilisé, la "
+            "théorie du contrat psychologique si pertinente, etc.) — jamais un seul concept isolé.\n\n"
             "Consigne de citation dans le texte : quand tu mobilises une théorie réellement célèbre et "
             "incontestable (ex. théorie de l'échange social, modèle de l'engagement organisationnel), "
             "cite-la au format APA standard « Auteur (Année) » directement dans le corps du texte — pas "
@@ -738,10 +757,20 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
 
         e.etape = "revue"
         session.commit()
-        contexte1b = f"{base}\n\nCadre théorique déjà établi :\n{contenu['cadre_theorique'][:1500]}"
+        concepts_deja_cites = ", ".join(c.get("concept", "") for c in contenu.get("concepts_theoriques", []))
+        contexte1b = (
+            f"{base}\n\nCadre théorique déjà établi :\n{contenu['cadre_theorique'][:1500]}\n\n"
+            f"Concepts théoriques déjà cités (ne les répète pas) : {concepts_deja_cites or 'aucun'}"
+        )
         prompt1b = f"{contexte1b}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1B}"
         etape1b = _appel_etape_avec_reprise(prompt1b, 3000, lambda r: _valider_etape(r, ("revue_litterature",)))
-        contenu.update(etape1b)
+        contenu["revue_litterature"] = etape1b["revue_litterature"]
+        # Fusionne les concepts complémentaires de la revue, sans doublon avec ceux du cadre théorique
+        noms_deja_vus = {c.get("concept", "").strip().lower() for c in contenu.get("concepts_theoriques", [])}
+        for c in etape1b.get("concepts_theoriques_complementaires", []) or []:
+            if c.get("concept", "").strip().lower() not in noms_deja_vus:
+                contenu.setdefault("concepts_theoriques", []).append(c)
+                noms_deja_vus.add(c.get("concept", "").strip().lower())
         e.contenu = dict(contenu)
         session.commit()
 
