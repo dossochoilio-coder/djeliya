@@ -809,8 +809,15 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "(les références méthodologiques sont ajoutées séparément par l'application)."
         )
         prompt4 = f"{base}\n\n{instructions4}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE4}"
-        etape4 = _appel_etape_avec_reprise(prompt4, 2500, lambda r: _valider_etape(r, ("note_methodologique",)))
-        contenu.update(etape4)
+        try:
+            # La note méthodologique est la partie la moins essentielle du contenu
+            # (une justification, pas le cadre théorique, la méthodologie ou le
+            # questionnaire eux-mêmes) — un échec ici, même après reprise, ne doit
+            # jamais empêcher l'étude d'être considérée prête et exportable.
+            etape4 = _appel_etape_avec_reprise(prompt4, 2500, lambda r: _valider_etape(r, ("note_methodologique",)))
+            contenu.update(etape4)
+        except Exception:  # noqa: BLE001
+            pass
 
         # Table de références APA : uniquement des sources réellement vérifiées —
         # le socle méthodologique fixe, plus les concepts théoriques nommés par le
