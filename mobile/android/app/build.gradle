@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// Google Play exige un versionCode STRICTEMENT croissant à chaque envoi — piloté
+// par le CI (numéro de run GitHub Actions, toujours croissant), avec un repli
+// sûr à 1 pour les builds locaux hors CI. Calculé ici, dans des variables
+// séparées, pour éviter une ambiguïté de syntaxe Groovy avec un appel enchaîné
+// directement dans le bloc defaultConfig (« versionCode (...).toInteger() »
+// peut être mal interprété comme un appel de méthode suivi d'un chaînage sur
+// un résultat vide).
+def djeliyaVersionCode = (System.getenv("VERSION_CODE") ?: "1").toInteger()
+def djeliyaVersionName = System.getenv("VERSION_NAME") ?: "1.0.0"
+
 android {
     namespace = "com.djeliya.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,11 +17,8 @@ android {
         applicationId "com.djeliya.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Google Play exige un versionCode STRICTEMENT croissant à chaque envoi —
-        // piloté par le CI (numéro de run GitHub Actions, toujours croissant),
-        // avec un repli sûr à 1 pour les builds locaux hors CI.
-        versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("VERSION_NAME") ?: "1.0.0"
+        versionCode djeliyaVersionCode
+        versionName djeliyaVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
