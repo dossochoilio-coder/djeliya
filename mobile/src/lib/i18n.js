@@ -204,6 +204,10 @@ export const TRADUCTIONS = {
       confirmer: "Confirmer et lancer", annuler: "Annuler",
     },
 
+    erreurs: {
+      signaler: "Signaler ce problème",
+    },
+
     guide: {
       titre: "Guides d'entretien",
       accueilBouton: "Guide d'entretien",
@@ -467,6 +471,10 @@ export const TRADUCTIONS = {
       insuffisant: "Insufficient balance for this action.",
       voirForfaits: "View plans",
       confirmer: "Confirm and start", annuler: "Cancel",
+    },
+
+    erreurs: {
+      signaler: "Report this problem",
     },
 
     guide: {

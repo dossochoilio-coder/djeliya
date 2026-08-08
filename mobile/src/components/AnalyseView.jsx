@@ -2,6 +2,7 @@ import { useState } from "react";
 import { fmtTime } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
 import ConfirmationCredits from "./ConfirmationCredits.jsx";
+import ErreurAvecSignalement from "./ErreurAvecSignalement.jsx";
 
 /**
  * Vue d'analyse qualitative réutilisée pour un entretien seul ou un corpus entier
@@ -12,7 +13,7 @@ import ConfirmationCredits from "./ConfirmationCredits.jsx";
  * synthèse, verbatims) est produit en français par le serveur quelle que soit la
  * langue de l'interface — seuls les libellés fixes de cet écran sont traduits.
  */
-export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMinAvant, cout, solde, onVoirForfaits }) {
+export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMinAvant, cout, solde, onVoirForfaits, email }) {
   const { t, langue } = useT();
   const [contexte, setContexte] = useState("");
   const [methode, setMethode] = useState("gioia");
@@ -43,7 +44,8 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
             placeholder={t("analyseView.questionPlaceholder")} />
         </label>
         {statut === "erreur" && (
-          <p className="note-banner err">{t("analyseView.echecAnalyse")}{sujet.analyse_erreur || "—"}</p>
+          <ErreurAvecSignalement erreur={sujet.analyse_erreur} contexte="analyse qualitative"
+            email={email} prefixe={t("analyseView.echecAnalyse")} />
         )}
         <button className="btn primary full" onClick={() => setConfirmation(true)}>
           {t("analyseView.lancerAnalyse")}

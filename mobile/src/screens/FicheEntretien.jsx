@@ -5,10 +5,11 @@ import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
 import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
+import { messageAffichable, mailtoSignalement } from "../lib/erreurs.js";
 import AnalyseView from "../components/AnalyseView.jsx";
 
 export default function FicheEntretien({ interview, corpusList, methodes, couts, utilisateur, onOuvrirForfaits, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onExporterDocx, onExporterXlsx, showToast }) {
-  const { t } = useT();
+  const { t, langue } = useT();
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
   const [peaks, setPeaks] = useState(interview.peaks || null);
@@ -213,7 +214,12 @@ export default function FicheEntretien({ interview, corpusList, methodes, couts,
         {interview.note && <p className="note-banner">⚑ {interview.note}</p>}
         {interview.statut === "erreur" && (
           <div className="note-banner err">
-            <p style={{ margin: 0 }}>{t("ficheEntretien.echecTranscription")}{interview.erreur || "—"}</p>
+            <p style={{ margin: 0 }}>
+              {t("ficheEntretien.echecTranscription")}{messageAffichable(interview.erreur, langue)}{" "}
+              <a className="link-inline" href={mailtoSignalement({ erreur: interview.erreur, contexte: "transcription d'un entretien", email: utilisateur?.email, langue })}>
+                {t("erreurs.signaler")}
+              </a>
+            </p>
             <button className="btn primary sm" style={{ marginTop: 10 }} onClick={onRelancer}>
               {t("ficheEntretien.relancer")}
             </button>
@@ -240,7 +246,7 @@ export default function FicheEntretien({ interview, corpusList, methodes, couts,
 
         {vue === "analyse" && interview.statut === "termine" ? (
           <AnalyseView sujet={interview} methodes={methodes} onLancer={onLancerAnalyse} onSeek={seek}
-            cout={couts?.analyse_qualitative} solde={utilisateur?.credits} onVoirForfaits={onOuvrirForfaits} />
+            cout={couts?.analyse_qualitative} solde={utilisateur?.credits} onVoirForfaits={onOuvrirForfaits} email={utilisateur?.email} />
         ) : vue === "codage" && interview.statut === "termine" ? null : (
         <>
         {audioUrl && (

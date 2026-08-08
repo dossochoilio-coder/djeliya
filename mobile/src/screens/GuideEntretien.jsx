@@ -4,6 +4,7 @@ import { partagerFichierBinaire } from "../lib/export.js";
 import { useT } from "../lib/i18n.js";
 import { fmtDate } from "../lib/constants.js";
 import ConfirmationCredits from "../components/ConfirmationCredits.jsx";
+import ErreurAvecSignalement from "../components/ErreurAvecSignalement.jsx";
 
 export default function GuideEntretien({ settings, token, couts, utilisateur, onExporterDocx, onOuvrirForfaits, onRetour, showToast }) {
   const { t, langue } = useT();
@@ -91,7 +92,8 @@ export default function GuideEntretien({ settings, token, couts, utilisateur, on
             <div className="pending-card"><span className="spinner" />{t("guide.generation")}</div>
           )}
           {selection.statut === "erreur" && (
-            <p className="note-banner err">{t("guide.echec")}{selection.erreur || "—"}</p>
+            <ErreurAvecSignalement erreur={selection.erreur} contexte="génération du guide d'entretien"
+              email={utilisateur?.email} prefixe={t("guide.echec")} />
           )}
 
           {g && (

@@ -118,6 +118,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
                 cout={couts?.analyse_qualitative}
                 solde={utilisateur?.credits}
                 onVoirForfaits={onOuvrirForfaits}
+                email={utilisateur?.email}
               />
               {corpusDetail?.analyse_statut === "termine" && (
                 <div className="field-inline">

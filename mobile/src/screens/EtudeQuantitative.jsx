@@ -8,6 +8,7 @@ import { partagerFichierBinaire } from "../lib/export.js";
 import { useT } from "../lib/i18n.js";
 import { fmtDate } from "../lib/constants.js";
 import ConfirmationCredits from "../components/ConfirmationCredits.jsx";
+import ErreurAvecSignalement from "../components/ErreurAvecSignalement.jsx";
 
 export default function EtudeQuantitative({ settings, token, couts, utilisateur, onOuvrirForfaits, onRetour, showToast }) {
   const { t, langue } = useT();
@@ -162,7 +163,8 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
           )}
           {selection.statut === "erreur" && (
             <>
-              <p className="note-banner err">{t("etudeQuant.echec")}{selection.erreur || "—"}</p>
+              <ErreurAvecSignalement erreur={selection.erreur} contexte="génération de l'étude quantitative"
+                email={utilisateur?.email} prefixe={t("etudeQuant.echec")} />
               <button className="btn ghost full" onClick={() => relancer(selection)}>{t("etudeQuant.relancer")}</button>
             </>
           )}
@@ -281,7 +283,7 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
                 <>
                   <h2 className="subsection-title">{t("etudeQuant.historiqueAnalyses")}</h2>
                   {analyses.map((a) => (
-                    <AnalyseResume key={a.id} analyse={a} onExporter={exporterAnalyse} showToast={showToast} />
+                    <AnalyseResume key={a.id} analyse={a} onExporter={exporterAnalyse} email={utilisateur?.email} />
                   ))}
                 </>
               )}
@@ -371,12 +373,13 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
   );
 }
 
-function AnalyseResume({ analyse, onExporter }) {
+function AnalyseResume({ analyse, onExporter, email }) {
   const { t } = useT();
   const r = analyse.resultats;
 
   if (analyse.statut === "erreur") {
-    return <p className="note-banner err">{t("etudeQuant.analyseEchec")}{analyse.erreur || "—"}</p>;
+    return <ErreurAvecSignalement erreur={analyse.erreur} contexte="analyse quantitative des données importées"
+      email={email} prefixe={t("etudeQuant.analyseEchec")} />;
   }
   if (!r) return null;
 
