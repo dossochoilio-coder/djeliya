@@ -9,14 +9,15 @@ import { useT } from "../lib/i18n.js";
 export default function ConfirmationCredits({ cout, solde, onConfirmer, onAnnuler, onVoirForfaits }) {
   const { t } = useT();
   const insuffisant = typeof solde === "number" && solde < cout;
+  const soldeApresAction = typeof solde === "number" ? Math.max(0, solde - cout) : null;
 
   return (
     <div className="glossaire-form">
       <span className="field-label">{t("credits.confirmationTitre")}</span>
       <p className="theme-desc">
         {t("credits.coutAction")} <strong>{cout} {cout > 1 ? t("credits.creditsPluriel") : t("credits.creditUnique")}</strong>.
-        {typeof solde === "number" && (
-          <> {t("credits.soldeActuel")} <strong>{solde}</strong> {solde > 1 ? t("credits.creditsPluriel") : t("credits.creditUnique")} {t("credits.soldeApres")}.</>
+        {soldeApresAction !== null && (
+          <> {t("credits.soldeActuel")} <strong>{soldeApresAction}</strong> {soldeApresAction > 1 ? t("credits.creditsPluriel") : t("credits.creditUnique")} {t("credits.soldeApres")}.</>
         )}
       </p>
       {insuffisant && (

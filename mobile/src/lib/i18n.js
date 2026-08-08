@@ -173,6 +173,7 @@ export const TRADUCTIONS = {
       rechargeHistorique: "Historique des recharges",
       rechargeStatutEnAttente: "En attente", rechargeStatutPayee: "Payée", rechargeStatutEchouee: "Échouée",
       rechargeVerifier: "Vérifier maintenant",
+      rechargeSupprimer: "Supprimer",
       rechargeMin: "Le minimum est de {min} crédits par recharge.",
     },
 
@@ -442,6 +443,7 @@ export const TRADUCTIONS = {
       rechargeHistorique: "Top-up history",
       rechargeStatutEnAttente: "Pending", rechargeStatutPayee: "Paid", rechargeStatutEchouee: "Failed",
       rechargeVerifier: "Check now",
+      rechargeSupprimer: "Delete",
       rechargeMin: "The minimum is {min} credits per top-up.",
     },
 

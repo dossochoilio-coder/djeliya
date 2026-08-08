@@ -338,6 +338,15 @@ export async function verifierRecharge(backendUrl, token, id) {
   return res.json();
 }
 
+export async function supprimerRecharge(backendUrl, token, id) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/recharges/${id}`, {
+    method: "DELETE", headers: headersAuth(token),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export async function couterCredits(backendUrl) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/couts-credits`);

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import {
-  listerForfaits, tarifRecharge, creerRecharge, listerRecharges, verifierRecharge,
+  listerForfaits, tarifRecharge, creerRecharge, listerRecharges, verifierRecharge, supprimerRecharge,
   catalogueGooglePlay, verifierAchatGooglePlay,
 } from "../lib/api.js";
 import DjeliyaBilling from "../lib/billing.js";
 import { useT } from "../lib/i18n.js";
+import { fmtDate } from "../lib/constants.js";
 
 const CONTACT_ADMIN = "dosso.choilio@gmail.com";
 const EST_ANDROID_NATIF = Capacitor.getPlatform() === "android";
@@ -120,6 +121,20 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
       : t("forfaits.rechargeStatutEnAttente");
 
   const [verificationEnCours, setVerificationEnCours] = useState(null);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(null);
+
+  const supprimerEntreeHistorique = async (id) => {
+    setSuppressionEnCours(id);
+    try {
+      await supprimerRecharge(settings.backendUrl, token, id);
+      setHistorique((h) => h.filter((x) => x.id !== id));
+    } catch (e) {
+      showToast(e.message || "");
+    } finally {
+      setSuppressionEnCours(null);
+    }
+  };
+
   const verifierMaintenant = async (id) => {
     setVerificationEnCours(id);
     try {
@@ -213,15 +228,27 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
                 <li key={h.id} className="gloss-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
                   <div>
                     <span className="gloss-terme">{h.credits} {t("reglages.credits")}</span>
-                    <span className="gloss-sens"> — {h.montant_fcfa.toLocaleString("fr-FR")} FCFA</span>
+                    <span className="gloss-sens">
+                      {" — "}
+                      {h.montant_fcfa != null ? `${h.montant_fcfa.toLocaleString("fr-FR")} FCFA` : "Google Play"}
+                      {h.cree_le ? ` · ${fmtDate(h.cree_le)}` : ""}
+                    </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    {h.statut === "en_attente" ? (
-                      <button className="link-btn" style={{ fontSize: 12 }}
-                        onClick={() => verifierMaintenant(h.id)} disabled={verificationEnCours === h.id}>
-                        {verificationEnCours === h.id ? "…" : t("forfaits.rechargeVerifier")}
-                      </button>
-                    ) : <span />}
+                    <div style={{ display: "flex", gap: 12 }}>
+                      {h.statut === "en_attente" && h.source === "paydunya" && (
+                        <button className="link-btn" style={{ fontSize: 12 }}
+                          onClick={() => verifierMaintenant(h.id)} disabled={verificationEnCours === h.id}>
+                          {verificationEnCours === h.id ? "…" : t("forfaits.rechargeVerifier")}
+                        </button>
+                      )}
+                      {h.statut !== "payee" && (
+                        <button className="link-btn" style={{ fontSize: 12, color: "#D96D5F" }}
+                          onClick={() => supprimerEntreeHistorique(h.id)} disabled={suppressionEnCours === h.id}>
+                          {suppressionEnCours === h.id ? "…" : t("forfaits.rechargeSupprimer")}
+                        </button>
+                      )}
+                    </div>
                     <span className="status-pill" style={{
                       color: h.statut === "payee" ? "#5FC6A8" : h.statut === "echouee" || h.statut === "expiree" ? "#D96D5F" : "#E4B04A",
                       borderColor: h.statut === "payee" ? "#5FC6A8" : h.statut === "echouee" || h.statut === "expiree" ? "#D96D5F" : "#E4B04A",

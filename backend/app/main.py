@@ -1162,8 +1162,12 @@ def export_docx_etude_quant(etude_id: str, user: Utilisateur = Depends(utilisate
         e = session.get(EtudeQuantitative, etude_id)
         if not e or e.proprietaire_id != user.id:
             raise HTTPException(404, "Étude introuvable.")
-        if e.statut != "termine" or not e.contenu:
-            raise HTTPException(409, "Cette étude n'est pas encore prête.")
+        # Exportable dès que le contenu minimal existe (cadre théorique), même si
+        # une étape ultérieure a échoué — un échec sur le questionnaire ou la
+        # note méthodologique ne doit pas priver le chercheur de ce qui a déjà
+        # été généré avec succès.
+        if not e.contenu or not e.contenu.get("cadre_theorique"):
+            raise HTTPException(409, "Cette étude n'a pas encore assez de contenu généré pour être exportée.")
         data = _etude_quant_vers_dict(e)
     finally:
         session.close()
@@ -1182,8 +1186,10 @@ def export_template_etude_quant(etude_id: str, user: Utilisateur = Depends(utili
         e = session.get(EtudeQuantitative, etude_id)
         if not e or e.proprietaire_id != user.id:
             raise HTTPException(404, "Étude introuvable.")
-        if e.statut != "termine" or not e.contenu:
-            raise HTTPException(409, "Cette étude n'est pas encore prête.")
+        # Le gabarit ne dépend que du questionnaire — exportable dès qu'il existe,
+        # même si une étape ultérieure (ex. note méthodologique) a échoué.
+        if not e.contenu or not (e.contenu.get("questionnaire") or {}).get("sections"):
+            raise HTTPException(409, "Le questionnaire de cette étude n'a pas encore été généré.")
         data = _etude_quant_vers_dict(e)
     finally:
         session.close()
@@ -1772,6 +1778,15 @@ def _commande_vers_dict(c: Commande) -> dict:
     return {
         "id": c.id, "credits": c.credits, "montant_fcfa": c.montant_fcfa, "statut": c.statut,
         "lien_paiement": c.lien_paiement, "cree_le": c.cree_le.isoformat() if c.cree_le else None,
+        "source": "paydunya",
+    }
+
+
+def _achat_gp_vers_dict(a: AchatGooglePlay) -> dict:
+    return {
+        "id": a.id, "credits": a.credits, "montant_fcfa": None, "statut": a.statut,
+        "lien_paiement": None, "cree_le": a.cree_le.isoformat() if a.cree_le else None,
+        "source": "google_play", "product_id": a.product_id,
     }
 
 
@@ -1864,8 +1879,41 @@ def creer_recharge(payload: RechargeIn, user: Utilisateur = Depends(utilisateur_
 def lister_recharges(user: Utilisateur = Depends(utilisateur_courant)):
     session = get_session()
     try:
-        commandes = session.query(Commande).filter_by(utilisateur_id=user.id).order_by(Commande.cree_le.desc()).all()
-        return [_commande_vers_dict(c) for c in commandes]
+        commandes = session.query(Commande).filter_by(utilisateur_id=user.id).all()
+        achats_gp = session.query(AchatGooglePlay).filter_by(utilisateur_id=user.id).all()
+        historique = [_commande_vers_dict(c) for c in commandes] + [_achat_gp_vers_dict(a) for a in achats_gp]
+        # Tri par date décroissante — fusion de deux sources distinctes, donc pas
+        # de tri SQL possible en une seule requête ; se fait ici après coup.
+        historique.sort(key=lambda h: h["cree_le"] or "", reverse=True)
+        return historique
+    finally:
+        session.close()
+
+
+@app.delete("/api/recharges/{recharge_id}")
+def supprimer_recharge(recharge_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    """Retire une entrée de l'historique — jamais une recharge réellement payée,
+    conservée à des fins de transparence comptable (voir politique de
+    confidentialité). Sert à nettoyer les tentatives en attente ou échouées."""
+    session = get_session()
+    try:
+        c = session.query(Commande).filter_by(id=recharge_id, utilisateur_id=user.id).first()
+        if c:
+            if c.statut == "payee":
+                raise HTTPException(403, "Une recharge payée ne peut pas être supprimée.")
+            session.delete(c)
+            session.commit()
+            return {"ok": True}
+
+        a = session.query(AchatGooglePlay).filter_by(id=recharge_id, utilisateur_id=user.id).first()
+        if a:
+            if a.statut == "payee":
+                raise HTTPException(403, "Un achat payé ne peut pas être supprimé.")
+            session.delete(a)
+            session.commit()
+            return {"ok": True}
+
+        raise HTTPException(404, "Recharge introuvable.")
     finally:
         session.close()
 
