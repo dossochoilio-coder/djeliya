@@ -142,6 +142,23 @@ class MouvementCredit(Base):
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class AchatGooglePlay(Base):
+    """Achat de crédits via Google Play Billing (obligatoire pour toute vente de
+    contenu numérique consommé dans l'app, sur la plupart des marchés — voir la
+    politique de paiements de Google Play). Distinct de Commande (PayDunya),
+    utilisé uniquement pour les achats initiés depuis l'app Android."""
+    __tablename__ = "achats_google_play"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    utilisateur_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
+    product_id: Mapped[str] = mapped_column()
+    credits: Mapped[float] = mapped_column()
+    purchase_token: Mapped[str] = mapped_column(unique=True, index=True)
+    order_id: Mapped[str | None] = mapped_column(nullable=True)
+    statut: Mapped[str] = mapped_column(default="en_attente")  # en_attente | payee | echouee
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    payee_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Commande(Base):
     """Commande de recharge de crédits à la carte (paiement réel, hors forfaits
     prédéfinis) — 150 FCFA par crédit, 10 crédits minimum, sans limite de nombre

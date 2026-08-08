@@ -24,3 +24,6 @@ openpyxl==3.1.5
 # Analyse quantitative (alpha de Cronbach, corrélations avec significativité)
 numpy==2.5.1
 scipy==1.18.0
+
+# Vérification des achats Google Play Billing (API Android Publisher)
+google-auth==2.56.3

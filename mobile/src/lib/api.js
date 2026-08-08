@@ -345,6 +345,24 @@ export async function couterCredits(backendUrl) {
   return res.json();
 }
 
+export async function catalogueGooglePlay(backendUrl) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/google-play/catalogue`);
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function verifierAchatGooglePlay(backendUrl, token, { productId, purchaseToken, orderId }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/google-play/verifier`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ product_id: productId, purchase_token: purchaseToken, order_id: orderId || "" }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export async function listerForfaits(backendUrl) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/forfaits`);

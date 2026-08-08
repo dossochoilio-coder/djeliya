@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { listerForfaits, tarifRecharge, creerRecharge, listerRecharges, verifierRecharge } from "../lib/api.js";
+import { Capacitor } from "@capacitor/core";
+import {
+  listerForfaits, tarifRecharge, creerRecharge, listerRecharges, verifierRecharge,
+  catalogueGooglePlay, verifierAchatGooglePlay,
+} from "../lib/api.js";
+import DjeliyaBilling from "../lib/billing.js";
 import { useT } from "../lib/i18n.js";
 
 const CONTACT_ADMIN = "dosso.choilio@gmail.com";
+const EST_ANDROID_NATIF = Capacitor.getPlatform() === "android";
 
 export default function Forfaits({ settings, token, utilisateur, onMajUtilisateur, onRetour, showToast }) {
   const { t } = useT();
@@ -14,17 +20,28 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
   const [historique, setHistorique] = useState(null);
   const [lienEnAttente, setLienEnAttente] = useState(null);
 
+  // Google Play Billing — uniquement pertinent sur Android natif, jamais sur web.
+  const [catalogueGP, setCatalogueGP] = useState(null);
+  const [achatEnCoursGP, setAchatEnCoursGP] = useState(null);
+  const [billingPret, setBillingPret] = useState(false);
+
   useEffect(() => {
     listerForfaits(settings.backendUrl).then(setForfaits).catch((e) => setErreur(e.message));
-    tarifRecharge(settings.backendUrl).then(setTarif).catch(() => {});
     if (token) listerRecharges(settings.backendUrl, token).then(setHistorique).catch(() => {});
+
+    if (EST_ANDROID_NATIF) {
+      catalogueGooglePlay(settings.backendUrl).then(setCatalogueGP).catch(() => {});
+      DjeliyaBilling.initialiser().then(() => setBillingPret(true)).catch(() => setBillingPret(false));
+    } else {
+      tarifRecharge(settings.backendUrl).then(setTarif).catch(() => {});
+    }
   }, [settings.backendUrl, token]);
 
-  /* Vérification automatique en arrière-plan des recharges en attente — évite de
-     devoir appuyer manuellement sur « Vérifier maintenant » si le webhook PayDunya
-     n'arrive pas jusqu'au serveur (latence réseau, etc.). */
+  /* Vérification automatique en arrière-plan des recharges PayDunya en attente
+     (web uniquement) — évite de devoir appuyer manuellement sur « Vérifier
+     maintenant » si le webhook n'arrive pas jusqu'au serveur. */
   useEffect(() => {
-    if (!historique || !token) return;
+    if (EST_ANDROID_NATIF || !historique || !token) return;
     const enAttente = historique.filter((h) => h.statut === "en_attente");
     if (enAttente.length === 0) return;
 
@@ -46,6 +63,28 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historique, token, settings.backendUrl]);
 
+  /* ---------------- Google Play Billing (Android natif uniquement) ---------------- */
+  const acheterGooglePlay = async (productId) => {
+    setAchatEnCoursGP(productId);
+    try {
+      const achat = await DjeliyaBilling.acheter({ productId });
+      const verif = await verifierAchatGooglePlay(settings.backendUrl, token, {
+        productId: achat.productId, purchaseToken: achat.purchaseToken, orderId: achat.orderId,
+      });
+      if (verif.statut === "payee") {
+        showToast("✓ " + t("forfaits.rechargeStatutPayee"));
+        onMajUtilisateur?.({ ...utilisateur, credits: utilisateur.credits + verif.credits });
+      } else {
+        showToast(t("forfaits.rechargeStatutEchouee"));
+      }
+    } catch (e) {
+      if (e?.message !== "annule_par_utilisateur") showToast(e?.message || "");
+    } finally {
+      setAchatEnCoursGP(null);
+    }
+  };
+
+  /* ---------------- PayDunya (web uniquement) ---------------- */
   const creditsNum = Math.max(0, parseInt(credits, 10) || 0);
   const min = tarif?.credits_min ?? 10;
   const montant = tarif ? creditsNum * tarif.prix_credit_fcfa : 0;
@@ -54,8 +93,6 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
     if (creditsNum < min) { showToast(t("forfaits.rechargeMin", { min })); return; }
     setEnvoi(true);
     setLienEnAttente(null);
-    // Ouverture synchrone AVANT l'appel réseau : la plupart des navigateurs/WebView
-    // bloquent silencieusement une fenêtre ouverte après un await, même légitime.
     const fenetre = window.open("", "_blank");
     try {
       const commande = await creerRecharge(settings.backendUrl, token, creditsNum);
@@ -65,8 +102,6 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
         } else {
           window.open(commande.lien_paiement, "_blank");
         }
-        // Filet de sécurité : le lien reste toujours affichable manuellement,
-        // au cas où l'ouverture automatique aurait quand même été bloquée.
         setLienEnAttente(commande.lien_paiement);
       }
       listerRecharges(settings.backendUrl, token).then(setHistorique).catch(() => {});
@@ -129,7 +164,21 @@ export default function Forfaits({ settings, token, utilisateur, onMajUtilisateu
 
         {erreur && <p className="note-banner err">{erreur}</p>}
 
-        {tarif && (
+        {EST_ANDROID_NATIF ? (
+          <div className="glossaire-form">
+            <h2 className="subsection-title" style={{ margin: 0 }}>{t("forfaits.rechargeTitre")}</h2>
+            {!billingPret && <div className="pending-card"><span className="spinner" />{t("forfaits.chargement")}</div>}
+            {billingPret && catalogueGP?.produits?.map((p) => (
+              <button key={p.product_id} className="btn primary sm" style={{ marginBottom: 6 }}
+                onClick={() => acheterGooglePlay(p.product_id)} disabled={achatEnCoursGP !== null}>
+                {achatEnCoursGP === p.product_id ? "…" : `${p.credits} ${t("reglages.credits")}`}
+              </button>
+            ))}
+            {billingPret && catalogueGP && !catalogueGP.disponible && (
+              <p className="note-banner">{t("forfaits.rechargeIndisponible")}</p>
+            )}
+          </div>
+        ) : tarif && (
           <div className="glossaire-form">
             <h2 className="subsection-title" style={{ margin: 0 }}>{t("forfaits.rechargeTitre")}</h2>
             <label className="field">

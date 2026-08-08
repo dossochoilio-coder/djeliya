@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from .db import (
     init_db, get_session, Utilisateur, Corpus, MembreCorpus, Entretien, Codage,
-    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, Commande,
+    ContributionLangue, Forfait, MouvementCredit, GuideEntretien, Commande, AchatGooglePlay,
     EtudeQuantitative, AnalyseQuantitative, ADMIN_EMAIL,
 )
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
@@ -1990,6 +1990,156 @@ async def webhook_paiement(fournisseur: str, request: Request):
     try:
         _confirmer_et_crediter(session, commande_id)
         return {"ok": True, "traite": True}
+    finally:
+        session.close()
+
+
+# ----------------------------------------------------------------- Google Play Billing
+# Obligatoire pour toute vente de crédits initiée DEPUIS l'app Android (politique
+# de paiements de Google Play — voir support.google.com/googleplay/android-developer/answer/9858738).
+# PayDunya reste utilisé pour les accès hors app (web, autres canaux) — jamais
+# les deux en même temps pour un même achat.
+
+# Catalogue fixe des forfaits de crédits vendus via Google Play — à créer à
+# l'identique (même product_id) dans Play Console, en tant que produits gérés
+# à usage unique (« consommables »). Le prix lui-même se règle uniquement dans
+# Play Console (converti automatiquement par pays), jamais ici.
+CATALOGUE_GOOGLE_PLAY = {
+    "djeliya_credits_10": 10,
+    "djeliya_credits_25": 25,
+    "djeliya_credits_50": 50,
+    "djeliya_credits_100": 100,
+}
+
+GOOGLE_PLAY_PACKAGE_NAME = "com.djeliya.app"
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 = os.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64")
+
+
+def _google_play_pret() -> bool:
+    return bool(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64)
+
+
+def _jeton_acces_google_play() -> str:
+    """Authentifie le serveur auprès de Google via le compte de service (clé
+    JSON téléchargée depuis Google Cloud Console), pour appeler l'API Android
+    Publisher — jamais avec les identifiants d'un compte personnel."""
+    import base64
+    import json as json_module
+    from google.oauth2 import service_account
+    import google.auth.transport.requests
+
+    if not GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64:
+        raise NotImplementedError(
+            "Google Play Billing n'est pas configuré sur ce serveur "
+            "(variable GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 absente)."
+        )
+    cle_json = json_module.loads(base64.b64decode(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64))
+    credentials = service_account.Credentials.from_service_account_info(
+        cle_json, scopes=["https://www.googleapis.com/auth/androidpublisher"]
+    )
+    credentials.refresh(google.auth.transport.requests.Request())
+    return credentials.token
+
+
+def _verifier_achat_google_play(product_id: str, purchase_token: str) -> dict:
+    """Interroge directement l'API Android Publisher — jamais confiance aveugle
+    au seul jeton fourni par l'app (qui pourrait être rejoué ou falsifié côté
+    client)."""
+    jeton = _jeton_acces_google_play()
+    url = (
+        f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/"
+        f"{GOOGLE_PLAY_PACKAGE_NAME}/purchases/products/{product_id}/tokens/{purchase_token}"
+    )
+    resp = requests.get(url, headers={"Authorization": f"Bearer {jeton}"}, timeout=15)
+    if resp.status_code != 200:
+        raise ValueError(f"Google Play a répondu {resp.status_code} : {resp.text[:300]}")
+    return resp.json()
+
+
+def _consommer_achat_google_play(product_id: str, purchase_token: str):
+    """Marque l'achat comme consommé auprès de Google — ÉTAPE OBLIGATOIRE pour
+    un produit à usage unique : sans cet appel, Google rembourse automatiquement
+    l'utilisateur au bout de 3 jours, silencieusement."""
+    jeton = _jeton_acces_google_play()
+    url = (
+        f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/"
+        f"{GOOGLE_PLAY_PACKAGE_NAME}/purchases/products/{product_id}/tokens/{purchase_token}:consume"
+    )
+    resp = requests.post(url, headers={"Authorization": f"Bearer {jeton}"}, timeout=15)
+    if resp.status_code != 200:
+        raise ValueError(f"Échec de la consommation de l'achat Google Play : {resp.status_code} {resp.text[:300]}")
+
+
+@app.get("/api/google-play/catalogue")
+def catalogue_google_play():
+    """Catalogue public des forfaits de crédits Google Play — l'app l'interroge
+    pour savoir quels product_id proposer à l'achat."""
+    return {
+        "disponible": _google_play_pret(),
+        "produits": [{"product_id": pid, "credits": c} for pid, c in CATALOGUE_GOOGLE_PLAY.items()],
+    }
+
+
+class AchatGooglePlayIn(BaseModel):
+    product_id: str
+    purchase_token: str
+    order_id: str = ""
+
+
+@app.post("/api/google-play/verifier")
+def verifier_achat_google_play(payload: AchatGooglePlayIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if payload.product_id not in CATALOGUE_GOOGLE_PLAY:
+        raise HTTPException(422, f"Produit inconnu : {payload.product_id}")
+    if not _google_play_pret():
+        raise HTTPException(501, "Le paiement Google Play n'est pas encore configuré sur ce serveur.")
+
+    session = get_session()
+    try:
+        # Idempotence : un même jeton d'achat ne doit jamais être crédité deux
+        # fois (rejeu réseau, double appel côté app...).
+        existant = session.query(AchatGooglePlay).filter_by(purchase_token=payload.purchase_token).first()
+        if existant:
+            return {"statut": existant.statut, "credits": existant.credits, "deja_traite": True}
+
+        credits = CATALOGUE_GOOGLE_PLAY[payload.product_id]
+        achat = AchatGooglePlay(
+            id=uuid.uuid4().hex[:16], utilisateur_id=user.id, product_id=payload.product_id,
+            credits=credits, purchase_token=payload.purchase_token, order_id=payload.order_id,
+            statut="en_attente",
+        )
+        session.add(achat)
+        session.commit()
+
+        try:
+            verif = _verifier_achat_google_play(payload.product_id, payload.purchase_token)
+        except Exception as ex:  # noqa: BLE001
+            raise HTTPException(502, f"Impossible de vérifier l'achat auprès de Google Play : {ex}")
+
+        # purchaseState : 0 = acheté, 1 = annulé, 2 = en attente
+        if verif.get("purchaseState") != 0:
+            achat.statut = "echouee"
+            session.commit()
+            return {"statut": "echouee", "credits": 0, "deja_traite": False}
+
+        u = session.get(Utilisateur, user.id)
+        u.credits += credits
+        achat.statut = "payee"
+        achat.payee_le = datetime.now(timezone.utc)
+        session.add(MouvementCredit(
+            id=uuid.uuid4().hex[:16], utilisateur_id=user.id, delta=credits,
+            motif=f"Recharge payée — {credits:g} crédits via Google Play ({payload.product_id})",
+        ))
+        session.commit()
+
+        # Consommation obligatoire APRÈS avoir crédité (si elle échoue, on a
+        # déjà crédité l'utilisateur — mieux vaut réessayer la consommation
+        # plutôt que de risquer de ne jamais créditer un achat pourtant payé).
+        try:
+            _consommer_achat_google_play(payload.product_id, payload.purchase_token)
+        except Exception:  # noqa: BLE001
+            pass  # la consommation peut être retentée plus tard sans impact utilisateur
+
+        return {"statut": "payee", "credits": credits, "deja_traite": False}
     finally:
         session.close()
 
