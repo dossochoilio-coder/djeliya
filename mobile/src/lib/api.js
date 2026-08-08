@@ -338,6 +338,13 @@ export async function verifierRecharge(backendUrl, token, id) {
   return res.json();
 }
 
+export async function couterCredits(backendUrl) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/couts-credits`);
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export async function listerForfaits(backendUrl) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/forfaits`);

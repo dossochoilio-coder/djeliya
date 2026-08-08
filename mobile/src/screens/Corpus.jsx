@@ -5,7 +5,7 @@ import AnalyseView from "../components/AnalyseView.jsx";
 
 const PALETTE = ["#E4B04A", "#7C9CF5", "#5FC6A8", "#D96D5F", "#C48FE0"];
 
-export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, onLancerAnalyse, onExporterDocx, onExporterXlsx, showToast }) {
+export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, couts, utilisateur, onOuvrirForfaits, onLancerAnalyse, onExporterDocx, onExporterXlsx, showToast }) {
   const { t } = useT();
   const [creation, setCreation] = useState(false);
   const [nom, setNom] = useState("");
@@ -115,6 +115,9 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
                 sujet={corpusDetail || {}}
                 methodes={methodes}
                 onLancer={onLancerAnalyse}
+                cout={couts?.analyse_qualitative}
+                solde={utilisateur?.credits}
+                onVoirForfaits={onOuvrirForfaits}
               />
               {corpusDetail?.analyse_statut === "termine" && (
                 <div className="field-inline">

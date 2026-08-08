@@ -26,7 +26,7 @@ import {
 import {
   checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
   creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
-  enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, moi,
+  enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, couterCredits, moi,
   exporterDocxEntretien, exporterXlsxEntretien, exporterDocxCorpus, exporterXlsxCorpus, exporterDocxGuide,
 } from "./lib/api.js";
 import { partagerFichierBinaire } from "./lib/export.js";
@@ -39,6 +39,7 @@ export default function App() {
   const [corpusList, setCorpusList] = useState([]);
   const [corpusDetail, setCorpusDetail] = useState(null);
   const [methodes, setMethodes] = useState({});
+  const [couts, setCouts] = useState({});
   const [glossaire, setGlossaire] = useState(() => loadGlossaire());
 
   const [tab, setTab] = useState("accueil");
@@ -83,6 +84,7 @@ export default function App() {
 
   useEffect(() => {
     if (settings.backendUrl) fetchMethodes(settings.backendUrl).then((m) => m && setMethodes(m));
+    if (settings.backendUrl) couterCredits(settings.backendUrl).then((c) => c && setCouts(c)).catch(() => {});
   }, [settings.backendUrl]);
 
   /* Charger les corpus distants une fois connecté */
@@ -342,6 +344,8 @@ export default function App() {
       <NouvelEntretien
         settings={settings}
         corpusList={corpusList}
+        couts={couts}
+        utilisateur={auth.utilisateur}
         onRetour={retour}
         onCreer={async (payload) => { await creerEntretien(payload); }}
       />
@@ -353,6 +357,9 @@ export default function App() {
         interview={interview}
         corpusList={corpusList}
         methodes={methodes}
+        couts={couts}
+        utilisateur={auth.utilisateur}
+        onOuvrirForfaits={() => push("forfaits")}
         onRetour={retour}
         onUpdate={majEntretien}
         onCorrigerSegments={(index, segment) => corrigerSegment(interview.id, interview.jobId, index, segment)}
@@ -379,14 +386,15 @@ export default function App() {
   } else if (current.screen === "guides") {
     overlay = (
       <GuideEntretien
-        settings={settings} token={auth.token} onRetour={retour}
+        settings={settings} token={auth.token} couts={couts} utilisateur={auth.utilisateur} onRetour={retour}
         onExporterDocx={(id) => exporterDocxGuide(settings.backendUrl, auth.token, id)}
+        onOuvrirForfaits={() => push("forfaits")}
         showToast={showToast}
       />
     );
   } else if (current.screen === "etudes-quant") {
     overlay = (
-      <EtudeQuantitative settings={settings} token={auth.token} onRetour={retour} showToast={showToast} />
+      <EtudeQuantitative settings={settings} token={auth.token} couts={couts} utilisateur={auth.utilisateur} onRetour={retour} showToast={showToast} onOuvrirForfaits={() => push("forfaits")} />
     );
   } else if (current.screen === "admin") {
     overlay = auth.utilisateur.est_admin ? (
@@ -417,6 +425,9 @@ export default function App() {
         selectedId={corpusSelectionne}
         corpusDetail={corpusDetail}
         methodes={methodes}
+        couts={couts}
+        utilisateur={auth.utilisateur}
+        onOuvrirForfaits={() => push("forfaits")}
         onSelectCorpus={setCorpusSelectionne}
         onCreer={creerCorpus}
         onRejoindre={rejoindreCorpusHandler}

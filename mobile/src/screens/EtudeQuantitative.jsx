@@ -7,8 +7,9 @@ import {
 import { partagerFichierBinaire } from "../lib/export.js";
 import { useT } from "../lib/i18n.js";
 import { fmtDate } from "../lib/constants.js";
+import ConfirmationCredits from "../components/ConfirmationCredits.jsx";
 
-export default function EtudeQuantitative({ settings, token, onRetour, showToast }) {
+export default function EtudeQuantitative({ settings, token, couts, utilisateur, onOuvrirForfaits, onRetour, showToast }) {
   const { t, langue } = useT();
   const [etudes, setEtudes] = useState(null);
   const [selection, setSelection] = useState(null);
@@ -18,6 +19,8 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
   const [question, setQuestion] = useState("");
   const [envoi, setEnvoi] = useState(false);
   const [importEnCours, setImportEnCours] = useState(false);
+  const [confirmationGeneration, setConfirmationGeneration] = useState(false);
+  const [confirmationImport, setConfirmationImport] = useState(false);
   const fileRef = useRef(null);
 
   const charger = () => listerEtudesQuant(settings.backendUrl, token).then(setEtudes).catch(() => setEtudes([]));
@@ -261,9 +264,18 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
               <button className="btn ghost full" onClick={telechargerGabarit}>{t("etudeQuant.telechargerGabarit")}</button>
 
               <input ref={fileRef} type="file" accept=".xlsx" hidden onChange={importerDonnees} />
-              <button className="btn ghost full" onClick={() => fileRef.current?.click()} disabled={importEnCours}>
+              <button className="btn ghost full" onClick={() => setConfirmationImport(true)} disabled={importEnCours}>
                 {importEnCours ? t("etudeQuant.analyseEnCours") : t("etudeQuant.importerDonnees")}
               </button>
+              {confirmationImport && (
+                <ConfirmationCredits
+                  cout={couts?.analyse_quantitative ?? 2}
+                  solde={utilisateur?.credits}
+                  onAnnuler={() => setConfirmationImport(false)}
+                  onVoirForfaits={onOuvrirForfaits}
+                  onConfirmer={() => { setConfirmationImport(false); fileRef.current?.click(); }}
+                />
+              )}
 
               {analyses && analyses.length > 0 && (
                 <>
@@ -308,9 +320,18 @@ export default function EtudeQuantitative({ settings, token, onRetour, showToast
               <input className="field-input" value={question} onChange={(e) => setQuestion(e.target.value)}
                 placeholder={t("etudeQuant.questionPlaceholder")} />
             </label>
-            <button className="btn primary sm" onClick={generer} disabled={envoi || !theme.trim()}>
+            <button className="btn primary sm" onClick={() => setConfirmationGeneration(true)} disabled={envoi || !theme.trim()}>
               {envoi ? "…" : t("etudeQuant.generer")}
             </button>
+            {confirmationGeneration && (
+              <ConfirmationCredits
+                cout={couts?.etude_quantitative ?? 3}
+                solde={utilisateur?.credits}
+                onAnnuler={() => setConfirmationGeneration(false)}
+                onVoirForfaits={onOuvrirForfaits}
+                onConfirmer={() => { setConfirmationGeneration(false); generer(); }}
+              />
+            )}
           </div>
         )}
 

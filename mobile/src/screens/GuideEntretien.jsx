@@ -3,8 +3,9 @@ import { listerGuides, creerGuide, supprimerGuide, detailGuide } from "../lib/ap
 import { partagerFichierBinaire } from "../lib/export.js";
 import { useT } from "../lib/i18n.js";
 import { fmtDate } from "../lib/constants.js";
+import ConfirmationCredits from "../components/ConfirmationCredits.jsx";
 
-export default function GuideEntretien({ settings, token, onExporterDocx, onRetour, showToast }) {
+export default function GuideEntretien({ settings, token, couts, utilisateur, onExporterDocx, onOuvrirForfaits, onRetour, showToast }) {
   const { t, langue } = useT();
   const [guides, setGuides] = useState(null);
   const [selection, setSelection] = useState(null);
@@ -12,6 +13,7 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
   const [theme, setTheme] = useState("");
   const [question, setQuestion] = useState("");
   const [envoi, setEnvoi] = useState(false);
+  const [confirmation, setConfirmation] = useState(false);
 
   const charger = () => listerGuides(settings.backendUrl, token).then(setGuides).catch(() => setGuides([]));
   useEffect(() => { charger(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -202,9 +204,18 @@ export default function GuideEntretien({ settings, token, onExporterDocx, onReto
               <input className="field-input" value={question} onChange={(e) => setQuestion(e.target.value)}
                 placeholder={t("guide.questionPlaceholder")} />
             </label>
-            <button className="btn primary sm" onClick={generer} disabled={envoi || !theme.trim()}>
+            <button className="btn primary sm" onClick={() => setConfirmation(true)} disabled={envoi || !theme.trim()}>
               {envoi ? "…" : t("guide.generer")}
             </button>
+            {confirmation && (
+              <ConfirmationCredits
+                cout={couts?.guide_entretien ?? 1}
+                solde={utilisateur?.credits}
+                onAnnuler={() => setConfirmation(false)}
+                onVoirForfaits={onOuvrirForfaits}
+                onConfirmer={() => { setConfirmation(false); generer(); }}
+              />
+            )}
           </div>
         )}
 

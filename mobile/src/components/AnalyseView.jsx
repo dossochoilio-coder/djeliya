@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { fmtTime } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
+import ConfirmationCredits from "./ConfirmationCredits.jsx";
 
 /**
  * Vue d'analyse qualitative réutilisée pour un entretien seul ou un corpus entier
@@ -11,12 +12,13 @@ import { useT } from "../lib/i18n.js";
  * synthèse, verbatims) est produit en français par le serveur quelle que soit la
  * langue de l'interface — seuls les libellés fixes de cet écran sont traduits.
  */
-export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMinAvant }) {
+export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMinAvant, cout, solde, onVoirForfaits }) {
   const { t, langue } = useT();
   const [contexte, setContexte] = useState("");
   const [methode, setMethode] = useState("gioia");
   const [dimOuverte, setDimOuverte] = useState(0);
   const [demarcheOuverte, setDemarcheOuverte] = useState(false);
+  const [confirmation, setConfirmation] = useState(false);
 
   const statut = sujet.analyse_statut;
   const a = sujet.analyse;
@@ -43,9 +45,18 @@ export default function AnalyseView({ sujet, methodes, onLancer, onSeek, seuilMi
         {statut === "erreur" && (
           <p className="note-banner err">{t("analyseView.echecAnalyse")}{sujet.analyse_erreur || "—"}</p>
         )}
-        <button className="btn primary full" onClick={() => onLancer(contexte, methode, langue)}>
+        <button className="btn primary full" onClick={() => setConfirmation(true)}>
           {t("analyseView.lancerAnalyse")}
         </button>
+        {confirmation && (
+          <ConfirmationCredits
+            cout={cout ?? 2}
+            solde={solde}
+            onAnnuler={() => setConfirmation(false)}
+            onVoirForfaits={onVoirForfaits}
+            onConfirmer={() => { setConfirmation(false); onLancer(contexte, methode, langue); }}
+          />
+        )}
       </div>
     );
   }

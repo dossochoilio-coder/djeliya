@@ -372,6 +372,21 @@ def languages():
     return LANGUES_SUPPORTEES
 
 
+@app.get("/api/couts-credits")
+def couts_credits():
+    """Source de vérité unique des coûts en crédits de chaque action — l'app
+    l'interroge pour afficher le coût exact et le faire valider par l'utilisateur
+    avant de lancer une génération, plutôt que d'avoir des valeurs dupliquées et
+    potentiellement désynchronisées côté mobile."""
+    return {
+        "transcription": COUT_CREDIT_TRANSCRIPTION,
+        "analyse_qualitative": COUT_CREDIT_ANALYSE,
+        "guide_entretien": COUT_CREDIT_GUIDE,
+        "etude_quantitative": COUT_CREDIT_ETUDE_QUANT,
+        "analyse_quantitative": COUT_CREDIT_ANALYSE_QUANT,
+    }
+
+
 @app.get("/api/methodes")
 def methodes():
     return {k: {"label": v["label"], "reference": v["reference"]} for k, v in METHODES_ANALYSE.items()}

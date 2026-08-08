@@ -2,8 +2,9 @@ import { useRef, useState } from "react";
 import { useRecorder } from "../lib/useRecorder.js";
 import { LANGS, fmtTime } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
+import ConfirmationCredits from "../components/ConfirmationCredits.jsx";
 
-export default function NouvelEntretien({ settings, corpusList, onRetour, onCreer }) {
+export default function NouvelEntretien({ settings, corpusList, couts, utilisateur, onRetour, onCreer }) {
   const { t } = useT();
   const rec = useRecorder();
   const [blob, setBlob] = useState(null);
@@ -13,6 +14,7 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
   const [vocabulaire, setVocabulaire] = useState(settings.vocabulaireDefaut || "");
   const [corpusId, setCorpusId] = useState("");
   const [envoi, setEnvoi] = useState(false);
+  const [confirmation, setConfirmation] = useState(false);
   const fileRef = useRef(null);
 
   const handleStart = () => rec.start();
@@ -157,9 +159,18 @@ export default function NouvelEntretien({ settings, corpusList, onRetour, onCree
               </label>
             )}
 
-            <button className="btn primary full" onClick={valider} disabled={envoi}>
+            <button className="btn primary full" onClick={() => setConfirmation(true)} disabled={envoi}>
               {envoi ? t("nouvelEntretien.envoiEnCours") : t("nouvelEntretien.envoyer")}
             </button>
+
+            {confirmation && (
+              <ConfirmationCredits
+                cout={couts?.transcription ?? 1}
+                solde={utilisateur?.credits}
+                onAnnuler={() => setConfirmation(false)}
+                onConfirmer={() => { setConfirmation(false); valider(); }}
+              />
+            )}
           </>
         )}
       </div>

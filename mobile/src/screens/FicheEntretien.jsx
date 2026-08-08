@@ -7,7 +7,7 @@ import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
 import AnalyseView from "../components/AnalyseView.jsx";
 
-export default function FicheEntretien({ interview, corpusList, methodes, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onExporterDocx, onExporterXlsx, showToast }) {
+export default function FicheEntretien({ interview, corpusList, methodes, couts, utilisateur, onOuvrirForfaits, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onExporterDocx, onExporterXlsx, showToast }) {
   const { t } = useT();
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
@@ -239,7 +239,8 @@ export default function FicheEntretien({ interview, corpusList, methodes, onReto
         )}
 
         {vue === "analyse" && interview.statut === "termine" ? (
-          <AnalyseView sujet={interview} methodes={methodes} onLancer={onLancerAnalyse} onSeek={seek} />
+          <AnalyseView sujet={interview} methodes={methodes} onLancer={onLancerAnalyse} onSeek={seek}
+            cout={couts?.analyse_qualitative} solde={utilisateur?.credits} onVoirForfaits={onOuvrirForfaits} />
         ) : vue === "codage" && interview.statut === "termine" ? null : (
         <>
         {audioUrl && (

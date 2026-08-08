@@ -193,6 +193,16 @@ export const TRADUCTIONS = {
 
     cgu: { titre: "Conditions & confidentialité", chargement: "Chargement…" },
 
+    credits: {
+      confirmationTitre: "Confirmer avant de continuer",
+      coutAction: "Cette action consommera",
+      creditUnique: "crédit", creditsPluriel: "crédits",
+      soldeActuel: "Il te reste", soldeApres: "après cette action",
+      insuffisant: "Solde insuffisant pour cette action.",
+      voirForfaits: "Voir les forfaits",
+      confirmer: "Confirmer et lancer", annuler: "Annuler",
+    },
+
     guide: {
       titre: "Guides d'entretien",
       accueilBouton: "Guide d'entretien",
@@ -446,6 +456,16 @@ export const TRADUCTIONS = {
     },
 
     cgu: { titre: "Terms & privacy", chargement: "Loading…" },
+
+    credits: {
+      confirmationTitre: "Confirm before continuing",
+      coutAction: "This action will use",
+      creditUnique: "credit", creditsPluriel: "credits",
+      soldeActuel: "You have", soldeApres: "left after this action",
+      insuffisant: "Insufficient balance for this action.",
+      voirForfaits: "View plans",
+      confirmer: "Confirm and start", annuler: "Cancel",
+    },
 
     guide: {
       titre: "Interview guides",
