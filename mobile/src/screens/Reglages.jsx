@@ -172,6 +172,11 @@ export default function Reglages({ settings, utilisateur, token, onSave, onDecon
         )}
 
         <button className="link-btn" onClick={onOuvrirCgu}>{t("reglages.cguLien")}</button>
+        <a className="link-btn" style={{ display: "block", fontSize: 12 }}
+          href={`${settings.backendUrl?.replace(/\/$/, "")}/politique-de-confidentialite`}
+          target="_blank" rel="noreferrer">
+          {t("reglages.cguLienWeb")}
+        </a>
 
         {utilisateur && (
           <div className="contrib-card">

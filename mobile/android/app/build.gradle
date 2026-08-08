@@ -7,8 +7,11 @@ android {
         applicationId "com.djeliya.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Google Play exige un versionCode STRICTEMENT croissant à chaque envoi —
+        // piloté par le CI (numéro de run GitHub Actions, toujours croissant),
+        // avec un repli sûr à 1 pour les builds locaux hors CI.
+        versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()
+        versionName System.getenv("VERSION_NAME") ?: "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -73,6 +73,10 @@ Selon les fonctionnalités que tu actives, certaines données transitent par
 des prestataires techniques tiers, uniquement pour l'exécution du service :
 - Anthropic (analyse qualitative par intelligence artificielle) ;
 - Hugging Face / pyannote (diarisation des locuteurs, si activée) ;
+- PayDunya (traitement des paiements si tu achètes des crédits ou un forfait —
+  reçoit les informations strictement nécessaires au paiement : montant,
+  moyen de paiement choisi ; Djeliya ne stocke jamais tes coordonnées
+  bancaires ou de Mobile Money) ;
 - ton fournisseur de messagerie SMTP (envoi des e-mails de vérification et
   de réinitialisation de mot de passe, si configuré) ;
 - l'hébergeur du serveur (Railway) et de la base de données (PostgreSQL).

@@ -44,12 +44,28 @@ jobs:
       - name: Rendre gradlew exécutable
         run: chmod +x android/gradlew
 
+      # Google Play exige un versionCode strictement croissant à chaque envoi —
+      # le numéro de run GitHub Actions augmente toujours, jamais réinitialisé.
+      # Le versionName (visible par l'utilisateur, ex. "1.3.0") reste éditable
+      # manuellement ci-dessous à chaque évolution notable.
+      - name: Calculer le numéro de version
+        id: version
+        run: |
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "name=1.0.0" >> "$GITHUB_OUTPUT"
+
       # ---------- APK de test (installable directement sur téléphone) ----------
       - name: Compiler l'APK debug
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
         run: cd android && ./gradlew assembleDebug --no-daemon
 
       # ---------- AAB de production (Google Play) ----------
       - name: Compiler l'AAB release (non signé)
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
         run: cd android && ./gradlew bundleRelease --no-daemon
 
       # ---------- Signature de l'AAB (si les secrets sont configurés) ----------

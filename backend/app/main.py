@@ -351,6 +351,36 @@ def accueil():
 </div></body></html>"""
 
 
+@app.get("/politique-de-confidentialite", response_class=HTMLResponse)
+def politique_confidentialite():
+    """Page publique, lisible sans connexion — c'est l'URL à renseigner dans la
+    fiche Google Play Store (Data safety / Privacy policy), qui exige une page
+    web consultable, pas une simple réponse d'API JSON."""
+    corps_html = (
+        CGU_TEXTE
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    )
+    return f"""<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Djeliya — Politique de confidentialité</title>
+<style>
+  body {{ background:#0E1226; color:#F4EFE3; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+         margin:0; padding:32px 20px 60px; }}
+  .page {{ max-width:680px; margin:0 auto; }}
+  h1 {{ color:#E4B04A; font-size:22px; margin-bottom:4px; }}
+  .maj {{ color:#8A8574; font-size:13px; margin-bottom:28px; }}
+  pre {{ white-space:pre-wrap; word-wrap:break-word; font-family:inherit; font-size:14.5px;
+        line-height:1.65; color:#E7E2D4; }}
+  a {{ color:#E4B04A; }}
+</style></head>
+<body><div class="page">
+  <h1>Djeliya</h1>
+  <p class="maj">Politique de confidentialité et conditions générales d'utilisation — version consultée automatiquement à jour dans l'application.</p>
+  <pre>{corps_html}</pre>
+</div></body></html>"""
+
+
 @app.get("/health")
 def health():
     return {

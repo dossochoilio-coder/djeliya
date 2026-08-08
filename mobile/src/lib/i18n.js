@@ -155,6 +155,7 @@ export const TRADUCTIONS = {
       about1: "Djeliya — plateforme de transcription pour la recherche qualitative multilingue.",
       about2: "Les entretiens et l'audio restent sur cet appareil ; seul l'audio envoyé pour transcription transite par ton serveur.",
       cguLien: "Conditions d'utilisation et confidentialité",
+      cguLienWeb: "Consulter la version en ligne (lien partageable)",
     },
 
     forfaits: {
@@ -419,6 +420,7 @@ export const TRADUCTIONS = {
       about1: "Djeliya — a transcription platform for multilingual qualitative research.",
       about2: "Interviews and audio stay on this device; only the audio sent for transcription passes through your server.",
       cguLien: "Terms of use and privacy",
+      cguLienWeb: "View the online version (shareable link)",
     },
 
     forfaits: {
