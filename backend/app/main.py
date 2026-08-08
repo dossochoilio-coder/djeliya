@@ -381,6 +381,147 @@ def politique_confidentialite():
 </div></body></html>"""
 
 
+@app.get("/suppression-de-compte", response_class=HTMLResponse)
+def suppression_de_compte():
+    """Page publique décrivant la procédure de suppression de compte — c'est
+    l'URL à renseigner dans le formulaire « Sécurité des données » de Google
+    Play Store (champ « URL de suppression de compte »). Respecte les trois
+    exigences de Google : référence claire à l'app, procédure bien visible,
+    et précision des données supprimées / conservées."""
+    return """<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Djeliya — Suppression de compte</title>
+<style>
+  body { background:#0E1226; color:#F4EFE3; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+         margin:0; padding:32px 20px 60px; }
+  .page { max-width:640px; margin:0 auto; }
+  h1 { color:#E4B04A; font-size:22px; margin-bottom:4px; }
+  h2 { color:#E4B04A; font-size:16px; margin-top:32px; }
+  .maj { color:#8A8574; font-size:13px; margin-bottom:28px; }
+  p, li { font-size:14.5px; line-height:1.65; color:#E7E2D4; }
+  ol, ul { padding-left:20px; }
+  strong { color:#F4EFE3; }
+  a { color:#E4B04A; }
+  .note { background:#1B1533; border:1px solid #3A3560; border-radius:10px; padding:14px 16px; margin-top:10px; }
+</style></head>
+<body><div class="page">
+  <h1>Djeliya — Suppression de compte et des données</h1>
+  <p class="maj">Application Djeliya, éditée par Dosco Game (infos@dosco-game.com).</p>
+
+  <h2>Comment supprimer ton compte</h2>
+  <p>La suppression de compte se fait directement dans l'application Djeliya, sur ton téléphone :</p>
+  <ol>
+    <li>Ouvre l'application Djeliya et connecte-toi à ton compte.</li>
+    <li>Va dans l'onglet <strong>Réglages</strong>.</li>
+    <li>Appuie sur <strong>« Supprimer mon compte »</strong>.</li>
+    <li>Tape le mot <strong>SUPPRIMER</strong> dans le champ de confirmation, puis saisis ton mot de passe.</li>
+    <li>Appuie sur <strong>« Supprimer définitivement mon compte »</strong>.</li>
+  </ol>
+  <p>La suppression est <strong>immédiate et irréversible</strong>.</p>
+
+  <h2>Données supprimées</h2>
+  <ul>
+    <li>Ton compte (adresse e-mail, nom, mot de passe) ;</li>
+    <li>Tes entretiens, transcriptions et analyses ;</li>
+    <li>Les corpus dont tu es l'unique propriétaire ;</li>
+    <li>Tes guides d'entretien et études quantitatives ;</li>
+    <li>Tes contributions aux langues locales, si tu avais activé cette option.</li>
+  </ul>
+
+  <h2>Données conservées, et pendant combien de temps</h2>
+  <div class="note">
+    <p style="margin:0">
+      L'historique de tes <strong>mouvements de crédits</strong> (achats, utilisations) est conservé
+      à des fins de transparence comptable et d'obligations légales, même après suppression du
+      compte. Aucune autre donnée personnelle n'est conservée.
+    </p>
+  </div>
+
+  <h2>Besoin d'aide ?</h2>
+  <p>
+    Si tu ne parviens pas à supprimer ton compte depuis l'application (par exemple si tu as perdu
+    l'accès à ton compte), écris-nous à <a href="mailto:infos@dosco-game.com">infos@dosco-game.com</a>
+    depuis l'adresse e-mail associée à ton compte Djeliya — nous traiterons ta demande manuellement.
+  </p>
+
+  <p style="margin-top:32px"><a href="/politique-de-confidentialite">← Politique de confidentialité complète</a></p>
+</div></body></html>"""
+
+
+@app.get("/suppression-de-donnees", response_class=HTMLResponse)
+def suppression_de_donnees():
+    """Page publique décrivant les suppressions partielles réellement possibles
+    SANS fermer le compte (entretien, guide, étude quantitative) — c'est l'URL
+    à renseigner dans le champ « URL de suppression des données » du formulaire
+    Google Play. Ne documente que ce qui existe vraiment dans l'app : pas de
+    suppression de corpus, cette fonctionnalité n'a jamais été construite."""
+    return """<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Djeliya — Suppression partielle des données</title>
+<style>
+  body { background:#0E1226; color:#F4EFE3; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+         margin:0; padding:32px 20px 60px; }
+  .page { max-width:640px; margin:0 auto; }
+  h1 { color:#E4B04A; font-size:22px; margin-bottom:4px; }
+  h2 { color:#E4B04A; font-size:16px; margin-top:32px; }
+  .maj { color:#8A8574; font-size:13px; margin-bottom:28px; }
+  p, li { font-size:14.5px; line-height:1.65; color:#E7E2D4; }
+  ol, ul { padding-left:20px; }
+  strong { color:#F4EFE3; }
+  a { color:#E4B04A; }
+  .note { background:#1B1533; border:1px solid #3A3560; border-radius:10px; padding:14px 16px; margin-top:10px; }
+</style></head>
+<body><div class="page">
+  <h1>Djeliya — Suppression partielle de données</h1>
+  <p class="maj">
+    Application Djeliya, éditée par Dosco Game (infos@dosco-game.com). Ces suppressions se font
+    sans fermer ton compte — pour une suppression complète du compte, voir la
+    <a href="/suppression-de-compte">page de suppression de compte</a>.
+  </p>
+
+  <h2>Supprimer un entretien</h2>
+  <p>Sa transcription, son analyse et son fichier audio sont supprimés définitivement.</p>
+  <ol>
+    <li>Ouvre l'entretien concerné dans l'onglet <strong>Entretiens</strong>.</li>
+    <li>Appuie sur le bouton <strong>⋯</strong> en haut à droite.</li>
+    <li>Appuie sur <strong>« Supprimer l'entretien »</strong>.</li>
+  </ol>
+
+  <h2>Supprimer un guide d'entretien</h2>
+  <p>Le guide généré par IA et son contenu sont supprimés définitivement.</p>
+  <ol>
+    <li>Ouvre l'écran <strong>Guide d'entretien</strong> depuis l'onglet Entretiens.</li>
+    <li>Sélectionne le guide concerné.</li>
+    <li>Appuie sur <strong>« Supprimer ce guide »</strong>.</li>
+  </ol>
+
+  <h2>Supprimer une étude quantitative</h2>
+  <p>L'étude générée par IA, ainsi que toutes les analyses de données associées, sont supprimées définitivement.</p>
+  <ol>
+    <li>Ouvre l'écran <strong>Étude quantitative</strong> depuis l'onglet Entretiens.</li>
+    <li>Sélectionne l'étude concernée.</li>
+    <li>Appuie sur <strong>« Supprimer cette étude »</strong>.</li>
+  </ol>
+
+  <div class="note">
+    <p style="margin:0">
+      Ces trois suppressions sont <strong>immédiates et irréversibles</strong>. Ton compte, tes
+      autres entretiens, corpus, guides et études ne sont pas affectés.
+    </p>
+  </div>
+
+  <h2>Besoin d'aide ?</h2>
+  <p>
+    Écris-nous à <a href="mailto:infos@dosco-game.com">infos@dosco-game.com</a> depuis l'adresse
+    e-mail associée à ton compte Djeliya.
+  </p>
+
+  <p style="margin-top:32px"><a href="/politique-de-confidentialite">← Politique de confidentialité complète</a></p>
+</div></body></html>"""
+
+
 @app.get("/health")
 def health():
     return {
