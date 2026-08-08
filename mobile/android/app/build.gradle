@@ -47,7 +47,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     // Achat de crédits conforme à la politique de paiements Google Play.
-    implementation "com.android.billingclient:billing:7.1.1"
+    // Version 8.0.0 minimum exigée par Google Play depuis fin août 2026.
+    implementation "com.android.billingclient:billing:8.3.0"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

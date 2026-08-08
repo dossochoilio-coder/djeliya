@@ -4,10 +4,12 @@ import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.PendingPurchasesParams;
 import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryProductDetailsResult;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -36,7 +38,11 @@ public class DjeliyaBillingPlugin extends Plugin implements PurchasesUpdatedList
     public void initialiser(PluginCall call) {
         billingClient = BillingClient.newBuilder(getContext())
                 .setListener(this)
-                .enablePendingPurchases()
+                // Depuis PBL 7/8, l'appel sans argument n'existe plus — il faut
+                // déclarer explicitement quelles catégories de produits sont concernées.
+                .enablePendingPurchases(
+                        PendingPurchasesParams.newBuilder().enableOneTimeProducts().build()
+                )
                 .build();
 
         billingClient.startConnection(new BillingClientStateListener() {
@@ -83,7 +89,8 @@ public class DjeliyaBillingPlugin extends Plugin implements PurchasesUpdatedList
                 .setProductList(Collections.singletonList(produit))
                 .build();
 
-        billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsList) -> {
+        billingClient.queryProductDetailsAsync(params, (billingResult, queryProductDetailsResult) -> {
+            List<ProductDetails> productDetailsList = queryProductDetailsResult.getProductDetailsList();
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK || productDetailsList.isEmpty()) {
                 if (achatEnCours != null) {
                     achatEnCours.reject("Produit introuvable sur Google Play : " + productId);
