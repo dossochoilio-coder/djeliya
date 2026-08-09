@@ -9,6 +9,7 @@ import { useT } from "../lib/i18n.js";
 import { fmtDate } from "../lib/constants.js";
 import ConfirmationCredits from "../components/ConfirmationCredits.jsx";
 import ErreurAvecSignalement from "../components/ErreurAvecSignalement.jsx";
+import { messageAffichable } from "../lib/erreurs.js";
 
 export default function EtudeQuantitative({ settings, token, couts, utilisateur, onOuvrirForfaits, onRetour, showToast }) {
   const { t, langue } = useT();
@@ -149,7 +150,7 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
       const { blob, nomFichier } = await fn(settings.backendUrl, token, selection.id, analyseId);
       await partagerFichierBinaire(blob, nomFichier, selection.theme);
     } catch (e) {
-      showToast(e.message || "");
+      showToast(messageAffichable(e, langue));
     }
   };
 

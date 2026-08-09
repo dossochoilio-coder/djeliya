@@ -164,16 +164,26 @@ export async function supprimerCompte(backendUrl, token, motDePasse) {
 /* ---------------- Exports ---------------- */
 
 async function telechargerFichier(url, token) {
-  const res = await fetch(url, { headers: headersAuth(token) });
-  if (!res.ok) throw new Error(await lireErreur(res));
-  const cd = res.headers.get("content-disposition") || "";
-  const m = cd.match(/filename="([^"]+)"/);
-  // Filet de sécurité : si l'en-tête n'est pas exposé par le navigateur, on déduit
-  // quand même la bonne extension depuis l'URL demandée (/export/docx ou /export/xlsx).
-  const extension = url.endsWith("/xlsx") ? "xlsx" : "docx";
-  const nomFichier = m ? m[1] : `export.${extension}`;
-  const blob = await res.blob();
-  return { blob, nomFichier };
+  // Les documents avec graphiques intégrés (images) sont plus volumineux qu'un
+  // simple export texte — plus sensibles à une coupure réseau mobile passagère.
+  // On retente automatiquement avant d'abandonner, comme pour l'envoi.
+  let derniereErreur = null;
+  for (let essai = 0; essai < 3; essai++) {
+    if (essai > 0) await new Promise((r) => setTimeout(r, 1200 * essai));
+    try {
+      const res = await fetch(url, { headers: headersAuth(token) });
+      if (!res.ok) throw new Error(await lireErreur(res));
+      const cd = res.headers.get("content-disposition") || "";
+      const m = cd.match(/filename="([^"]+)"/);
+      const extension = url.endsWith("/xlsx") ? "xlsx" : "docx";
+      const nomFichier = m ? m[1] : `export.${extension}`;
+      const blob = await res.blob();
+      return { blob, nomFichier };
+    } catch (e) {
+      derniereErreur = e;
+    }
+  }
+  throw derniereErreur;
 }
 
 export function exporterDocxEntretien(backendUrl, token, jobId) {

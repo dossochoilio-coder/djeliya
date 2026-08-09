@@ -5,6 +5,7 @@ diarisation des locuteurs, analyse qualitative méthode Gioia, comptes et
 corpus partagés en équipe, fiabilité inter-codeurs.
 """
 
+import copy
 import os
 import re
 import json
@@ -1266,6 +1267,7 @@ def export_template_etude_quant(etude_id: str, user: Utilisateur = Depends(utili
         # même si une étape ultérieure (ex. note méthodologique) a échoué.
         if not e.contenu or not (e.contenu.get("questionnaire") or {}).get("sections"):
             raise HTTPException(409, "Le questionnaire de cette étude n'a pas encore été généré.")
+        _reparer_codes_questionnaire_si_necessaire(e, session)
         data = _etude_quant_vers_dict(e)
     finally:
         session.close()
@@ -1398,6 +1400,35 @@ def _run_synthese_quant(analyse_id: str, etude_id: str, langue: str):
         session.close()
 
 
+def _reparer_codes_questionnaire_si_necessaire(e: "EtudeQuantitative", session) -> bool:
+    """Corrige silencieusement les études générées avant le correctif de
+    renumérotation globale (chaque section reprenant "Q1, Q2..." indépendamment,
+    ce qui fait collisionner les codes entre sections et fausse gravement
+    l'analyse — plusieurs construits finissent par lire les mêmes colonnes).
+    Auto-guérison transparente : aucune action requise de l'utilisateur, aucune
+    perte du contenu déjà généré (théorie, méthodologie, libellés des items)."""
+    sections_actuelles = (e.contenu or {}).get("questionnaire", {}).get("sections", [])
+    tous_les_codes = [item.get("code") for s in sections_actuelles for item in s.get("items", [])]
+    if len(tous_les_codes) == len(set(tous_les_codes)):
+        return False  # déjà correct, rien à faire
+
+    # Copie PROFONDE avant toute mutation, impérativement : muter les dicts
+    # imbriqués en place avant de copier ferait partager les mêmes objets déjà
+    # modifiés entre l'« ancienne » et la « nouvelle » valeur, et SQLAlchemy ne
+    # détecterait alors aucun changement à sauvegarder (constaté et vérifié).
+    contenu = copy.deepcopy(e.contenu)
+    sections = contenu["questionnaire"]["sections"]
+    compteur = 1
+    for section in sections:
+        for item in section.get("items", []):
+            item["code"] = f"Q{compteur}"
+            compteur += 1
+
+    e.contenu = contenu
+    session.commit()
+    return True
+
+
 @app.post("/api/etudes-quantitatives/{etude_id}/donnees")
 async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...), user: Utilisateur = Depends(utilisateur_courant)):
     session = get_session()
@@ -1409,6 +1440,8 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
             raise HTTPException(409, "Cette étude n'est pas encore prête.")
         if not user.est_admin and user.credits < COUT_CREDIT_ANALYSE_QUANT:
             raise HTTPException(402, "Crédits insuffisants. Consulte les forfaits disponibles dans l'app.")
+
+        _reparer_codes_questionnaire_si_necessaire(e, session)
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
         with tmp as f:
