@@ -1076,6 +1076,17 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             items_resultat = _appel_etape_avec_reprise(prompt_items, 4000, _verifier_items, on_delta=_texte_en_direct(session, e))
             sections_completes.append({**section, "items": items_resultat["items"][:5]})
 
+        # Renumérotation globale déterministe : chaque section étant générée par
+        # un appel indépendant (sans savoir ce que les sections précédentes ont
+        # déjà utilisé comme codes), le modèle recommence naturellement à "Q1"
+        # à chaque section — corrigé ici en Python, jamais laissé au hasard du
+        # modèle, pour garantir des codes uniques sur tout le questionnaire.
+        compteur = 1
+        for section in sections_completes:
+            for item in section.get("items", []):
+                item["code"] = f"Q{compteur}"
+                compteur += 1
+
         contenu["questionnaire"] = {"sections": sections_completes}
         e.texte_en_cours = None
         e.contenu = dict(contenu)
