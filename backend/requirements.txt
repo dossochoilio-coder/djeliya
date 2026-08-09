@@ -27,3 +27,6 @@ scipy==1.18.0
 
 # Vérification des achats Google Play Billing (API Android Publisher)
 google-auth==2.56.3
+
+# Graphiques du rapport d'analyse quantitative
+matplotlib==3.11.1

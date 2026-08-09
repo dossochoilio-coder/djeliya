@@ -191,6 +191,8 @@ def analyser_donnees(lignes: list[dict], questionnaire: dict) -> dict:
             "variable": variable, "nb_items": len(codes), "n": len(lignes_completes),
             "alpha_cronbach": round(alpha, 3) if alpha is not None else None,
             "interpretation": interpretation_alpha(alpha),
+            "moyenne_composite": round(float(score_composite.mean()), 2),
+            "ecart_type_composite": round(float(score_composite.std(ddof=1)), 2) if len(score_composite) > 1 else None,
             "detail_items": [
                 {
                     "code": codes[i],

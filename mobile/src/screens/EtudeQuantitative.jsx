@@ -48,6 +48,22 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection]);
 
+  /* Sondage des analyses tant qu'au moins une synthèse interprétative est en
+     cours de génération — les statistiques, elles, sont déjà affichées
+     immédiatement ; seule la synthèse arrive après coup. */
+  useEffect(() => {
+    if (!selection || !analyses?.some((a) => a.synthese_statut === "en_cours")) return;
+    let annule = false;
+    const it = setInterval(async () => {
+      try {
+        const d = await listerAnalysesQuant(settings.backendUrl, token, selection.id);
+        if (!annule) setAnalyses(d);
+      } catch { /* nouvel essai au prochain intervalle */ }
+    }, 1500);
+    return () => { annule = true; clearInterval(it); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, analyses]);
+
   const ouvrirEtude = (e) => {
     setSelection(e);
     setAnalyses(null);
@@ -418,6 +434,26 @@ function AnalyseResume({ analyse, onExporter, email }) {
               </p>
             ))}
           </>
+        )}
+
+        {analyse.synthese_statut === "en_cours" && (
+          <div className="pending-card" style={{ marginTop: 10 }}>
+            <span className="spinner" />{t("etudeQuant.syntheseEnCours")}
+          </div>
+        )}
+        {analyse.synthese_statut === "termine" && analyse.synthese_interpretative && (
+          <div className="analyse-texte-card" style={{ marginTop: 10 }}>
+            <h3 className="subsection-title">{t("etudeQuant.syntheseTitre")}</h3>
+            <p className="analyse-texte">{analyse.synthese_interpretative.synthese_generale}</p>
+            {analyse.synthese_interpretative.tests_hypotheses?.map((th, i) => (
+              <p key={i} className="theme-desc" style={{ marginTop: 6 }}>
+                <strong>{th.code}</strong> — {th.verdict}
+              </p>
+            ))}
+          </div>
+        )}
+        {analyse.synthese_statut === "non_disponible" && (
+          <p className="note-banner" style={{ marginTop: 10, fontSize: 12 }}>{t("etudeQuant.syntheseIndisponible")}</p>
         )}
         <div className="field-inline" style={{ marginTop: 10 }}>
           <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => onExporter(analyse.id, "docx")}>Word</button>

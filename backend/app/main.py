@@ -1281,6 +1281,8 @@ def _analyse_quant_vers_dict(a: AnalyseQuantitative) -> dict:
     return {
         "id": a.id, "etude_id": a.etude_id, "nom_fichier": a.nom_fichier, "statut": a.statut,
         "resultats": a.resultats, "erreur": a.erreur, "modele": a.modele,
+        "synthese_interpretative": a.synthese_interpretative, "synthese_statut": a.synthese_statut,
+        "texte_en_cours": a.texte_en_cours,
         "cree_le": a.cree_le.isoformat() if a.cree_le else None,
     }
 
@@ -1310,6 +1312,90 @@ def _lire_donnees_xlsx(chemin: str, questionnaire: dict) -> list[dict]:
         if ligne:
             lignes.append(ligne)
     return lignes
+
+
+SCHEMA_SYNTHESE_QUANT = """{
+  "synthese_generale": "paragraphe de niveau doctoral (200 à 300 mots) résumant les principaux enseignements de l'analyse : qualité des instruments de mesure, tendances générales observées dans l'échantillon",
+  "fiabilite_discussion": "paragraphe (100 à 150 mots) discutant la fiabilité des construits mesurés, signalant explicitement tout construit dont la fiabilité est discutable ou inacceptable et ce que cela implique pour l'interprétation",
+  "tests_hypotheses": [
+    {"code": "code exact de l'hypothèse (ex. H1)", "verdict": "cohérente avec les données|partiellement cohérente|non cohérente avec les données|non testable avec les corrélations disponibles", "justification": "1 à 2 phrases citant precisement le ou les coefficients (r, p) qui motivent ce verdict"}
+  ],
+  "limites": "paragraphe (100 à 150 mots) sur les limites méthodologiques de cette analyse",
+  "recommandations": "paragraphe (80 à 120 mots) de recommandations concrètes pour la suite de la recherche"
+}"""
+
+
+def _construire_prompt_synthese_quant(etude: "EtudeQuantitative", resultats: dict, langue: str) -> str:
+    hypotheses = (etude.contenu.get("methodologie") or {}).get("hypotheses") or []
+    hypotheses_txt = "\n".join(f"- {h.get('code')} : {h.get('enonce')}" for h in hypotheses) or "Aucune hypothèse formalisée."
+
+    fiabilite_txt = "\n".join(
+        f"- {f['variable']} : alpha de Cronbach = {f['alpha_cronbach']} ({f['interpretation']}), "
+        f"moyenne = {f['moyenne_composite']}/5"
+        for f in resultats.get("fiabilite", [])
+    ) or "Aucun construit à échelle multi-items."
+
+    correlations_txt = "\n".join(
+        f"- {c['variable_1']} × {c['variable_2']} : r = {c['r']}, p = {c['p_valeur']} ({c['methode']}) — {c['interpretation']}"
+        for c in resultats.get("correlations", [])
+    ) or "Aucune corrélation calculable (moins de deux construits à échelle multi-items)."
+
+    consigne_langue = "Rédige l'intégralité en anglais." if langue == "en" else "Rédige l'intégralité en français."
+
+    return f"""Tu es statisticien et méthodologue quantitatif de niveau recherche doctorale. Analyse et \
+interprète les résultats statistiques suivants pour l'étude « {etude.theme} ».
+
+Hypothèses de recherche formulées :
+{hypotheses_txt}
+
+Fiabilité des construits mesurés (n = {resultats.get('n_repondants')} répondants) :
+{fiabilite_txt}
+
+Corrélations entre construits (scores composites) :
+{correlations_txt}
+
+{consigne_langue}
+
+{CONSIGNE_ORIGINALITE}
+
+Consigne de rigueur scientifique impérative : les corrélations entre scores composites permettent \
+d'évaluer la COHÉRENCE des données avec une hypothèse d'association simple, mais ne permettent \
+JAMAIS de confirmer formellement une médiation ou une modération (qui exigeraient des tests \
+spécifiques : effets indirects avec intervalles de confiance bootstrappés pour la médiation, termes \
+d'interaction significatifs pour la modération — analyses non réalisées ici). Pour toute hypothèse de \
+médiation ou de modération, utilise donc un verdict prudent (« cohérente avec les données » plutôt que \
+« confirmée » ou « démontrée »), et rappelle explicitement dans la justification que cette hypothèse \
+précise nécessiterait une analyse dédiée pour être testée formellement. Ne jamais affirmer qu'une \
+hypothèse est prouvée ou démontrée — seulement que les données observées sont ou non cohérentes avec elle.
+
+Réponds UNIQUEMENT en JSON conforme à ce schéma :
+{SCHEMA_SYNTHESE_QUANT}"""
+
+
+def _run_synthese_quant(analyse_id: str, etude_id: str, langue: str):
+    session = get_session()
+    try:
+        etude = session.get(EtudeQuantitative, etude_id)
+        a = session.get(AnalyseQuantitative, analyse_id)
+        if not etude or not a or not a.resultats:
+            return
+        prompt = _construire_prompt_synthese_quant(etude, a.resultats, langue)
+        try:
+            synthese = _appel_etape_avec_reprise(
+                prompt, 5000,
+                lambda r: _valider_etape(r, ("synthese_generale", "tests_hypotheses")),
+                on_delta=_texte_en_direct(session, a),
+            )
+            a.synthese_interpretative = synthese
+            a.synthese_statut = "termine"
+        except Exception:  # noqa: BLE001
+            # Une synthèse manquée n'est jamais bloquante — les résultats
+            # statistiques bruts restent disponibles et exportables sans elle.
+            a.synthese_statut = "non_disponible"
+        a.texte_en_cours = None
+        session.commit()
+    finally:
+        session.close()
 
 
 @app.post("/api/etudes-quantitatives/{etude_id}/donnees")
@@ -1346,9 +1432,11 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
                 motif=f"Analyse quantitative — {e.theme[:60]}",
             ))
 
+        synthese_statut = None
         try:
             resultats = analyser_donnees(lignes, e.contenu["questionnaire"])
             statut, erreur = "termine", None
+            synthese_statut = "en_cours"
         except Exception as ex:  # noqa: BLE001
             resultats, statut, erreur = None, "erreur", str(ex)
             if not user.est_admin:
@@ -1363,13 +1451,18 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
         a = AnalyseQuantitative(
             id=analyse_id, etude_id=etude_id, proprietaire_id=user.id,
             nom_fichier=fichier.filename or "donnees.xlsx", statut=statut,
-            resultats=resultats, erreur=erreur,
+            resultats=resultats, erreur=erreur, synthese_statut=synthese_statut,
         )
         session.add(a)
         session.commit()
-        return _analyse_quant_vers_dict(a)
+        resultat_dict = _analyse_quant_vers_dict(a)
+        langue_etude = e.langue
     finally:
         session.close()
+
+    if synthese_statut == "en_cours":
+        threading.Thread(target=_run_synthese_quant, args=(analyse_id, etude_id, langue_etude), daemon=True).start()
+    return resultat_dict
 
 
 @app.get("/api/etudes-quantitatives/{etude_id}/donnees")

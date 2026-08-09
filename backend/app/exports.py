@@ -18,13 +18,15 @@ import io
 from datetime import datetime
 
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from openpyxl import Workbook
+from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+from .charts_quant import graphique_fiabilite, graphique_moyennes, graphique_matrice_correlations
 
 OR_HEX = "E4B04A"
 
@@ -175,6 +177,14 @@ L = {
         "aq_corr_v1": "Variable 1", "aq_corr_v2": "Variable 2", "aq_corr_r": "r", "aq_corr_p": "p", "aq_corr_methode": "Méthode",
         "aq_feuille_desc": "Statistiques descriptives", "aq_feuille_freq": "Tableaux de fréquences",
         "aq_feuille_fiab": "Fiabilité (alpha)", "aq_feuille_corr": "Corrélations",
+        "aq_graphiques": "Graphiques", "aq_graph_fiabilite": "Fiabilité des construits",
+        "aq_graph_moyennes": "Scores moyens par construit", "aq_graph_matrice": "Matrice de corrélations",
+        "aq_synthese_titre": "5. Synthèse et interprétation", "aq_synthese_generale": "Synthèse générale",
+        "aq_synthese_fiabilite": "Discussion de la fiabilité", "aq_synthese_hypotheses": "Test des hypothèses de recherche",
+        "aq_synthese_limites": "Limites de l'analyse", "aq_synthese_recommandations": "Recommandations",
+        "aq_hyp_code": "Hypothèse", "aq_hyp_verdict": "Verdict", "aq_hyp_justif": "Justification",
+        "aq_synthese_avertissement": "Interprétation générée par IA à partir des résultats statistiques ci-dessus — à valider par le chercheur. Les corrélations rapportées n'établissent jamais formellement une médiation ou une modération, seulement une cohérence ou non avec l'hypothèse testée.",
+        "aq_synthese_indisponible": "La synthèse interprétative n'a pas pu être générée pour cette analyse — les résultats statistiques bruts ci-dessus restent entièrement valides et exploitables.",
         "guide_grille_titre": "Grille de cohérence",
         "guide_grille_intro": "Chaque question principale du guide, mise en correspondance avec la dimension théorique qu'elle vise à explorer — à vérifier et amender par le chercheur.",
         "guide_grille_question": "Question", "guide_grille_dimension": "Dimension visée", "guide_grille_justif": "Justification",
@@ -302,6 +312,14 @@ L = {
         "aq_corr_v1": "Variable 1", "aq_corr_v2": "Variable 2", "aq_corr_r": "r", "aq_corr_p": "p", "aq_corr_methode": "Method",
         "aq_feuille_desc": "Descriptive statistics", "aq_feuille_freq": "Frequency tables",
         "aq_feuille_fiab": "Reliability (alpha)", "aq_feuille_corr": "Correlations",
+        "aq_graphiques": "Charts", "aq_graph_fiabilite": "Construct reliability",
+        "aq_graph_moyennes": "Mean scores by construct", "aq_graph_matrice": "Correlation matrix",
+        "aq_synthese_titre": "5. Synthesis and interpretation", "aq_synthese_generale": "General synthesis",
+        "aq_synthese_fiabilite": "Reliability discussion", "aq_synthese_hypotheses": "Research hypothesis testing",
+        "aq_synthese_limites": "Limitations of the analysis", "aq_synthese_recommandations": "Recommendations",
+        "aq_hyp_code": "Hypothesis", "aq_hyp_verdict": "Verdict", "aq_hyp_justif": "Justification",
+        "aq_synthese_avertissement": "AI-generated interpretation based on the statistical results above — to be validated by the researcher. The correlations reported never formally establish mediation or moderation, only consistency or inconsistency with the tested hypothesis.",
+        "aq_synthese_indisponible": "The interpretive synthesis could not be generated for this analysis — the raw statistical results above remain fully valid and usable.",
         "guide_grille_titre": "Coherence grid",
         "guide_grille_intro": "Each main question in the guide, mapped to the theoretical dimension it aims to explore — to be reviewed and amended by the researcher.",
         "guide_grille_question": "Question", "guide_grille_dimension": "Dimension targeted", "guide_grille_justif": "Rationale",
@@ -1304,6 +1322,65 @@ def generer_docx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
             row[4].text = str(cr["p_valeur"])
             row[5].text = cr["interpretation"]
 
+    # --- Graphiques ---
+    if r.get("fiabilite"):
+        doc.add_heading(l["aq_graphiques"], level=1)
+        for image_bytes, legende in [
+            (graphique_fiabilite(r["fiabilite"]), l["aq_graph_fiabilite"]),
+            (graphique_moyennes(r["fiabilite"]), l["aq_graph_moyennes"]),
+            (graphique_matrice_correlations(r["fiabilite"], r.get("correlations") or []), l["aq_graph_matrice"]),
+        ]:
+            if image_bytes is None:
+                continue
+            doc.add_picture(io.BytesIO(image_bytes), width=Inches(6.2))
+            legende_p = doc.add_paragraph(legende)
+            legende_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in legende_p.runs:
+                run.italic = True
+                run.font.size = Pt(9)
+
+    # --- Synthèse interprétative générée par IA ---
+    synthese = analyse_data.get("synthese_interpretative")
+    if synthese:
+        doc.add_page_break()
+        doc.add_heading(l["aq_synthese_titre"], level=1)
+        p_avert = doc.add_paragraph(l["aq_synthese_avertissement"])
+        for run in p_avert.runs:
+            run.italic = True
+            run.font.size = Pt(9)
+            run.font.color.rgb = RGBColor(0x8A, 0x85, 0x74)
+
+        if synthese.get("synthese_generale"):
+            doc.add_heading(l["aq_synthese_generale"], level=2)
+            doc.add_paragraph(synthese["synthese_generale"])
+
+        if synthese.get("fiabilite_discussion"):
+            doc.add_heading(l["aq_synthese_fiabilite"], level=2)
+            doc.add_paragraph(synthese["fiabilite_discussion"])
+
+        if synthese.get("tests_hypotheses"):
+            doc.add_heading(l["aq_synthese_hypotheses"], level=2)
+            tblh = doc.add_table(rows=1, cols=3)
+            tblh.style = "Light Grid Accent 1"
+            for i, h in enumerate([l["aq_hyp_code"], l["aq_hyp_verdict"], l["aq_hyp_justif"]]):
+                tblh.rows[0].cells[i].text = h
+            for th in synthese["tests_hypotheses"]:
+                row = tblh.add_row().cells
+                row[0].text = th.get("code", "")
+                row[1].text = th.get("verdict", "")
+                row[2].text = th.get("justification", "")
+
+        if synthese.get("limites"):
+            doc.add_heading(l["aq_synthese_limites"], level=2)
+            doc.add_paragraph(synthese["limites"])
+
+        if synthese.get("recommandations"):
+            doc.add_heading(l["aq_synthese_recommandations"], level=2)
+            doc.add_paragraph(synthese["recommandations"])
+    elif analyse_data.get("synthese_statut") == "non_disponible":
+        doc.add_heading(l["aq_synthese_titre"], level=1)
+        doc.add_paragraph(l["aq_synthese_indisponible"])
+
     _numero_page(doc, langue)
     buf = io.BytesIO()
     doc.save(buf)
@@ -1360,18 +1437,46 @@ def generer_xlsx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
 
     if r.get("fiabilite"):
         ws_r = wb.create_sheet(l["aq_feuille_fiab"])
-        _entete(ws_r, [l["aq_fiab_variable"], l["aq_fiab_nb_items"], l["aq_fiab_alpha"], l["aq_fiab_interpretation"], l["aq_fiab_normalite"]])
+        _entete(ws_r, [l["aq_fiab_variable"], l["aq_fiab_nb_items"], l["aq_fiab_alpha"], l["aq_fiab_interpretation"],
+                       l["aq_desc_moy"], l["aq_desc_et"], l["aq_fiab_normalite"]])
         for i, f in enumerate(r["fiabilite"], start=2):
             ws_r.cell(i, 1, f["variable"])
             ws_r.cell(i, 2, f["nb_items"])
             ws_r.cell(i, 3, f["alpha_cronbach"])
             ws_r.cell(i, 4, f["interpretation"])
+            ws_r.cell(i, 5, f.get("moyenne_composite"))
+            ws_r.cell(i, 6, f.get("ecart_type_composite"))
             norm = f.get("normalite_score") or {}
             if norm.get("p_valeur") is not None:
                 texte_norm = l["aq_fiab_normalite_oui"] if norm.get("distribution_normale") else l["aq_fiab_normalite_non"]
-                ws_r.cell(i, 5, f"W={norm['statistique_shapiro']}, p={norm['p_valeur']} — {texte_norm}")
+                ws_r.cell(i, 7, f"W={norm['statistique_shapiro']}, p={norm['p_valeur']} — {texte_norm}")
         ws_r.column_dimensions["A"].width = 30
-        ws_r.column_dimensions["E"].width = 45
+        ws_r.column_dimensions["G"].width = 45
+        nb_construits = len(r["fiabilite"])
+
+        # Graphique natif Excel (lié aux cellules, pas une image figée) : alpha par construit
+        graphique = BarChart()
+        graphique.type = "bar"
+        graphique.title = l["aq_graph_fiabilite"]
+        graphique.y_axis.title = l["aq_fiab_variable"]
+        graphique.x_axis.title = l["aq_fiab_alpha"]
+        donnees_alpha = Reference(ws_r, min_col=3, min_row=1, max_row=nb_construits + 1)
+        categories = Reference(ws_r, min_col=1, min_row=2, max_row=nb_construits + 1)
+        graphique.add_data(donnees_alpha, titles_from_data=True)
+        graphique.set_categories(categories)
+        graphique.height, graphique.width = 8, 16
+        ws_r.add_chart(graphique, "I2")
+
+        # Second graphique natif : moyennes composites par construit
+        graphique_moy = BarChart()
+        graphique_moy.type = "col"
+        graphique_moy.title = l["aq_graph_moyennes"]
+        graphique_moy.y_axis.title = l["aq_desc_moy"]
+        donnees_moy = Reference(ws_r, min_col=5, min_row=1, max_row=nb_construits + 1)
+        graphique_moy.add_data(donnees_moy, titles_from_data=True)
+        graphique_moy.set_categories(categories)
+        graphique_moy.height, graphique_moy.width = 8, 16
+        ws_r.add_chart(graphique_moy, "I18")
 
         ws_ri = wb.create_sheet(l["aq_fiab_detail_titre"])
         _entete(ws_ri, [l["aq_fiab_variable"], l["aq_desc_col"], l["aq_fiab_item_total"], l["aq_fiab_alpha_supprime"]])
@@ -1398,6 +1503,42 @@ def generer_xlsx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
         ws_c.column_dimensions["A"].width = 26
         ws_c.column_dimensions["B"].width = 26
         ws_c.column_dimensions["F"].width = 40
+
+    synthese = analyse_data.get("synthese_interpretative")
+    if synthese:
+        ws_s = wb.create_sheet(l["aq_synthese_titre"][3:])
+        ws_s.cell(1, 1, l["aq_synthese_avertissement"]).font = Font(italic=True, size=9, color="8A8574")
+        ws_s.merge_cells(start_row=1, start_column=1, end_row=1, end_column=2)
+        ws_s.row_dimensions[1].height = 40
+        ligne = 3
+        for titre_cle, contenu_cle in [
+            ("aq_synthese_generale", "synthese_generale"), ("aq_synthese_fiabilite", "fiabilite_discussion"),
+            ("aq_synthese_limites", "limites"), ("aq_synthese_recommandations", "recommandations"),
+        ]:
+            if not synthese.get(contenu_cle):
+                continue
+            ws_s.cell(ligne, 1, l[titre_cle]).font = Font(bold=True)
+            ligne += 1
+            ws_s.cell(ligne, 1, synthese[contenu_cle])
+            ws_s.cell(ligne, 1).alignment = Alignment(wrap_text=True, vertical="top")
+            ws_s.row_dimensions[ligne].height = 90
+            ligne += 2
+        ws_s.column_dimensions["A"].width = 100
+
+        if synthese.get("tests_hypotheses"):
+            ws_h = wb.create_sheet(l["aq_synthese_hypotheses"][:31])
+            _entete(ws_h, [l["aq_hyp_code"], l["aq_hyp_verdict"], l["aq_hyp_justif"]])
+            for i, th in enumerate(synthese["tests_hypotheses"], start=2):
+                ws_h.cell(i, 1, th.get("code", ""))
+                ws_h.cell(i, 2, th.get("verdict", ""))
+                ws_h.cell(i, 3, th.get("justification", ""))
+                ws_h.cell(i, 3).alignment = Alignment(wrap_text=True)
+            ws_h.column_dimensions["B"].width = 30
+            ws_h.column_dimensions["C"].width = 70
+    elif analyse_data.get("synthese_statut") == "non_disponible":
+        ws_s = wb.create_sheet(l["aq_synthese_titre"][3:])
+        ws_s.cell(1, 1, l["aq_synthese_indisponible"])
+        ws_s.column_dimensions["A"].width = 100
 
     buf = io.BytesIO()
     wb.save(buf)
