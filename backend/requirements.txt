@@ -30,3 +30,10 @@ google-auth==2.56.3
 
 # Graphiques du rapport d'analyse quantitative
 matplotlib==3.11.1
+
+# Analyses statistiques avancées (AFE, AFC, regression, mediation)
+factor_analyzer==0.5.1
+# scikit-learn < 1.6 : factor_analyzer 0.5.1 utilise un paramètre supprimé au-delà (force_all_finite)
+scikit-learn==1.5.2
+semopy==2.3.11
+statsmodels==0.14.6

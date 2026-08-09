@@ -240,6 +240,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .topbar-title.left { text-align: left; }
 .icon-btn.sm { width: 28px; height: 28px; }
+.icon-btn-danger { color: #D96D5F; opacity: 0.85; }
+.icon-btn-danger:active { opacity: 1; }
 
 /* ---- En-tête héros avec cordes de kora ---- */
 .topbar.hero {

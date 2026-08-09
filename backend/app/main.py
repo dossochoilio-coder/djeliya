@@ -36,6 +36,7 @@ from .exports import (
     generer_docx_etude_quant, generer_xlsx_template_questionnaire, generer_docx_analyse_quant, generer_xlsx_analyse_quant,
 )
 from .stats_quant import analyser_donnees
+from .stats_avances import analyses_avancees
 
 # ----------------------------------------------------------------- config
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
@@ -1363,6 +1364,39 @@ def _construire_prompt_synthese_quant(etude: "EtudeQuantitative", resultats: dic
         for c in resultats.get("correlations", [])
     ) or "Aucune corrélation calculable (moins de deux construits à échelle multi-items)."
 
+    av = resultats.get("analyses_avancees") or {}
+
+    afe_txt = "Non calculée."
+    if av.get("afe"):
+        a = av["afe"]
+        afe_txt = (
+            f"KMO = {a['kmo_total']} ({a['kmo_interpretation']}), test de Bartlett : "
+            f"p = {a['bartlett_p']} ({'factorisable' if a['bartlett_factorisable'] else 'non factorisable'}), "
+            f"{a['n_facteurs_extraits']} facteur(s) extrait(s) (critère de Kaiser), "
+            f"{a['variance_expliquee_cumulee_pct']}% de variance expliquée cumulée."
+        )
+
+    afc_txt = "Non calculée."
+    if av.get("afc") and not av["afc"].get("erreur"):
+        c = av["afc"]
+        afc_txt = f"CFI = {c['cfi']}, TLI = {c['tli']}, RMSEA = {c['rmsea']} — {c['interpretation']}."
+    elif av.get("afc", {}).get("erreur"):
+        afc_txt = f"Non convergente ({av['afc']['erreur']})."
+
+    regressions_txt = "\n".join(
+        f"- Régression sur « {r['dependante']} » (R² = {r.get('r2')}, modèle "
+        f"{'significatif' if r.get('modele_significatif') else 'non significatif'}) : " +
+        "; ".join(f"{p['nom']} β={p['beta']} (p={p['p_valeur']}, {'sig.' if p['significatif'] else 'ns'})" for p in r.get("predicteurs", []))
+        for r in av.get("regressions", []) if not r.get("erreur")
+    ) or "Aucune régression calculée (variables dépendante/prédictrices insuffisantes)."
+
+    mediations_txt = "\n".join(
+        f"- {m['independante']} → {m['mediatrice']} → {m['dependante']} : effet indirect = "
+        f"{m['effet_indirect_a_x_b']}, IC95% = [{m['ic95_bas']} ; {m['ic95_haut']}] — "
+        f"{'SIGNIFICATIVE (' + m['type_mediation'] + ')' if m['mediation_significative'] else 'non significative'}"
+        for m in av.get("mediations", []) if not m.get("erreur")
+    ) or "Aucune médiation testable (pas de triplet indépendante/médiatrice/dépendante complet)."
+
     consigne_langue = "Rédige l'intégralité en anglais." if langue == "en" else "Rédige l'intégralité en français."
 
     return f"""Tu es statisticien et méthodologue quantitatif de niveau recherche doctorale. Analyse et \
@@ -1377,19 +1411,37 @@ Fiabilité des construits mesurés (n = {resultats.get('n_repondants')} réponda
 Corrélations entre construits (scores composites) :
 {correlations_txt}
 
+Analyse factorielle exploratoire (AFE) :
+{afe_txt}
+
+Analyse factorielle confirmatoire (AFC — ajustement du modèle de mesure postulé) :
+{afc_txt}
+
+Régressions multiples (effet de chaque prédicteur en contrôlant les autres) :
+{regressions_txt}
+
+Tests de médiation par bootstrap (2000 réplications, IC95% par percentile) :
+{mediations_txt}
+
 {consigne_langue}
 
 {CONSIGNE_ORIGINALITE}
 
-Consigne de rigueur scientifique impérative : les corrélations entre scores composites permettent \
-d'évaluer la COHÉRENCE des données avec une hypothèse d'association simple, mais ne permettent \
-JAMAIS de confirmer formellement une médiation ou une modération (qui exigeraient des tests \
-spécifiques : effets indirects avec intervalles de confiance bootstrappés pour la médiation, termes \
-d'interaction significatifs pour la modération — analyses non réalisées ici). Pour toute hypothèse de \
-médiation ou de modération, utilise donc un verdict prudent (« cohérente avec les données » plutôt que \
-« confirmée » ou « démontrée »), et rappelle explicitement dans la justification que cette hypothèse \
-précise nécessiterait une analyse dédiée pour être testée formellement. Ne jamais affirmer qu'une \
-hypothèse est prouvée ou démontrée — seulement que les données observées sont ou non cohérentes avec elle.
+Consigne de rigueur scientifique impérative :
+- Pour une hypothèse de MÉDIATION disposant d'un test de médiation par bootstrap ci-dessus : tu PEUX \
+utiliser un verdict affirmatif (« confirmée », « significative ») si l'intervalle de confiance exclut \
+zéro — c'est un test statistique formel et approprié, pas une simple corrélation. Cite l'effet indirect \
+et son IC95% dans la justification.
+- Pour une hypothèse de MODÉRATION : aucun test d'interaction n'a été réalisé ici — utilise \
+systématiquement un verdict prudent (« cohérente avec les données » plutôt que « confirmée »), et \
+rappelle qu'un terme d'interaction dédié serait nécessaire pour un test formel.
+- Pour une hypothèse de simple association (ni médiation ni modération) : base-toi sur la corrélation \
+ou, si disponible, sur le coefficient de régression standardisé (plus rigoureux car il contrôle les \
+autres prédicteurs).
+- Si l'AFC indique un ajustement insuffisant, signale-le explicitement : cela questionne la validité de \
+la structure de mesure postulée, indépendamment des résultats de corrélation ou de régression.
+- Ne jamais affirmer qu'une hypothèse est prouvée dans l'absolu — seulement qu'elle est confirmée, \
+cohérente, ou non soutenue par CES données précises, avec cette méthode précise.
 
 Réponds UNIQUEMENT en JSON conforme à ce schéma :
 {SCHEMA_SYNTHESE_QUANT}"""
@@ -1489,6 +1541,14 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
         synthese_statut = None
         try:
             resultats = analyser_donnees(lignes, e.contenu["questionnaire"])
+            try:
+                # AFE, AFC, régressions, médiations — un enrichissement, jamais
+                # bloquant : si ça échoue (ex. données insuffisantes, modèle non
+                # convergent), les statistiques de base restent pleinement valides.
+                variables = (e.contenu.get("methodologie") or {}).get("variables", [])
+                resultats["analyses_avancees"] = analyses_avancees(lignes, e.contenu["questionnaire"], variables)
+            except Exception:  # noqa: BLE001
+                resultats["analyses_avancees"] = None
             statut, erreur = "termine", None
             synthese_statut = "en_cours"
         except Exception as ex:  # noqa: BLE001

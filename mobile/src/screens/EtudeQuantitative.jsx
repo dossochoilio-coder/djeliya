@@ -23,6 +23,7 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
   const [importEnCours, setImportEnCours] = useState(false);
   const [confirmationGeneration, setConfirmationGeneration] = useState(false);
   const [confirmationImport, setConfirmationImport] = useState(false);
+  const [confirmationSuppression, setConfirmationSuppression] = useState(null);
   const fileRef = useRef(null);
 
   const charger = () => listerEtudesQuant(settings.backendUrl, token).then(setEtudes).catch(() => setEtudes([]));
@@ -319,7 +320,25 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
             </>
           )}
 
-          <button className="link-btn" style={{ color: "#D96D5F" }} onClick={() => supprimer(selection.id)}>{t("etudeQuant.supprimer")}</button>
+          {confirmationSuppression !== selection.id ? (
+            <button className="link-btn" style={{ color: "#D96D5F" }} onClick={() => setConfirmationSuppression(selection.id)}>
+              {t("etudeQuant.supprimer")}
+            </button>
+          ) : (
+            <div className="glossaire-form" style={{ borderColor: "#D96D5F" }}>
+              <span className="field-label" style={{ color: "#D96D5F" }}>{t("etudeQuant.confirmerSuppressionTitre")}</span>
+              <p className="theme-desc">{t("etudeQuant.confirmerSuppressionTexte")}</p>
+              <div className="field-inline">
+                <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => setConfirmationSuppression(null)}>
+                  {t("credits.annuler")}
+                </button>
+                <button className="btn sm" style={{ flex: 1, background: "#D96D5F", color: "#1A1024" }}
+                  onClick={() => { setConfirmationSuppression(null); supprimer(selection.id); }}>
+                  {t("etudeQuant.supprimerDefinitivement")}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -391,11 +410,31 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
                     {t(`statuts.${e.statut === "en_cours" ? "en_cours" : e.statut === "erreur" ? "erreur" : "termine"}`)}
                   </span>
                 </button>
-                <button className="icon-btn sm" aria-label={t("etudeQuant.supprimer")}
-                  onClick={(ev) => { ev.stopPropagation(); supprimer(e.id); }}>✕</button>
+                <button className="icon-btn sm icon-btn-danger" aria-label={t("etudeQuant.supprimer")}
+                  onClick={(ev) => { ev.stopPropagation(); setConfirmationSuppression(e.id); }}>
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 6h12M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6m-7 0 .6 9.3a1.4 1.4 0 0 0 1.4 1.3h4a1.4 1.4 0 0 0 1.4-1.3L15 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
               </li>
             ))}
           </ul>
+        )}
+
+        {confirmationSuppression && (
+          <div className="glossaire-form" style={{ borderColor: "#D96D5F" }}>
+            <span className="field-label" style={{ color: "#D96D5F" }}>{t("etudeQuant.confirmerSuppressionTitre")}</span>
+            <p className="theme-desc">{t("etudeQuant.confirmerSuppressionTexte")}</p>
+            <div className="field-inline">
+              <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => setConfirmationSuppression(null)}>
+                {t("credits.annuler")}
+              </button>
+              <button className="btn sm" style={{ flex: 1, background: "#D96D5F", color: "#1A1024" }}
+                onClick={() => { const id = confirmationSuppression; setConfirmationSuppression(null); supprimer(id); }}>
+                {t("etudeQuant.supprimerDefinitivement")}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -435,6 +474,25 @@ function AnalyseResume({ analyse, onExporter, email }) {
               </p>
             ))}
           </>
+        )}
+
+        {r.analyses_avancees?.afe && (
+          <p className="theme-desc" style={{ marginTop: 8 }}>
+            <strong>{t("etudeQuant.afeResume")}</strong> KMO = {r.analyses_avancees.afe.kmo_total} ({r.analyses_avancees.afe.kmo_interpretation}), {r.analyses_avancees.afe.n_facteurs_extraits} {t("etudeQuant.facteurs")}
+          </p>
+        )}
+        {r.analyses_avancees?.afc && !r.analyses_avancees.afc.erreur && (
+          <p className="theme-desc">
+            <strong>{t("etudeQuant.afcResume")}</strong> CFI = {r.analyses_avancees.afc.cfi}, RMSEA = {r.analyses_avancees.afc.rmsea} — {r.analyses_avancees.afc.interpretation}
+          </p>
+        )}
+        {r.analyses_avancees?.mediations?.filter((m) => !m.erreur).map((m, i) => (
+          <p key={i} className="theme-desc">
+            <strong>{t("etudeQuant.mediationResume")}</strong> {m.independante} → {m.mediatrice} → {m.dependante} : {m.mediation_significative ? m.type_mediation : t("etudeQuant.mediationNonSignificative")}
+          </p>
+        ))}
+        {(r.analyses_avancees?.afe || r.analyses_avancees?.afc || r.analyses_avancees?.regressions?.length > 0 || r.analyses_avancees?.mediations?.length > 0) && (
+          <p className="field-help" style={{ marginTop: 4 }}>{t("etudeQuant.avanceesDetailExport")}</p>
         )}
 
         {analyse.synthese_statut === "en_cours" && (

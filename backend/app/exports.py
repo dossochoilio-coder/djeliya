@@ -174,12 +174,25 @@ L = {
         "aq_fiab_normalite": "Normalité du score composite (Shapiro-Wilk)", "aq_fiab_normalite_oui": "distribution normale (p ≥ 0,05)",
         "aq_fiab_normalite_non": "distribution non normale (p < 0,05)",
         "aq_correlations": "4. Corrélations entre construits", "aq_corr_intro": "Corrélation de Pearson entre les scores composites de chaque construit, avec test de significativité.",
+        "aq_afe_titre": "5. Analyse factorielle exploratoire (AFE)",
+        "aq_afe_kmo": "Indice KMO (adéquation de l'échantillonnage)", "aq_afe_bartlett": "Test de sphéricité de Bartlett",
+        "aq_afe_facteurs": "Facteurs extraits (critère de Kaiser)", "aq_afe_variance": "Variance expliquée cumulée",
+        "aq_afe_charges": "Charges factorielles (après rotation varimax)",
+        "aq_afc_titre": "6. Analyse factorielle confirmatoire (AFC)",
+        "aq_afc_intro": "Teste si la structure de mesure postulée (chaque construit mesuré par ses items déclarés) s'ajuste bien aux données observées.",
+        "aq_afc_indisponible": "L'AFC n'a pas pu être calculée pour cette analyse (modèle non convergent ou données insuffisantes) — les autres résultats restent valides.",
+        "aq_reg_titre": "7. Régressions multiples",
+        "aq_reg_intro": "Effet de chaque prédicteur sur la variable dépendante, en contrôlant simultanément les autres prédicteurs (coefficients standardisés, directement comparables entre eux).",
+        "aq_reg_predicteur": "Prédicteur", "aq_reg_beta": "β standardisé", "aq_reg_p": "p", "aq_reg_ic": "IC95%",
+        "aq_med_titre": "8. Tests de médiation (bootstrap)",
+        "aq_med_intro": "Effet indirect (a × b) ré-estimé sur 2000 rééchantillonnages — la médiation est considérée significative lorsque l'intervalle de confiance à 95% exclut zéro (méthode de Preacher & Hayes).",
+        "aq_med_chemin": "Chemin testé", "aq_med_indirect": "Effet indirect", "aq_med_ic": "IC95%", "aq_med_verdict": "Verdict",
         "aq_corr_v1": "Variable 1", "aq_corr_v2": "Variable 2", "aq_corr_r": "r", "aq_corr_p": "p", "aq_corr_methode": "Méthode",
         "aq_feuille_desc": "Statistiques descriptives", "aq_feuille_freq": "Tableaux de fréquences",
         "aq_feuille_fiab": "Fiabilité (alpha)", "aq_feuille_corr": "Corrélations",
         "aq_graphiques": "Graphiques", "aq_graph_fiabilite": "Fiabilité des construits",
         "aq_graph_moyennes": "Scores moyens par construit", "aq_graph_matrice": "Matrice de corrélations",
-        "aq_synthese_titre": "5. Synthèse et interprétation", "aq_synthese_generale": "Synthèse générale",
+        "aq_synthese_titre": "9. Synthèse et interprétation", "aq_synthese_generale": "Synthèse générale",
         "aq_synthese_fiabilite": "Discussion de la fiabilité", "aq_synthese_hypotheses": "Test des hypothèses de recherche",
         "aq_synthese_limites": "Limites de l'analyse", "aq_synthese_recommandations": "Recommandations",
         "aq_hyp_code": "Hypothèse", "aq_hyp_verdict": "Verdict", "aq_hyp_justif": "Justification",
@@ -309,12 +322,25 @@ L = {
         "aq_fiab_normalite": "Composite score normality (Shapiro-Wilk)", "aq_fiab_normalite_oui": "normal distribution (p ≥ 0.05)",
         "aq_fiab_normalite_non": "non-normal distribution (p < 0.05)",
         "aq_correlations": "4. Correlations between constructs", "aq_corr_intro": "Pearson correlation between the composite scores of each construct, with significance testing.",
+        "aq_afe_titre": "5. Exploratory factor analysis (EFA)",
+        "aq_afe_kmo": "KMO index (sampling adequacy)", "aq_afe_bartlett": "Bartlett's test of sphericity",
+        "aq_afe_facteurs": "Factors extracted (Kaiser criterion)", "aq_afe_variance": "Cumulative explained variance",
+        "aq_afe_charges": "Factor loadings (after varimax rotation)",
+        "aq_afc_titre": "6. Confirmatory factor analysis (CFA)",
+        "aq_afc_intro": "Tests whether the postulated measurement structure (each construct measured by its declared items) fits the observed data well.",
+        "aq_afc_indisponible": "The CFA could not be computed for this analysis (non-converging model or insufficient data) — the other results remain valid.",
+        "aq_reg_titre": "7. Multiple regressions",
+        "aq_reg_intro": "Effect of each predictor on the dependent variable, controlling simultaneously for the other predictors (standardized coefficients, directly comparable to each other).",
+        "aq_reg_predicteur": "Predictor", "aq_reg_beta": "Standardized β", "aq_reg_p": "p", "aq_reg_ic": "95% CI",
+        "aq_med_titre": "8. Mediation tests (bootstrap)",
+        "aq_med_intro": "Indirect effect (a × b) re-estimated over 2000 resamples — mediation is considered significant when the 95% confidence interval excludes zero (Preacher & Hayes method).",
+        "aq_med_chemin": "Path tested", "aq_med_indirect": "Indirect effect", "aq_med_ic": "95% CI", "aq_med_verdict": "Verdict",
         "aq_corr_v1": "Variable 1", "aq_corr_v2": "Variable 2", "aq_corr_r": "r", "aq_corr_p": "p", "aq_corr_methode": "Method",
         "aq_feuille_desc": "Descriptive statistics", "aq_feuille_freq": "Frequency tables",
         "aq_feuille_fiab": "Reliability (alpha)", "aq_feuille_corr": "Correlations",
         "aq_graphiques": "Charts", "aq_graph_fiabilite": "Construct reliability",
         "aq_graph_moyennes": "Mean scores by construct", "aq_graph_matrice": "Correlation matrix",
-        "aq_synthese_titre": "5. Synthesis and interpretation", "aq_synthese_generale": "General synthesis",
+        "aq_synthese_titre": "9. Synthesis and interpretation", "aq_synthese_generale": "General synthesis",
         "aq_synthese_fiabilite": "Reliability discussion", "aq_synthese_hypotheses": "Research hypothesis testing",
         "aq_synthese_limites": "Limitations of the analysis", "aq_synthese_recommandations": "Recommendations",
         "aq_hyp_code": "Hypothesis", "aq_hyp_verdict": "Verdict", "aq_hyp_justif": "Justification",
@@ -1339,6 +1365,85 @@ def generer_docx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
                 run.italic = True
                 run.font.size = Pt(9)
 
+    # --- Analyses avancées : AFE, AFC, régressions, médiations ---
+    av = r.get("analyses_avancees") or {}
+
+    if av.get("afe"):
+        a = av["afe"]
+        doc.add_heading(l["aq_afe_titre"], level=1)
+        doc.add_paragraph(f"{l['aq_afe_kmo']} : {a['kmo_total']} ({a['kmo_interpretation']})")
+        doc.add_paragraph(
+            f"{l['aq_afe_bartlett']} : χ² = {a['bartlett_chi2']}, p = {a['bartlett_p']} "
+            f"({'factorisable' if a['bartlett_factorisable'] else 'non factorisable'})"
+        )
+        doc.add_paragraph(f"{l['aq_afe_facteurs']} : {a['n_facteurs_extraits']}")
+        doc.add_paragraph(f"{l['aq_afe_variance']} : {a['variance_expliquee_cumulee_pct']}%")
+        doc.add_paragraph(l["aq_afe_charges"]).runs[0].bold = True
+        tbl_afe = doc.add_table(rows=1, cols=1 + a["n_facteurs_extraits"])
+        tbl_afe.style = "Light Grid Accent 1"
+        tbl_afe.rows[0].cells[0].text = "Item"
+        for fi in range(a["n_facteurs_extraits"]):
+            tbl_afe.rows[0].cells[fi + 1].text = f"Facteur {fi + 1}"
+        for c in a["charges_factorielles"]:
+            row = tbl_afe.add_row().cells
+            row[0].text = c["item"]
+            for fi, charge in enumerate(c["charges"]):
+                row[fi + 1].text = str(charge)
+
+    if av.get("afc"):
+        doc.add_heading(l["aq_afc_titre"], level=1)
+        doc.add_paragraph(l["aq_afc_intro"])
+        if av["afc"].get("erreur"):
+            doc.add_paragraph(l["aq_afc_indisponible"])
+        else:
+            c = av["afc"]
+            doc.add_paragraph(f"CFI = {c['cfi']}  |  TLI = {c['tli']}  |  RMSEA = {c['rmsea']}  |  SRMR = {c['srmr']}")
+            p_interp = doc.add_paragraph(c["interpretation"])
+            p_interp.runs[0].italic = True
+            if c.get("charges_factorielles"):
+                tbl_afc = doc.add_table(rows=1, cols=4)
+                tbl_afc.style = "Light Grid Accent 1"
+                for i, h in enumerate(["Construit", "Item", "Charge", "p"]):
+                    tbl_afc.rows[0].cells[i].text = h
+                for ch in c["charges_factorielles"]:
+                    row = tbl_afc.add_row().cells
+                    row[0].text = ch["construit"]; row[1].text = ch["item"]
+                    row[2].text = str(ch["charge"]); row[3].text = str(ch["p_valeur"]) if ch["p_valeur"] is not None else "—"
+
+    if av.get("regressions"):
+        doc.add_heading(l["aq_reg_titre"], level=1)
+        doc.add_paragraph(l["aq_reg_intro"])
+        for r in av["regressions"]:
+            if r.get("erreur"):
+                continue
+            p_titre = doc.add_paragraph(f"Variable dépendante : {r['dependante']}  (R² = {r['r2']}, R² ajusté = {r['r2_ajuste']}, F = {r['f_stat']}, p = {r['f_p']})")
+            p_titre.runs[0].bold = True
+            tbl_reg = doc.add_table(rows=1, cols=4)
+            tbl_reg.style = "Light Grid Accent 1"
+            for i, h in enumerate([l["aq_reg_predicteur"], l["aq_reg_beta"], l["aq_reg_p"], l["aq_reg_ic"]]):
+                tbl_reg.rows[0].cells[i].text = h
+            for p in r["predicteurs"]:
+                row = tbl_reg.add_row().cells
+                row[0].text = p["nom"] + (" *" if p["significatif"] else "")
+                row[1].text = str(p["beta"]); row[2].text = str(p["p_valeur"])
+                row[3].text = f"[{p['ic95_bas']} ; {p['ic95_haut']}]"
+
+    if av.get("mediations"):
+        doc.add_heading(l["aq_med_titre"], level=1)
+        doc.add_paragraph(l["aq_med_intro"])
+        tbl_med = doc.add_table(rows=1, cols=4)
+        tbl_med.style = "Light Grid Accent 1"
+        for i, h in enumerate([l["aq_med_chemin"], l["aq_med_indirect"], l["aq_med_ic"], l["aq_med_verdict"]]):
+            tbl_med.rows[0].cells[i].text = h
+        for med in av["mediations"]:
+            if med.get("erreur"):
+                continue
+            row = tbl_med.add_row().cells
+            row[0].text = f"{med['independante']} → {med['mediatrice']} → {med['dependante']}"
+            row[1].text = str(med["effet_indirect_a_x_b"])
+            row[2].text = f"[{med['ic95_bas']} ; {med['ic95_haut']}]"
+            row[3].text = med["type_mediation"] if med["mediation_significative"] else "non significative"
+
     # --- Synthèse interprétative générée par IA ---
     synthese = analyse_data.get("synthese_interpretative")
     if synthese:
@@ -1503,6 +1608,67 @@ def generer_xlsx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
         ws_c.column_dimensions["A"].width = 26
         ws_c.column_dimensions["B"].width = 26
         ws_c.column_dimensions["F"].width = 40
+
+    av = r.get("analyses_avancees") or {}
+
+    if av.get("afe"):
+        a = av["afe"]
+        ws_afe = wb.create_sheet(l["aq_afe_titre"][3:][:31])
+        ws_afe.cell(1, 1, l["aq_afe_kmo"]); ws_afe.cell(1, 2, f"{a['kmo_total']} ({a['kmo_interpretation']})")
+        ws_afe.cell(2, 1, l["aq_afe_bartlett"]); ws_afe.cell(2, 2, f"χ²={a['bartlett_chi2']}, p={a['bartlett_p']}")
+        ws_afe.cell(3, 1, l["aq_afe_facteurs"]); ws_afe.cell(3, 2, a["n_facteurs_extraits"])
+        ws_afe.cell(4, 1, l["aq_afe_variance"]); ws_afe.cell(4, 2, f"{a['variance_expliquee_cumulee_pct']}%")
+        for i in range(1, 5):
+            ws_afe.cell(i, 1).font = Font(bold=True)
+        ws_afe.cell(6, 1, l["aq_afe_charges"]).font = Font(bold=True)
+        n_fact = a["n_facteurs_extraits"]
+        _entete(ws_afe, ["Item"] + [f"Facteur {i+1}" for i in range(n_fact)], ligne=7)
+        for i, c in enumerate(a["charges_factorielles"], start=8):
+            ws_afe.cell(i, 1, c["item"])
+            for fi, charge in enumerate(c["charges"]):
+                ws_afe.cell(i, fi + 2, charge)
+        ws_afe.column_dimensions["A"].width = 22
+
+    if av.get("afc") and not av["afc"].get("erreur"):
+        c = av["afc"]
+        ws_afc = wb.create_sheet(l["aq_afc_titre"][3:][:31])
+        for i, (label, val) in enumerate([("CFI", c["cfi"]), ("TLI", c["tli"]), ("RMSEA", c["rmsea"]), ("SRMR", c["srmr"])], start=1):
+            ws_afc.cell(i, 1, label).font = Font(bold=True)
+            ws_afc.cell(i, 2, val)
+        ws_afc.cell(6, 1, c["interpretation"])
+        _entete(ws_afc, ["Construit", "Item", "Charge", "p"], ligne=8)
+        for i, ch in enumerate(c.get("charges_factorielles", []), start=9):
+            ws_afc.cell(i, 1, ch["construit"]); ws_afc.cell(i, 2, ch["item"])
+            ws_afc.cell(i, 3, ch["charge"]); ws_afc.cell(i, 4, ch["p_valeur"])
+        ws_afc.column_dimensions["A"].width = 22
+
+    if av.get("regressions"):
+        ws_reg = wb.create_sheet(l["aq_reg_titre"][3:][:31])
+        ligne = 1
+        for reg in av["regressions"]:
+            if reg.get("erreur"):
+                continue
+            ws_reg.cell(ligne, 1, f"{reg['dependante']} — R²={reg['r2']}, F={reg['f_stat']}, p={reg['f_p']}").font = Font(bold=True)
+            ligne += 1
+            _entete(ws_reg, [l["aq_reg_predicteur"], l["aq_reg_beta"], l["aq_reg_p"], "IC95% bas", "IC95% haut"], ligne=ligne)
+            ligne += 1
+            for p in reg["predicteurs"]:
+                ws_reg.cell(ligne, 1, p["nom"] + (" *" if p["significatif"] else ""))
+                ws_reg.cell(ligne, 2, p["beta"]); ws_reg.cell(ligne, 3, p["p_valeur"])
+                ws_reg.cell(ligne, 4, p["ic95_bas"]); ws_reg.cell(ligne, 5, p["ic95_haut"])
+                ligne += 1
+            ligne += 1
+        ws_reg.column_dimensions["A"].width = 24
+
+    if av.get("mediations"):
+        ws_med = wb.create_sheet(l["aq_med_titre"][3:][:31])
+        _entete(ws_med, [l["aq_med_chemin"], l["aq_med_indirect"], "IC95% bas", "IC95% haut", l["aq_med_verdict"]])
+        for i, m_ in enumerate([x for x in av["mediations"] if not x.get("erreur")], start=2):
+            ws_med.cell(i, 1, f"{m_['independante']} → {m_['mediatrice']} → {m_['dependante']}")
+            ws_med.cell(i, 2, m_["effet_indirect_a_x_b"])
+            ws_med.cell(i, 3, m_["ic95_bas"]); ws_med.cell(i, 4, m_["ic95_haut"])
+            ws_med.cell(i, 5, m_["type_mediation"] if m_["mediation_significative"] else "non significative")
+        ws_med.column_dimensions["A"].width = 35
 
     synthese = analyse_data.get("synthese_interpretative")
     if synthese:
