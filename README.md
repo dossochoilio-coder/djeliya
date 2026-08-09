@@ -173,7 +173,7 @@ Toutes les routes (sauf `/health`, `/api/languages`, `/api/auth/*`) exigent un e
 
 ## 4. Langues ivoiriennes — feuille de route
 
-Le modèle général couvre très bien le français et l'anglais, y compris accentués. Pour le dioula, le baoulé et les autres langues locales, un travail de fine-tuning dédié est nécessaire — voir le document complet [`docs/strategie-langues-locales.md`](docs/strategie-langues-locales.md) : corpus nécessaire, partenariats à activer, calendrier réaliste (6 à 9 mois pour une première langue en production).
+Le modèle général couvre très bien le français et l'anglais, y compris accentués. Pour le dioula, le baoulé et les autres langues locales, un travail de fine-tuning dédié est nécessaire — voir le document complet [`docs/strategie-langues-locales.md`](docs/strategie-langues-locales.md) : corpus nécessaire, partenariats à activer, calendrier réaliste (6 à 9 mois pour une première langue en production). **Cette limite est désormais signalée directement dans l'app** : le sélecteur de langue affiche « (expérimental) » pour le dioula et le baoulé, avec un avertissement complet visible dès la sélection (Nouvel entretien et Réglages → langue par défaut).
 
 ## Développement local
 

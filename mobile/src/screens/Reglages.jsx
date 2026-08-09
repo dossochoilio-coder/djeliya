@@ -232,6 +232,11 @@ export default function Reglages({ settings, utilisateur, token, onSave, onDecon
               <option key={k} value={k}>{l.name}</option>
             ))}
           </select>
+          {LANGS[form.langueDefaut]?.experimental && (
+            <span className="field-help" style={{ color: "#E4B04A" }}>
+              {t("nouvelEntretien.langueExperimentaleAide")}
+            </span>
+          )}
         </label>
 
         <label className="field">

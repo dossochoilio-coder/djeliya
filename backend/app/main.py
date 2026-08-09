@@ -924,8 +924,9 @@ def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier, tentatives
     for essai in range(tentatives):
         try:
             prompt_essai = prompt if essai == 0 else (
-                f"{prompt}\n\nATTENTION : ta précédente tentative était incomplète, vide ou mal "
-                "formée. Respecte scrupuleusement le schéma demandé, sans en omettre aucune partie."
+                f"{prompt}\n\nATTENTION : ta précédente tentative a échoué pour la raison suivante : "
+                f"{derniere_erreur}. Corrige précisément ce point, en respectant scrupuleusement le "
+                "schéma demandé."
             )
             resultat = _appel_ia_json_stream(prompt_essai, max_tokens, on_delta=on_delta)
             verifier(resultat)
@@ -1043,8 +1044,9 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         instructions_plan = (
             "Conçois le PLAN du questionnaire mesurant ces variables (titres de sections uniquement, "
             "pas encore les questions) : une section par construit mesuré par échelle de Likert, plus "
-            "une section sociodémographique/de contrôle si pertinent. Limite stricte : 6 sections "
-            "maximum."
+            "une section sociodémographique/de contrôle si pertinent (âge, sexe, ancienneté, catégorie "
+            "professionnelle...) — cette dernière ne mesure PAS un construit théorique par échelle et "
+            "ne doit donc PAS recevoir de « variable_associee ». Limite stricte : 6 sections maximum."
         )
 
         def _verifier_plan(r):
@@ -1065,7 +1067,19 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             session.commit()
             instructions_items = (
                 f"Rédige les items de la section « {section.get('titre', '')} » du questionnaire "
-                f"{('mesurant le construit « ' + section['variable_associee'] + '» par échelle de Likert à 5 points (3 à 5 items)') if section.get('variable_associee') else '(items sociodémographiques/de contrôle pertinents, 5 items maximum)'}."
+                + (
+                    f"mesurant le construit « {section['variable_associee']} » par échelle de Likert à "
+                    "5 points (3 à 5 items)."
+                    if section.get("variable_associee")
+                    else (
+                        "— section sociodémographique/de contrôle (ex. âge, sexe, ancienneté, catégorie "
+                        "professionnelle). Ces items ne mesurent AUCUN construit théorique : n'utilise "
+                        "JAMAIS le type \"echelle_likert\" ici. Utilise \"choix_unique\" avec des "
+                        "tranches ou catégories prédéfinies pertinentes (ex. tranches d'âge, catégories "
+                        "d'ancienneté en années, catégorie professionnelle) — jamais une échelle "
+                        "d'accord/désaccord. 5 items maximum."
+                    )
+                )
             )
             prompt_items = f"{contexte3}\n\n{instructions_items}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3_ITEMS}"
 
@@ -1073,6 +1087,13 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
                 _valider_etape(r, ("items",))
                 if not r["items"]:
                     raise ValueError(f"Aucun item généré pour la section « {section.get('titre', '')} ».")
+                if not section.get("variable_associee"):
+                    types_errones = [it.get("type") for it in r["items"] if it.get("type") == "echelle_likert"]
+                    if types_errones:
+                        raise ValueError(
+                            f"La section « {section.get('titre', '')} » est sociodémographique/de contrôle "
+                            "mais contient une échelle de Likert — utilise choix_unique avec des tranches."
+                        )
 
             items_resultat = _appel_etape_avec_reprise(prompt_items, 4000, _verifier_items, on_delta=_texte_en_direct(session, e))
             sections_completes.append({**section, "items": items_resultat["items"][:5]})

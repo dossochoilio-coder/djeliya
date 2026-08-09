@@ -2,8 +2,8 @@ export const LANGS = {
   auto: { code: "AUTO", name: "Détection auto", color: "#A9ADC4" },
   fr: { code: "FR", name: "Français", color: "#7C9CF5" },
   en: { code: "EN", name: "Anglais", color: "#5FC6A8" },
-  dyu: { code: "DYU", name: "Dioula", color: "#E4B04A" },
-  bci: { code: "BCI", name: "Baoulé", color: "#D96D5F" },
+  dyu: { code: "DYU", name: "Dioula (expérimental)", color: "#E4B04A", experimental: true },
+  bci: { code: "BCI", name: "Baoulé (expérimental)", color: "#D96D5F", experimental: true },
 };
 
 export const STATUTS = {

@@ -138,6 +138,11 @@ export default function NouvelEntretien({ settings, corpusList, couts, utilisate
                   <option key={k} value={k}>{l.name}</option>
                 ))}
               </select>
+              {LANGS[langue]?.experimental && (
+                <span className="field-help" style={{ color: "#E4B04A" }}>
+                  {t("nouvelEntretien.langueExperimentaleAide")}
+                </span>
+              )}
             </label>
 
             <label className="field">
