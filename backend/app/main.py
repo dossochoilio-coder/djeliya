@@ -55,6 +55,12 @@ COUT_CREDIT_ANALYSE_QUANT = float(os.getenv("COUT_CREDIT_ANALYSE_QUANT", "2"))
 PRIX_CREDIT_FCFA = int(os.getenv("PRIX_CREDIT_FCFA", "150"))
 CREDITS_MIN_RECHARGE = float(os.getenv("CREDITS_MIN_RECHARGE", "10"))
 PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER")  # ex. "cinetpay", "paydunya" — à confirmer
+# Interrupteur global de la recharge de crédits (PayDunya et Google Play tous les
+# deux) — utile pendant une phase de test où les achats ne doivent pas être
+# possibles (ex. testeurs Google Play, dont les achats de test sont gratuits).
+# Se réactive simplement en repassant cette variable à "true" sur Railway, sans
+# changement de code ni nouveau déploiement.
+RECHARGES_ACTIVEES = os.getenv("RECHARGES_ACTIVEES", "true").lower() != "false"
 BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL", "").rstrip("/")
 
 # PayDunya exige TROIS identifiants pour authentifier chaque requête — la clé
@@ -867,20 +873,48 @@ def _valider_etape(contenu: dict, cles: tuple):
             raise ValueError(f"Réponse du modèle incomplète (« {cle} » manquant).")
 
 
+def _appel_ia_json_stream(prompt: str, max_tokens: int, on_delta=None) -> dict:
+    """Comme _appel_ia_json, mais en flux — le texte s'accumule au fur et à
+    mesure de la génération (on_delta reçoit le texte cumulé à chaque fragment),
+    au lieu d'attendre la réponse complète avant de savoir quoi que ce soit."""
+    client = get_anthropic()
+    fragments: list[str] = []
+    with client.messages.stream(model=ANALYSE_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}]) as stream:
+        for fragment in stream.text_stream:
+            fragments.append(fragment)
+            if on_delta:
+                on_delta("".join(fragments))
+        message_final = stream.get_final_message()
+
+    texte = "".join(fragments)
+    if not texte.strip():
+        types_blocs = [getattr(b, "type", "?") for b in message_final.content] or ["aucun bloc"]
+        raise ValueError(
+            f"Réponse vide du modèle (motif d'arrêt : {getattr(message_final, 'stop_reason', 'inconnu')}, "
+            f"blocs reçus : {types_blocs})."
+        )
+    return _extraire_json(texte)
+
+
 def _appel_ia_json(prompt: str, max_tokens: int) -> dict:
     client = get_anthropic()
     resp = client.messages.create(model=ANALYSE_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}])
     texte = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
     if not texte.strip():
-        # Une réponse vide (aucun bloc texte) plutôt qu'un JSON tronqué ou mal formé —
-        # cas distinct qu'on isole pour un diagnostic clair au lieu d'une erreur JSON
-        # cryptique ("Expecting value: line 1 column 1"), et qui bénéficie de la même
-        # reprise automatique que les autres échecs de génération.
-        raise ValueError(f"Réponse vide du modèle (motif d'arrêt : {getattr(resp, 'stop_reason', 'inconnu')}).")
+        # Diagnostic explicite : une réponse vide avec stop_reason=max_tokens peut
+        # signifier que le modèle a consommé tout son budget en blocs non textuels
+        # (ex. réflexion interne) avant de produire le moindre texte — on expose les
+        # types de blocs reçus pour le confirmer ou l'infirmer à la prochaine occurrence,
+        # plutôt que de continuer à deviner.
+        types_blocs = [getattr(b, "type", "?") for b in resp.content] or ["aucun bloc"]
+        raise ValueError(
+            f"Réponse vide du modèle (motif d'arrêt : {getattr(resp, 'stop_reason', 'inconnu')}, "
+            f"blocs reçus : {types_blocs})."
+        )
     return _extraire_json(texte)
 
 
-def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier, tentatives: int = 2) -> dict:
+def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier, tentatives: int = 2, on_delta=None) -> dict:
     """Exécute une étape de génération avec de nouvelles tentatives automatiques si
     la réponse échoue à la validation (« verifier » lève une exception sinon) —
     absorbe les échecs ponctuels de génération sans faire perdre de crédit à
@@ -892,12 +926,31 @@ def _appel_etape_avec_reprise(prompt: str, max_tokens: int, verifier, tentatives
                 f"{prompt}\n\nATTENTION : ta précédente tentative était incomplète, vide ou mal "
                 "formée. Respecte scrupuleusement le schéma demandé, sans en omettre aucune partie."
             )
-            resultat = _appel_ia_json(prompt_essai, max_tokens)
+            resultat = _appel_ia_json_stream(prompt_essai, max_tokens, on_delta=on_delta)
             verifier(resultat)
             return resultat
         except Exception as ex:  # noqa: BLE001
             derniere_erreur = ex
     raise derniere_erreur
+
+
+def _texte_en_direct(session, e: "EtudeQuantitative"):
+    """Construit un callback qui met à jour texte_en_cours au fil du flux, avec
+    un seuil pour éviter d'écrire en base à chaque fragment (quelques
+    caractères) — seulement tous les ~40 caractères de nouveau texte."""
+    dernier_len = [0]
+
+    def _callback(texte_cumule: str):
+        if len(texte_cumule) - dernier_len[0] < 40:
+            return
+        e.texte_en_cours = texte_cumule
+        dernier_len[0] = len(texte_cumule)
+        try:
+            session.commit()
+        except Exception:  # noqa: BLE001
+            session.rollback()
+
+    return _callback
 
 
 def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
@@ -934,14 +987,17 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         )
 
         e.etape = "cadre"
+        e.texte_en_cours = None
         session.commit()
         prompt1a = f"{base}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1A}"
-        etape1a = _appel_etape_avec_reprise(prompt1a, 3000, lambda r: _valider_etape(r, ("titre", "cadre_theorique")))
+        etape1a = _appel_etape_avec_reprise(prompt1a, 6000, lambda r: _valider_etape(r, ("titre", "cadre_theorique")), on_delta=_texte_en_direct(session, e))
         contenu.update(etape1a)
         e.contenu = dict(contenu)
+        e.texte_en_cours = None
         session.commit()
 
         e.etape = "revue"
+        e.texte_en_cours = None
         session.commit()
         concepts_deja_cites = ", ".join(c.get("concept", "") for c in contenu.get("concepts_theoriques", []))
         contexte1b = (
@@ -949,7 +1005,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             f"Concepts théoriques déjà cités (ne les répète pas) : {concepts_deja_cites or 'aucun'}"
         )
         prompt1b = f"{contexte1b}\n\n{consigne_integrite}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE1B}"
-        etape1b = _appel_etape_avec_reprise(prompt1b, 3000, lambda r: _valider_etape(r, ("revue_litterature",)))
+        etape1b = _appel_etape_avec_reprise(prompt1b, 6000, lambda r: _valider_etape(r, ("revue_litterature",)), on_delta=_texte_en_direct(session, e))
         contenu["revue_litterature"] = etape1b["revue_litterature"]
         # Fusionne les concepts complémentaires de la revue, sans doublon avec ceux du cadre théorique
         noms_deja_vus = {c.get("concept", "").strip().lower() for c in contenu.get("concepts_theoriques", [])}
@@ -961,6 +1017,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         session.commit()
 
         e.etape = "methodologie"
+        e.texte_en_cours = None
         session.commit()
         contexte2 = f"{base}\n\nCadre théorique déjà établi :\n{contenu['cadre_theorique'][:1500]}"
         instructions2 = (
@@ -968,12 +1025,14 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             "ci-dessus. Chaque hypothèse doit relier des variables précisément définies."
         )
         prompt2 = f"{contexte2}\n\n{instructions2}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE2}"
-        etape2 = _appel_etape_avec_reprise(prompt2, 4500, lambda r: _valider_etape(r, ("methodologie",)))
+        etape2 = _appel_etape_avec_reprise(prompt2, 7000, lambda r: _valider_etape(r, ("methodologie",)), on_delta=_texte_en_direct(session, e))
         contenu.update(etape2)
         e.contenu = dict(contenu)
+        e.texte_en_cours = None
         session.commit()
 
         e.etape = "questionnaire"
+        e.texte_en_cours = None
         session.commit()
         contexte3 = f"{base}\n\nMéthodologie déjà établie (hypothèses et variables) :\n{json.dumps(contenu['methodologie'], ensure_ascii=False)}"
 
@@ -993,7 +1052,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
                 raise ValueError("Le plan du questionnaire généré ne contient aucune section.")
 
         prompt_plan = f"{contexte3}\n\n{instructions_plan}\n\nRéponds UNIQUEMENT en JSON conforme à ce schéma :\n{SCHEMA_ETUDE_ETAPE3_PLAN}"
-        plan = _appel_etape_avec_reprise(prompt_plan, 1500, _verifier_plan)
+        plan = _appel_etape_avec_reprise(prompt_plan, 3000, _verifier_plan, on_delta=_texte_en_direct(session, e))
         sections_plan = plan["sections"][:6]
 
         # 3b. Items de chaque section, un appel séparé et léger par section — un
@@ -1001,6 +1060,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         sections_completes = []
         for i, section in enumerate(sections_plan):
             e.etape = f"questionnaire:{i + 1}/{len(sections_plan)}"
+            e.texte_en_cours = None
             session.commit()
             instructions_items = (
                 f"Rédige les items de la section « {section.get('titre', '')} » du questionnaire "
@@ -1013,14 +1073,16 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
                 if not r["items"]:
                     raise ValueError(f"Aucun item généré pour la section « {section.get('titre', '')} ».")
 
-            items_resultat = _appel_etape_avec_reprise(prompt_items, 2000, _verifier_items)
+            items_resultat = _appel_etape_avec_reprise(prompt_items, 4000, _verifier_items, on_delta=_texte_en_direct(session, e))
             sections_completes.append({**section, "items": items_resultat["items"][:5]})
 
         contenu["questionnaire"] = {"sections": sections_completes}
+        e.texte_en_cours = None
         e.contenu = dict(contenu)
         session.commit()
 
         e.etape = "references"
+        e.texte_en_cours = None
         session.commit()
         instructions4 = (
             "Rédige la note méthodologique justifiant les choix méthodologiques (type d'échelle, "
@@ -1033,7 +1095,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             # (une justification, pas le cadre théorique, la méthodologie ou le
             # questionnaire eux-mêmes) — un échec ici, même après reprise, ne doit
             # jamais empêcher l'étude d'être considérée prête et exportable.
-            etape4 = _appel_etape_avec_reprise(prompt4, 2500, lambda r: _valider_etape(r, ("note_methodologique",)), tentatives=3)
+            etape4 = _appel_etape_avec_reprise(prompt4, 4000, lambda r: _valider_etape(r, ("note_methodologique",)), tentatives=3, on_delta=_texte_en_direct(session, e))
             contenu.update(etape4)
         except Exception:  # noqa: BLE001
             pass
@@ -1050,6 +1112,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         e.contenu = contenu
         e.statut = "termine"
         e.etape = "termine"
+        e.texte_en_cours = None
         e.modele = ANALYSE_MODEL
         session.commit()
     except Exception as ex:  # noqa: BLE001
@@ -1058,6 +1121,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             e.statut = "erreur"
             e.erreur = str(ex)
             e.contenu = contenu or e.contenu  # conserve ce qui a déjà été généré avec succès
+            e.texte_en_cours = None
             u = session.get(Utilisateur, payeur_id)
             if u and not u.est_admin:
                 u.credits += COUT_CREDIT_ETUDE_QUANT
@@ -1074,6 +1138,7 @@ def _etude_quant_vers_dict(e: EtudeQuantitative) -> dict:
     return {
         "id": e.id, "theme": e.theme, "question_recherche": e.question_recherche,
         "langue": e.langue, "statut": e.statut, "etape": e.etape, "contenu": e.contenu, "erreur": e.erreur,
+        "texte_en_cours": e.texte_en_cours,
         "modele": e.modele, "cree_le": e.cree_le.isoformat() if e.cree_le else None,
     }
 
@@ -1767,7 +1832,7 @@ def lister_forfaits():
 @app.get("/api/recharges/tarif")
 def tarif_recharge():
     """Grille tarifaire publique de la recharge à la carte, affichée dans l'app avant paiement."""
-    disponible = _paydunya_pret() if PAYMENT_PROVIDER == "paydunya" else bool(PAYMENT_PROVIDER)
+    disponible = RECHARGES_ACTIVEES and (_paydunya_pret() if PAYMENT_PROVIDER == "paydunya" else bool(PAYMENT_PROVIDER))
     return {
         "prix_credit_fcfa": PRIX_CREDIT_FCFA, "credits_min": CREDITS_MIN_RECHARGE,
         "paiement_disponible": disponible,
@@ -1842,6 +1907,8 @@ def _initier_paiement_fournisseur(commande: Commande, utilisateur: Utilisateur) 
 
 @app.post("/api/recharges")
 def creer_recharge(payload: RechargeIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if not RECHARGES_ACTIVEES:
+        raise HTTPException(403, "La recharge de crédits est temporairement désactivée (phase de test).")
     if payload.credits < CREDITS_MIN_RECHARGE:
         raise HTTPException(422, f"Le minimum est de {CREDITS_MIN_RECHARGE:g} crédits par recharge.")
     if not user.email_verifie:
@@ -2123,7 +2190,7 @@ def catalogue_google_play():
     """Catalogue public des forfaits de crédits Google Play — l'app l'interroge
     pour savoir quels product_id proposer à l'achat."""
     return {
-        "disponible": _google_play_pret(),
+        "disponible": RECHARGES_ACTIVEES and _google_play_pret(),
         "produits": [{"product_id": pid, "credits": c} for pid, c in CATALOGUE_GOOGLE_PLAY.items()],
     }
 
@@ -2136,6 +2203,8 @@ class AchatGooglePlayIn(BaseModel):
 
 @app.post("/api/google-play/verifier")
 def verifier_achat_google_play(payload: AchatGooglePlayIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if not RECHARGES_ACTIVEES:
+        raise HTTPException(403, "La recharge de crédits est temporairement désactivée (phase de test).")
     if payload.product_id not in CATALOGUE_GOOGLE_PLAY:
         raise HTTPException(422, f"Produit inconnu : {payload.product_id}")
     if not _google_play_pret():

@@ -189,6 +189,7 @@ class EtudeQuantitative(Base):
     langue: Mapped[str] = mapped_column(default="fr")
     statut: Mapped[str] = mapped_column(default="en_cours")  # en_cours | termine | erreur
     etape: Mapped[str | None] = mapped_column(nullable=True)  # cadre | methodologie | questionnaire | references
+    texte_en_cours: Mapped[str | None] = mapped_column(Text, nullable=True)  # texte brut en cours de génération, mis à jour en direct pendant le streaming
     contenu: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
     modele: Mapped[str | None] = mapped_column(nullable=True)
@@ -293,7 +294,7 @@ _COLONNES_ATTENDUES = {
         "analyse_langue": "VARCHAR",
     },
     "entretiens": {"analyse_methode": "VARCHAR", "analyse_langue": "VARCHAR"},
-    "etudes_quantitatives": {"etape": "VARCHAR"},
+    "etudes_quantitatives": {"etape": "VARCHAR", "texte_en_cours": "TEXT"},
 }
 
 

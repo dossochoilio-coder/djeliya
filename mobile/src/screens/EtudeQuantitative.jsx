@@ -41,7 +41,9 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
       } catch { /* nouvel essai au prochain intervalle */ }
     };
     if (!selection.etape) sonder();
-    const it = setInterval(sonder, 3000);
+    // Sondage rapide (0,7 s) pendant la génération, pour donner une vraie
+    // impression d'écriture en direct plutôt que des sauts de texte visibles.
+    const it = setInterval(sonder, 700);
     return () => { annule = true; clearInterval(it); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection]);
@@ -149,17 +151,27 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
         </header>
         <div className="content">
           {selection.statut === "en_cours" && (
-            <div className="pending-card">
-              <span className="spinner" />
-              {selection.etape === "cadre" ? t("etudeQuant.etapeCadre")
-                : selection.etape === "revue" ? t("etudeQuant.etapeRevue")
-                : selection.etape === "methodologie" ? t("etudeQuant.etapeMethodologie")
-                : selection.etape?.startsWith("questionnaire:")
-                  ? `${t("etudeQuant.etapeQuestionnaire").replace("…", "")} (section ${selection.etape.split(":")[1]})…`
-                : selection.etape === "questionnaire" ? t("etudeQuant.etapeQuestionnaire")
-                : selection.etape === "references" ? t("etudeQuant.etapeReferences")
-                : t("etudeQuant.generation")}
-            </div>
+            <>
+              <div className="pending-card">
+                <span className="spinner" />
+                {selection.etape === "cadre" ? t("etudeQuant.etapeCadre")
+                  : selection.etape === "revue" ? t("etudeQuant.etapeRevue")
+                  : selection.etape === "methodologie" ? t("etudeQuant.etapeMethodologie")
+                  : selection.etape?.startsWith("questionnaire:")
+                    ? `${t("etudeQuant.etapeQuestionnaire").replace("…", "")} (section ${selection.etape.split(":")[1]})…`
+                  : selection.etape === "questionnaire" ? t("etudeQuant.etapeQuestionnaire")
+                  : selection.etape === "references" ? t("etudeQuant.etapeReferences")
+                  : t("etudeQuant.generation")}
+              </div>
+              {selection.texte_en_cours && (
+                <div className="analyse-texte-card" style={{ maxHeight: 180, overflowY: "auto" }}>
+                  <p className="analyse-texte" style={{ fontFamily: "monospace", fontSize: 12.5, whiteSpace: "pre-wrap" }}>
+                    {selection.texte_en_cours}
+                    <span className="curseur-clignotant">▌</span>
+                  </p>
+                </div>
+              )}
+            </>
           )}
           {selection.statut === "erreur" && (
             <>
