@@ -241,6 +241,8 @@ class AnalyseQuantitative(Base):
     resultats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     synthese_interpretative: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     synthese_statut: Mapped[str | None] = mapped_column(nullable=True)  # en_cours | termine | non_disponible
+    passerelle_qual_quant: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    passerelle_statut: Mapped[str | None] = mapped_column(nullable=True)  # en_cours | termine | non_disponible | non_applicable
     texte_en_cours: Mapped[str | None] = mapped_column(Text, nullable=True)
     erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
     modele: Mapped[str | None] = mapped_column(nullable=True)
@@ -331,7 +333,7 @@ _COLONNES_ATTENDUES = {
     },
     "entretiens": {"analyse_methode": "VARCHAR", "analyse_langue": "VARCHAR"},
     "etudes_quantitatives": {"etape": "VARCHAR", "texte_en_cours": "TEXT", "branche": "VARCHAR"},
-    "analyses_quantitatives": {"synthese_interpretative": "{json_type}", "synthese_statut": "VARCHAR", "texte_en_cours": "TEXT"},
+    "analyses_quantitatives": {"synthese_interpretative": "{json_type}", "synthese_statut": "VARCHAR", "texte_en_cours": "TEXT", "passerelle_qual_quant": "{json_type}", "passerelle_statut": "VARCHAR"},
 }
 
 

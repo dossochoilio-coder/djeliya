@@ -37,7 +37,8 @@ from .exports import (
     generer_docx_etude_quant, generer_xlsx_template_questionnaire, generer_docx_analyse_quant, generer_xlsx_analyse_quant,
 )
 from .stats_quant import analyser_donnees
-from .stats_avances import analyses_avancees
+import numpy as np
+from .stats_avances import analyses_avancees, passerelle_qual_quant
 
 # ----------------------------------------------------------------- config
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
@@ -1452,6 +1453,7 @@ def _analyse_quant_vers_dict(a: AnalyseQuantitative) -> dict:
         "id": a.id, "etude_id": a.etude_id, "nom_fichier": a.nom_fichier, "statut": a.statut,
         "resultats": a.resultats, "erreur": a.erreur, "modele": a.modele,
         "synthese_interpretative": a.synthese_interpretative, "synthese_statut": a.synthese_statut,
+        "passerelle_qual_quant": a.passerelle_qual_quant, "passerelle_statut": a.passerelle_statut,
         "texte_en_cours": a.texte_en_cours,
         "cree_le": a.cree_le.isoformat() if a.cree_le else None,
     }
@@ -1636,6 +1638,138 @@ def _run_synthese_quant(analyse_id: str, etude_id: str, langue: str):
         session.close()
 
 
+SCHEMA_THEMES_TEXTE_LIBRE = """{
+  "themes": [
+    {"code": "T1", "libelle": "nom court du thème (3-5 mots)", "description": "une phrase expliquant ce que recouvre ce thème"}
+  ],
+  "attributions": [
+    {"index_ligne": 0, "themes": ["T1"]}
+  ]
+}"""
+
+
+def _construire_prompt_themes(libelle_question: str, reponses: list[tuple[int, str]], langue: str) -> str:
+    reponses_txt = "\n".join(f"{i}. {r}" for i, r in reponses)
+    consigne_langue = "Rédige en anglais." if langue == "en" else "Rédige en français."
+    return f"""Tu es analyste qualitatif de niveau recherche doctorale. Identifie les thèmes \
+récurrents dans ces réponses libres à une question de questionnaire, dans l'esprit d'une \
+analyse thématique (Braun & Clarke) appliquée à des réponses courtes.
+
+Question posée : {libelle_question}
+
+Réponses des répondants (numérotées par leur index de ligne — conserve ces numéros exacts) :
+{reponses_txt}
+
+{consigne_langue}
+
+Identifie 3 à 6 thèmes récurrents et distincts (jamais plus de 6, jamais moins de 2 s'il y a une \
+vraie diversité de réponses). Pour CHAQUE réponse numérotée, indique quel(s) thème(s) elle \
+évoque (une réponse peut évoquer plusieurs thèmes, ou aucun si elle ne correspond à aucun \
+thème identifié — dans ce cas, attribue une liste vide). N'invente jamais de réponse : \
+base-toi uniquement sur le texte réellement fourni.
+
+Réponds UNIQUEMENT en JSON conforme à ce schéma :
+{SCHEMA_THEMES_TEXTE_LIBRE}"""
+
+
+def _run_passerelle_qual_quant(analyse_id: str, etude_id: str, lignes: list[dict], langue: str):
+    """Identifie les thèmes récurrents dans les réponses libres du questionnaire
+    (s'il y en a), puis teste statistiquement si les répondants exprimant chaque
+    thème diffèrent des autres sur les variables quantitatives du modèle — la
+    passerelle qualitatif-quantitatif, jamais bloquante pour le reste de l'analyse."""
+    session = get_session()
+    try:
+        etude = session.get(EtudeQuantitative, etude_id)
+        a = session.get(AnalyseQuantitative, analyse_id)
+        if not etude or not a or not a.resultats:
+            return
+
+        questionnaire = etude.contenu.get("questionnaire", {})
+        items_texte_libre = [
+            (it["code"], it.get("libelle", it["code"]))
+            for section in questionnaire.get("sections", [])
+            for it in section.get("items", [])
+            if it.get("type") == "texte_libre"
+        ]
+        if not items_texte_libre:
+            a.passerelle_statut = "non_applicable"
+            session.commit()
+            return
+
+        # Construire les scores composites par variable (comme pour les régressions),
+        # pour pouvoir comparer les groupes par thème une fois les thèmes identifiés.
+        items_par_variable: dict[str, list[str]] = {}
+        for section in questionnaire.get("sections", []):
+            variable = section.get("variable_associee")
+            if variable:
+                codes = [it["code"] for it in section.get("items", []) if it.get("type") in ("echelle_likert", "numerique")]
+                if codes:
+                    items_par_variable[variable] = codes
+
+        scores_composites: dict[str, np.ndarray] = {}
+        index_lignes_valides: list[int] = []
+        for variable, codes in items_par_variable.items():
+            valeurs, index_valides = [], []
+            for i, ligne in enumerate(lignes):
+                if all(c in ligne and ligne[c] not in (None, "") and _est_nombre_local(ligne[c]) for c in codes):
+                    valeurs.append([float(ligne[c]) for c in codes])
+                    index_valides.append(i)
+            if len(valeurs) >= 10:
+                scores_composites[variable] = np.array(valeurs).mean(axis=1)
+                if not index_lignes_valides:
+                    index_lignes_valides = index_valides
+
+        tous_resultats = []
+        for code_item, libelle in items_texte_libre:
+            reponses = [(i, str(l[code_item]).strip()) for i, l in enumerate(lignes) if l.get(code_item) not in (None, "")]
+            if len(reponses) < 10:
+                continue
+            # Échantillon plafonné pour un budget de tokens raisonnable, même
+            # avec plusieurs centaines de répondants.
+            reponses_echantillon = reponses[:150]
+            prompt = _construire_prompt_themes(libelle, reponses_echantillon, langue)
+            try:
+                resultat_themes = _appel_etape_avec_reprise(
+                    prompt, 4000, lambda r: _valider_etape(r, ("themes", "attributions")),
+                    on_delta=_texte_en_direct(session, a),
+                )
+            except Exception:  # noqa: BLE001
+                continue
+
+            themes_avec_attributions = [
+                {**th, "attributions": [
+                    att for att in resultat_themes["attributions"] if th["code"] in att.get("themes", [])
+                ]}
+                for th in resultat_themes["themes"]
+            ]
+            comparaisons = passerelle_qual_quant(lignes, themes_avec_attributions, scores_composites, index_lignes_valides)
+            tous_resultats.append({
+                "item_code": code_item, "libelle_question": libelle,
+                "themes": resultat_themes["themes"], "comparaisons": comparaisons,
+            })
+
+        a.passerelle_qual_quant = {"items": tous_resultats} if tous_resultats else None
+        a.passerelle_statut = "termine" if tous_resultats else "non_disponible"
+        a.texte_en_cours = None
+        session.commit()
+    except Exception:  # noqa: BLE001
+        a = session.get(AnalyseQuantitative, analyse_id)
+        if a:
+            a.passerelle_statut = "non_disponible"
+            a.texte_en_cours = None
+            session.commit()
+    finally:
+        session.close()
+
+
+def _est_nombre_local(v) -> bool:
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def _reparer_codes_questionnaire_si_necessaire(e: "EtudeQuantitative", session) -> bool:
     """Corrige silencieusement les études générées avant le correctif de
     renumérotation globale (chaque section reprenant "Q1, Q2..." indépendamment,
@@ -1729,6 +1863,7 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
             id=analyse_id, etude_id=etude_id, proprietaire_id=user.id,
             nom_fichier=fichier.filename or "donnees.xlsx", statut=statut,
             resultats=resultats, erreur=erreur, synthese_statut=synthese_statut,
+            passerelle_statut="en_cours" if statut == "termine" else None,
         )
         session.add(a)
         session.commit()
@@ -1739,6 +1874,7 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
 
     if synthese_statut == "en_cours":
         threading.Thread(target=_run_synthese_quant, args=(analyse_id, etude_id, langue_etude), daemon=True).start()
+        threading.Thread(target=_run_passerelle_qual_quant, args=(analyse_id, etude_id, lignes, langue_etude), daemon=True).start()
     return resultat_dict
 
 

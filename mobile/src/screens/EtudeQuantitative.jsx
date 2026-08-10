@@ -517,6 +517,30 @@ function AnalyseResume({ analyse, onExporter, email }) {
           <p className="field-help" style={{ marginTop: 4 }}>{t("etudeQuant.avanceesDetailExport")}</p>
         )}
 
+        {analyse.passerelle_statut === "en_cours" && (
+          <div className="pending-card" style={{ marginTop: 10 }}>
+            <span className="spinner" />{t("etudeQuant.passerelleEnCours")}
+          </div>
+        )}
+        {analyse.passerelle_statut === "termine" && analyse.passerelle_qual_quant?.items?.length > 0 && (
+          <div className="analyse-texte-card" style={{ marginTop: 10 }}>
+            <h3 className="subsection-title">{t("etudeQuant.passerelleTitre")}</h3>
+            {analyse.passerelle_qual_quant.items.map((item, i) => (
+              <div key={i} style={{ marginBottom: 8 }}>
+                <p className="field-help" style={{ margin: 0 }}>{item.libelle_question}</p>
+                {item.comparaisons?.filter((c) => c.significatif).map((c, j) => (
+                  <p key={j} className="theme-desc" style={{ margin: "2px 0" }}>
+                    <strong>{c.theme}</strong> ↔ {c.variable} : {c.moyenne_groupe_a} vs {c.moyenne_groupe_b} (p={c.p_valeur})
+                  </p>
+                ))}
+                {item.comparaisons?.every((c) => !c.significatif) && (
+                  <p className="theme-desc" style={{ margin: "2px 0" }}>{t("etudeQuant.passerelleAucunLien")}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {analyse.synthese_statut === "en_cours" && (
           <div className="pending-card" style={{ marginTop: 10 }}>
             <span className="spinner" />{t("etudeQuant.syntheseEnCours")}

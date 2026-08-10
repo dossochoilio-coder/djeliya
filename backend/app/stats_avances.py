@@ -14,6 +14,8 @@ import statsmodels.api as sm
 from factor_analyzer import FactorAnalyzer
 from factor_analyzer.factor_analyzer import calculate_kmo, calculate_bartlett_sphericity
 
+from .stats_quant import test_normalite
+
 
 # ----------------------------------------------------------------- AFE
 def afe_diagnostics(matrice: np.ndarray, noms_items: list[str]) -> dict:
@@ -319,3 +321,86 @@ def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[d
                     mediations.append({"independante": iv, "mediatrice": med, "dependante": dv, "erreur": str(ex)})
 
     return {"afe": afe, "afc": afc, "regressions": regressions, "mediations": mediations}
+
+
+# ----------------------------------------------------------------- passerelle qual-quant
+def comparaison_groupes(groupe_a: np.ndarray, groupe_b: np.ndarray, nom_a: str = "Groupe A", nom_b: str = "Groupe B") -> dict | None:
+    """Compare deux groupes indépendants sur une variable quantitative continue —
+    la passerelle qualitatif-quantitatif : teste si les répondants exprimant un
+    thème qualitatif donné (groupe A) diffèrent significativement des autres
+    (groupe B) sur un construit quantitatif. Test t de Student si les deux
+    groupes suivent une distribution normale, test de Mann-Whitney sinon (non
+    paramétrique) — même logique que le choix Pearson/Spearman déjà en place
+    pour les corrélations."""
+    if len(groupe_a) < 3 or len(groupe_b) < 3:
+        return None
+
+    _, _, normale_a = test_normalite(groupe_a)
+    _, _, normale_b = test_normalite(groupe_b)
+    deux_normales = bool(normale_a) and bool(normale_b)
+
+    moyenne_a, moyenne_b = float(np.mean(groupe_a)), float(np.mean(groupe_b))
+    ecart_type_commun = float(np.sqrt(((len(groupe_a) - 1) * np.var(groupe_a, ddof=1) + (len(groupe_b) - 1) * np.var(groupe_b, ddof=1)) / (len(groupe_a) + len(groupe_b) - 2)))
+    cohen_d = (moyenne_a - moyenne_b) / ecart_type_commun if ecart_type_commun > 0 else None
+
+    if deux_normales:
+        stat, p = sp_stats.ttest_ind(groupe_a, groupe_b, equal_var=False)
+        methode = "test t de Student (Welch)"
+    else:
+        stat, p = sp_stats.mannwhitneyu(groupe_a, groupe_b, alternative="two-sided")
+        methode = "test de Mann-Whitney"
+
+    return {
+        "n_groupe_a": len(groupe_a), "n_groupe_b": len(groupe_b),
+        "nom_groupe_a": nom_a, "nom_groupe_b": nom_b,
+        "moyenne_groupe_a": round(moyenne_a, 3), "moyenne_groupe_b": round(moyenne_b, 3),
+        "methode": methode, "statistique": round(float(stat), 3), "p_valeur": round(float(p), 4),
+        "significatif": bool(p < 0.05),
+        "taille_effet_cohen_d": round(cohen_d, 3) if cohen_d is not None else None,
+        "interpretation": _interpretation_comparaison(p, cohen_d, nom_a, nom_b, moyenne_a, moyenne_b),
+    }
+
+
+def _interpretation_comparaison(p, d, nom_a, nom_b, moyenne_a, moyenne_b) -> str:
+    if p >= 0.05:
+        return "aucune différence significative entre les deux groupes (p ≥ 0,05)"
+    sens = nom_a if moyenne_a > moyenne_b else nom_b
+    if d is None:
+        force = ""
+    else:
+        ad = abs(d)
+        force = "faible" if ad < 0.5 else "modérée" if ad < 0.8 else "forte"
+        force = f", taille d'effet {force} (d de Cohen = {round(d, 2)})"
+    return f"différence significative (p < 0,05) — « {sens} » présente le score le plus élevé{force}"
+
+
+def passerelle_qual_quant(lignes: list[dict], themes_avec_attributions: list[dict], scores_composites: dict[str, np.ndarray], index_lignes_valides: list[int]) -> list[dict]:
+    """Pour chaque thème qualitatif identifié dans les réponses libres, compare
+    statistiquement les répondants qui l'expriment aux autres, sur chaque
+    variable quantitative du modèle — la passerelle qualitatif-quantitatif :
+    « les répondants qui évoquent tel thème diffèrent-ils significativement sur
+    telle variable ? », pas seulement deux analyses côte à côte sans lien."""
+    resultats = []
+    for theme in themes_avec_attributions:
+        code_theme = theme["code"]
+        indices_avec_theme = {
+            a["index_ligne"] for a in theme.get("attributions", []) if code_theme in a.get("themes", [])
+        }
+        for variable, scores in scores_composites.items():
+            # index_lignes_valides fait correspondre chaque position dans `scores`
+            # (qui a pu exclure des lignes incomplètes) à l'index de ligne d'origine.
+            groupe_a, groupe_b = [], []
+            for pos, idx_ligne in enumerate(index_lignes_valides):
+                if idx_ligne in indices_avec_theme:
+                    groupe_a.append(scores[pos])
+                else:
+                    groupe_b.append(scores[pos])
+            if len(groupe_a) < 3 or len(groupe_b) < 3:
+                continue
+            comparaison = comparaison_groupes(
+                np.array(groupe_a), np.array(groupe_b),
+                f"Évoque « {theme['libelle']} »", f"N'évoque pas « {theme['libelle']} »",
+            )
+            if comparaison:
+                resultats.append({"theme": theme["libelle"], "theme_code": code_theme, "variable": variable, **comparaison})
+    return resultats

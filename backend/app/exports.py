@@ -197,7 +197,12 @@ L = {
         "aq_feuille_fiab": "Fiabilité (alpha)", "aq_feuille_corr": "Corrélations",
         "aq_graphiques": "Graphiques", "aq_graph_fiabilite": "Fiabilité des construits",
         "aq_graph_moyennes": "Scores moyens par construit", "aq_graph_matrice": "Matrice de corrélations",
-        "aq_synthese_titre": "9. Synthèse et interprétation", "aq_synthese_generale": "Synthèse générale",
+        "aq_passerelle_titre": "9. Passerelle qualitative-quantitative",
+        "aq_passerelle_intro": "Thèmes identifiés automatiquement dans les réponses libres du questionnaire, puis comparaison statistique entre les répondants qui évoquent chaque thème et les autres, sur chaque variable quantitative du modèle.",
+        "aq_passerelle_question": "Question", "aq_passerelle_themes": "Thèmes identifiés",
+        "aq_passerelle_theme": "Thème", "aq_passerelle_variable": "Variable", "aq_passerelle_methode": "Méthode",
+        "aq_passerelle_moyennes": "Moyennes (évoque / n'évoque pas)", "aq_passerelle_p": "p", "aq_passerelle_effet": "d de Cohen",
+        "aq_synthese_titre": "10. Synthèse et interprétation", "aq_synthese_generale": "Synthèse générale",
         "aq_synthese_fiabilite": "Discussion de la fiabilité", "aq_synthese_hypotheses": "Test des hypothèses de recherche",
         "aq_synthese_limites": "Limites de l'analyse", "aq_synthese_recommandations": "Recommandations",
         "aq_hyp_code": "Hypothèse", "aq_hyp_verdict": "Verdict", "aq_hyp_justif": "Justification",
@@ -350,7 +355,12 @@ L = {
         "aq_feuille_fiab": "Reliability (alpha)", "aq_feuille_corr": "Correlations",
         "aq_graphiques": "Charts", "aq_graph_fiabilite": "Construct reliability",
         "aq_graph_moyennes": "Mean scores by construct", "aq_graph_matrice": "Correlation matrix",
-        "aq_synthese_titre": "9. Synthesis and interpretation", "aq_synthese_generale": "General synthesis",
+        "aq_passerelle_titre": "9. Qualitative-quantitative bridge",
+        "aq_passerelle_intro": "Themes automatically identified in the questionnaire's open-ended responses, then a statistical comparison between respondents who raise each theme and the others, on each quantitative variable of the model.",
+        "aq_passerelle_question": "Question", "aq_passerelle_themes": "Identified themes",
+        "aq_passerelle_theme": "Theme", "aq_passerelle_variable": "Variable", "aq_passerelle_methode": "Method",
+        "aq_passerelle_moyennes": "Means (mentions / doesn't mention)", "aq_passerelle_p": "p", "aq_passerelle_effet": "Cohen's d",
+        "aq_synthese_titre": "10. Synthesis and interpretation", "aq_synthese_generale": "General synthesis",
         "aq_synthese_fiabilite": "Reliability discussion", "aq_synthese_hypotheses": "Research hypothesis testing",
         "aq_synthese_limites": "Limitations of the analysis", "aq_synthese_recommandations": "Recommendations",
         "aq_hyp_code": "Hypothesis", "aq_hyp_verdict": "Verdict", "aq_hyp_justif": "Justification",
@@ -1482,6 +1492,33 @@ def generer_docx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
             row[2].text = f"[{med['ic95_bas']} ; {med['ic95_haut']}]"
             row[3].text = med["type_mediation"] if med["mediation_significative"] else "non significative"
 
+    # --- Passerelle qualitative-quantitative ---
+    passerelle = analyse_data.get("passerelle_qual_quant")
+    if passerelle and passerelle.get("items"):
+        doc.add_heading(l["aq_passerelle_titre"], level=1)
+        doc.add_paragraph(l["aq_passerelle_intro"])
+        for item in passerelle["items"]:
+            p_q = doc.add_paragraph(f"{l['aq_passerelle_question']} : {item['libelle_question']}")
+            p_q.runs[0].bold = True
+            themes_txt = ", ".join(f"« {t['libelle']} »" for t in item.get("themes", []))
+            doc.add_paragraph(f"{l['aq_passerelle_themes']} : {themes_txt}")
+            if item.get("comparaisons"):
+                tbl = doc.add_table(rows=1, cols=6)
+                tbl.style = "Light Grid Accent 1"
+                for i, h in enumerate([
+                    l["aq_passerelle_theme"], l["aq_passerelle_variable"], l["aq_passerelle_methode"],
+                    l["aq_passerelle_moyennes"], l["aq_passerelle_p"], l["aq_passerelle_effet"],
+                ]):
+                    tbl.rows[0].cells[i].text = h
+                for c in item["comparaisons"]:
+                    row = tbl.add_row().cells
+                    row[0].text = c["theme"] + (" *" if c["significatif"] else "")
+                    row[1].text = c["variable"]
+                    row[2].text = c["methode"]
+                    row[3].text = f"{c['moyenne_groupe_a']} / {c['moyenne_groupe_b']}"
+                    row[4].text = str(c["p_valeur"])
+                    row[5].text = str(c["taille_effet_cohen_d"]) if c["taille_effet_cohen_d"] is not None else "—"
+
     # --- Synthèse interprétative générée par IA ---
     synthese = analyse_data.get("synthese_interpretative")
     if synthese:
@@ -1707,6 +1744,31 @@ def generer_xlsx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
             ws_med.cell(i, 3, m_["ic95_bas"]); ws_med.cell(i, 4, m_["ic95_haut"])
             ws_med.cell(i, 5, m_["type_mediation"] if m_["mediation_significative"] else "non significative")
         ws_med.column_dimensions["A"].width = 35
+
+    passerelle = analyse_data.get("passerelle_qual_quant")
+    if passerelle and passerelle.get("items"):
+        ws_p = wb.create_sheet(l["aq_passerelle_titre"][3:][:31])
+        _entete(ws_p, [
+            l["aq_passerelle_question"], l["aq_passerelle_theme"], l["aq_passerelle_variable"],
+            l["aq_passerelle_methode"], "Moyenne groupe A", "Moyenne groupe B", l["aq_passerelle_p"], l["aq_passerelle_effet"],
+        ])
+        ligne_p = 2
+        for item in passerelle["items"]:
+            for c in item.get("comparaisons", []):
+                ws_p.cell(ligne_p, 1, item["libelle_question"])
+                ws_p.cell(ligne_p, 2, c["theme"])
+                ws_p.cell(ligne_p, 3, c["variable"])
+                ws_p.cell(ligne_p, 4, c["methode"])
+                ws_p.cell(ligne_p, 5, c["moyenne_groupe_a"])
+                ws_p.cell(ligne_p, 6, c["moyenne_groupe_b"])
+                ws_p.cell(ligne_p, 7, c["p_valeur"])
+                ws_p.cell(ligne_p, 8, c["taille_effet_cohen_d"])
+                if c["significatif"]:
+                    for col in range(1, 9):
+                        ws_p.cell(ligne_p, col).fill = PatternFill("solid", fgColor="E4F5EE")
+                ligne_p += 1
+        ws_p.column_dimensions["A"].width = 35
+        ws_p.column_dimensions["B"].width = 25
 
     synthese = analyse_data.get("synthese_interpretative")
     if synthese:
