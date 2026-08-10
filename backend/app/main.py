@@ -1415,11 +1415,28 @@ def _construire_prompt_synthese_quant(etude: "EtudeQuantitative", resultats: dic
     afe_txt = "Non calculée."
     if av.get("afe"):
         a = av["afe"]
+        # Retrouver quelles variables ont effectivement contribué à cette AFE (celles
+        # ayant au moins 2 items Likert) — pour empêcher toute généralisation abusive
+        # de ce résultat à des variables qui n'y ont jamais participé (ex. une variable
+        # mesurée par un indicateur numérique unique, exclue par construction de l'AFE).
+        codes_afe = {c["item"] for c in a["charges_factorielles"]}
+        variables_afe = sorted({
+            section.get("variable_associee")
+            for section in (etude.contenu.get("questionnaire") or {}).get("sections", [])
+            if section.get("variable_associee") and any(it["code"] in codes_afe for it in section.get("items", []))
+        })
         afe_txt = (
             f"KMO = {a['kmo_total']} ({a['kmo_interpretation']}), test de Bartlett : "
             f"p = {a['bartlett_p']} ({'factorisable' if a['bartlett_factorisable'] else 'non factorisable'}), "
             f"{a['n_facteurs_extraits']} facteur(s) extrait(s) (critère de Kaiser), "
-            f"{a['variance_expliquee_cumulee_pct']}% de variance expliquée cumulée."
+            f"{a['variance_expliquee_cumulee_pct']}% de variance expliquée cumulée. "
+            f"IMPORTANT : cette AFE porte UNIQUEMENT sur les items des variables suivantes, les seules à "
+            f"disposer d'au moins 2 items à échelle Likert : {', '.join(variables_afe) or 'aucune identifiée'}. "
+            f"Les autres variables du modèle (mesurées par un indicateur numérique unique, comme c'est "
+            f"fréquent en sciences économiques) n'y participent PAS — ne généralise JAMAIS ce résultat à "
+            f"la structure globale du modèle ni aux variables absentes de cette liste. Si une seule "
+            f"variable dispose d'assez d'items pour l'AFE, un facteur unique est le résultat ATTENDU et "
+            f"RASSURANT (échelle unidimensionnelle), pas un signe d'indifférenciation entre construits."
         )
 
     afc_txt = "Non calculée."
