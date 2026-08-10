@@ -1,7 +1,8 @@
 """
-Djeliya — Serveur de transcription et d'analyse pour la recherche qualitative.
+Djeliya — Serveur de transcription et d'analyse pour la recherche qualitative et quantitative.
 Déployé sur Railway. Whisper (FR/EN + langues locales expérimentales),
-diarisation des locuteurs, analyse qualitative méthode Gioia, comptes et
+diarisation des locuteurs, analyse qualitative méthode Gioia, études quantitatives
+avec statistiques avancées (AFE, AFC, régression, médiation), comptes et
 corpus partagés en équipe, fiabilité inter-codeurs.
 """
 

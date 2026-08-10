@@ -11,6 +11,7 @@ export default function GuideEntretien({ settings, token, couts, utilisateur, on
   const [guides, setGuides] = useState(null);
   const [selection, setSelection] = useState(null);
   const [formulaire, setFormulaire] = useState(false);
+  const [confirmationSuppression, setConfirmationSuppression] = useState(null);
   const [theme, setTheme] = useState("");
   const [question, setQuestion] = useState("");
   const [envoi, setEnvoi] = useState(false);
@@ -246,11 +247,31 @@ export default function GuideEntretien({ settings, token, couts, utilisateur, on
                     {t(`statuts.${gd.statut === "en_cours" ? "en_cours" : gd.statut === "erreur" ? "erreur" : "termine"}`)}
                   </span>
                 </button>
-                <button className="icon-btn sm" aria-label={t("guide.supprimer")}
-                  onClick={(e) => { e.stopPropagation(); supprimer(gd.id); }}>✕</button>
+                <button className="icon-btn sm icon-btn-danger" aria-label={t("guide.supprimer")}
+                  onClick={(e) => { e.stopPropagation(); setConfirmationSuppression(gd.id); }}>
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 6h12M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6m-7 0 .6 9.3a1.4 1.4 0 0 0 1.4 1.3h4a1.4 1.4 0 0 0 1.4-1.3L15 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
               </li>
             ))}
           </ul>
+        )}
+
+        {confirmationSuppression && (
+          <div className="glossaire-form" style={{ borderColor: "#D96D5F" }}>
+            <span className="field-label" style={{ color: "#D96D5F" }}>{t("guide.confirmerSuppressionTitre")}</span>
+            <p className="theme-desc">{t("guide.confirmerSuppressionTexte")}</p>
+            <div className="field-inline">
+              <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => setConfirmationSuppression(null)}>
+                {t("credits.annuler")}
+              </button>
+              <button className="btn sm" style={{ flex: 1, background: "#D96D5F", color: "#1A1024" }}
+                onClick={() => { const id = confirmationSuppression; setConfirmationSuppression(null); supprimer(id); }}>
+                {t("etudeQuant.supprimerDefinitivement")}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

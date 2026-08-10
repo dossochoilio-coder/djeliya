@@ -81,7 +81,15 @@ def afc_ajustement(donnees: dict, structure: dict[str, list[str]]) -> dict | Non
     if len(construits_valides) < 1:
         return None
 
-    lignes_modele = [f"{construit} =~ " + " + ".join(items) for construit, items in construits_valides.items()]
+    # Noms de construits sûrs pour semopy (qui n'accepte pas espaces, accents ou
+    # slashs dans ses identifiants de variables latentes) — les vrais noms,
+    # générés par l'IA, contiennent presque toujours ce genre de caractères
+    # (ex. "Connaissance/disponibilité Starlink"). On mappe vers F1, F2... pour
+    # la syntaxe du modèle, puis on retraduit vers les vrais noms en sortie.
+    noms_surs = {construit: f"F{i}" for i, construit in enumerate(construits_valides, start=1)}
+    noms_reels = {v: k for k, v in noms_surs.items()}
+
+    lignes_modele = [f"{noms_surs[construit]} =~ " + " + ".join(items) for construit, items in construits_valides.items()]
     description_modele = "\n".join(lignes_modele)
 
     toutes_colonnes = [c for items in construits_valides.values() for c in items]
@@ -106,7 +114,7 @@ def afc_ajustement(donnees: dict, structure: dict[str, list[str]]) -> dict | Non
         "rmsea": round(rmsea, 3) if rmsea is not None else None,
         "srmr": round(srmr, 3) if srmr is not None else None,
         "interpretation": _interpretation_afc(cfi, rmsea),
-        "charges_factorielles": _extraire_charges_semopy(modele, construits_valides),
+        "charges_factorielles": _extraire_charges_semopy(modele, noms_reels),
     }
 
 
@@ -122,12 +130,12 @@ def _interpretation_afc(cfi, rmsea) -> str:
     return "ajustement insuffisant — le modèle de mesure postulé ne rend pas bien compte des données"
 
 
-def _extraire_charges_semopy(modele, construits: dict[str, list[str]]) -> list[dict]:
+def _extraire_charges_semopy(modele, noms_reels: dict[str, str]) -> list[dict]:
     inspection = modele.inspect()
     charges = inspection[inspection["op"] == "~"]
     resultat = []
     for _, ligne in charges.iterrows():
-        if ligne["rval"] not in construits:
+        if ligne["rval"] not in noms_reels:
             continue
         p_brut = ligne["p-value"]
         try:
@@ -138,7 +146,7 @@ def _extraire_charges_semopy(modele, construits: dict[str, list[str]]) -> list[d
             # librement estimé, donc pas de p-valeur à tester).
             p_valeur = None
         resultat.append({
-            "construit": ligne["rval"], "item": ligne["lval"],
+            "construit": noms_reels[ligne["rval"]], "item": ligne["lval"],
             "charge": round(float(ligne["Estimate"]), 3),
             "p_valeur": p_valeur,
         })
