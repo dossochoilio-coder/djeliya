@@ -5,6 +5,8 @@ sans jeton valide, et isolation des données entre comptes.
 
 import uuid
 
+from app.db import get_session, Utilisateur
+
 
 def test_inscription_retourne_un_jeton_valide(client):
     email = f"nouveau-{uuid.uuid4().hex[:8]}@cires.ci"
@@ -58,6 +60,17 @@ def test_route_protegee_refuse_jeton_invalide(client):
 
 
 def test_un_utilisateur_ne_voit_jamais_les_etudes_dun_autre(client, utilisateur, autre_utilisateur):
+    # Ce test porte sur l'isolation d'accès entre comptes, pas sur les crédits
+    # — on recharge pour ne pas dépendre du montant exact du crédit d'essai
+    # gratuit, qui peut évoluer indépendamment de ce que ce test vérifie.
+    session = get_session()
+    try:
+        u = session.get(Utilisateur, utilisateur["id"])
+        u.credits = 20
+        session.commit()
+    finally:
+        session.close()
+
     r_creer = client.post("/api/etudes-quantitatives", json={"theme": "Étude privée", "langue": "fr"}, headers=utilisateur["headers"])
     etude_id = r_creer.json()["id"]
 

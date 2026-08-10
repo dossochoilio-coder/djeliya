@@ -91,6 +91,25 @@ Puis dans GitHub → *Settings → Secrets and variables → Actions*, ajoutez :
 
 Sans ces secrets, le workflow produit quand même l'APK de test et un AAB non signé.
 
+## Tarification des crédits (révisée)
+
+La tarification initiale sous-évaluait le coût réel de certaines actions — en particulier l'étude quantitative (5 appels IA séquentiels : cadre théorique, revue de littérature, méthodologie, questionnaire en plusieurs étapes, note méthodologique) et l'analyse quantitative (qui a grandi au fil du développement : synthèse interprétative par IA, passerelle qualitative-quantitative avec codage thématique par IA). Le tarif a été révisé pour refléter ce vrai coût, avec une hausse proportionnellement plus marquée sur ces deux actions :
+
+| Action | Ancien coût | Nouveau coût |
+|---|---|---|
+| Transcription | 1 crédit | 2 crédits |
+| Analyse qualitative | 2 crédits | 3 crédits |
+| Guide d'entretien | 1 crédit | 2 crédits |
+| Étude quantitative | 3 crédits | **7 crédits** |
+| Analyse quantitative | 2 crédits | **5 crédits** |
+| Prix du crédit (recharge FCFA) | 150 FCFA | 200 FCFA |
+
+**⚠️ Action requise de ta part — ces valeurs par défaut ne changent pas automatiquement la production :**
+1. **Variables Railway** : si `COUT_CREDIT_TRANSCRIPTION`, `COUT_CREDIT_ANALYSE`, `COUT_CREDIT_GUIDE`, `COUT_CREDIT_ETUDE_QUANT`, `COUT_CREDIT_ANALYSE_QUANT` ou `PRIX_CREDIT_FCFA` sont déjà définies sur Railway, elles priment sur les nouvelles valeurs par défaut du code — mets-les à jour manuellement sur Railway avec les nouveaux montants ci-dessus.
+2. **Google Play Console** : les prix des produits `djeliya_credits_10/25/50/100` sont fixés directement dans la console Google (pas dans ce code) et ne suivent pas `PRIX_CREDIT_FCFA` automatiquement. Avec le nouveau tarif (200 FCFA/crédit), les prix cohérents seraient 2 000 / 5 000 / 10 000 / 20 000 FCFA — à ajuster toi-même dans Play Console.
+
+**Un compromis à trancher de ton côté** : avec ce nouveau tarif, les 5 crédits d'essai gratuit ne couvrent plus, à eux seuls, une génération d'étude quantitative (qui coûte maintenant 7). Un nouveau chercheur peut toujours essayer transcription, analyse qualitative et guide d'entretien gratuitement, mais devra recharger pour tester ta fonctionnalité phare. Je n'ai pas touché `CREDITS_ESSAI_GRATUIT` (resté à 5) puisque l'augmenter irait à l'encontre de l'objectif de rentabilité que tu viens de demander — mais si la conversion des nouveaux utilisateurs en pâtit, c'est le premier réglage à reconsidérer.
+
 ## 3. Déployer le serveur sur Railway
 
 1. Sur [railway.com](https://railway.com) : **New Project → Deploy from GitHub repo** → choisir `djeliya`.

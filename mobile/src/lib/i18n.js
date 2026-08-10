@@ -168,7 +168,7 @@ export const TRADUCTIONS = {
 
     forfaits: {
       titre: "Forfaits & crédits", credits: "crédits disponibles", forfaitActuel: "forfait actuel",
-      intro: "1 crédit ≈ 1 transcription courte ; une analyse qualitative coûte 2 crédits. Les crédits ne sont jamais consommés en cas d'échec (remboursement automatique).",
+      intro: "Le coût en crédits varie selon l'action (transcription, analyse qualitative, guide d'entretien, étude et analyse quantitatives) — le détail exact est affiché avant chaque confirmation. Les crédits ne sont jamais consommés en cas d'échec (remboursement automatique).",
       chargement: "Chargement des forfaits…",
       aucunForfait: "Aucun forfait payant n'est encore proposé — profite de ton crédit d'essai gratuit.",
       creditsInclus: "crédits inclus",
@@ -478,7 +478,7 @@ export const TRADUCTIONS = {
 
     forfaits: {
       titre: "Plans & credits", credits: "credits available", forfaitActuel: "current plan",
-      intro: "1 credit ≈ 1 short transcription; a qualitative analysis costs 2 credits. Credits are never consumed on failure (automatic refund).",
+      intro: "The credit cost varies by action (transcription, qualitative analysis, interview guide, quantitative study and analysis) — the exact detail is shown before each confirmation. Credits are never consumed on failure (automatic refund).",
       chargement: "Loading plans…",
       aucunForfait: "No paid plan is available yet — enjoy your free trial credit.",
       creditsInclus: "credits included",

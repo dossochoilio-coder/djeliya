@@ -17,6 +17,18 @@ def test_creation_etude_deduit_le_bon_nombre_de_credits(client, utilisateur, mon
     # dont FastAPI a besoin en interne pour exécuter les routes synchrones).
     monkeypatch.setattr(m, "_run_etude_quant", lambda *a, **k: None)
 
+    # Le crédit d'essai gratuit (5) ne couvre plus, à lui seul, le coût d'une
+    # étude quantitative (7) depuis la révision tarifaire — on recharge le
+    # compte de test pour isoler ce qu'on veut vérifier ici : la déduction,
+    # pas le refus pour solde insuffisant (déjà testé séparément).
+    session = get_session()
+    try:
+        u = session.get(Utilisateur, utilisateur["id"])
+        u.credits = 20
+        session.commit()
+    finally:
+        session.close()
+
     r_moi = client.get("/api/auth/moi", headers=utilisateur["headers"])
     credits_avant = r_moi.json()["credits"]
 
@@ -25,7 +37,7 @@ def test_creation_etude_deduit_le_bon_nombre_de_credits(client, utilisateur, mon
 
     r_moi2 = client.get("/api/auth/moi", headers=utilisateur["headers"])
     credits_apres = r_moi2.json()["credits"]
-    assert credits_avant - credits_apres == 3  # coût d'une étude quantitative
+    assert credits_avant - credits_apres == 7  # coût d'une étude quantitative (tarif révisé)
 
 
 def test_theme_vide_refuse_sans_debiter(client, utilisateur):
@@ -104,3 +116,17 @@ def test_echec_analyse_quantitative_rembourse(client, utilisateur):
 
     r_moi2 = client.get("/api/auth/moi", headers=utilisateur["headers"])
     assert r_moi2.json()["credits"] == credits_avant, "Un échec d'import ne doit jamais débiter l'utilisateur"
+
+
+def test_le_cout_de_chaque_action_est_documente_dans_couts_credits(client):
+    """Vérifie que la route publique des coûts reflète bien la tarification
+    actuelle — le mobile s'appuie dessus pour ne jamais afficher un prix
+    obsolète après une révision tarifaire."""
+    r = client.get("/api/couts-credits")
+    assert r.status_code == 200
+    couts = r.json()
+    assert couts["etude_quantitative"] == 7
+    assert couts["analyse_quantitative"] == 5
+    assert couts["transcription"] == 2
+    assert couts["analyse_qualitative"] == 3
+    assert couts["guide_entretien"] == 2
