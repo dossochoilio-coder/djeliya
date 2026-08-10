@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from app.stats_avances import (
-    afe_diagnostics, afc_ajustement, regression_multiple,
+    afe_diagnostics, afc_ajustement, regression_multiple, regression_econometrique,
     mediation_bootstrap, comparaison_groupes, analyses_avancees,
 )
 
@@ -191,3 +191,88 @@ def test_afe_refuse_sous_trois_variables(n_facteurs_attendu, taille_echantillon)
     matrice = np.random.randint(1, 6, size=(taille_echantillon, 2))
     resultat = afe_diagnostics(matrice, ["Q1", "Q2"])
     assert resultat is None
+
+
+def test_vif_detecte_une_vraie_multicolinearite():
+    """Régression économétrique : le VIF doit détecter une colinéarité
+    délibérément construite, tout en laissant une variable indépendante
+    intacte — la spécificité économétrique demandée pour la branche
+    sciences économiques."""
+    np.random.seed(1000)
+    n = 300
+    x1 = np.random.normal(100, 15, n)
+    x2 = x1 * 1.02 + np.random.normal(0, 1, n)  # quasi-copie -> forte colinéarité
+    x3 = np.random.normal(50, 10, n)
+    y = 2 * x1 + np.random.normal(0, 5, n)
+
+    resultat = regression_econometrique(y, {"colineaire_1": x1, "colineaire_2": x2, "independant": x3})
+    vif = {v["nom"]: v for v in resultat["vif"]}
+    assert vif["colineaire_1"]["vif"] > 10
+    assert vif["colineaire_1"]["problematique"] is True
+    assert vif["independant"]["vif"] < 5
+    assert vif["independant"]["problematique"] is False
+
+
+def test_breusch_pagan_distingue_hetero_et_homoscedasticite():
+    np.random.seed(1001)
+    n = 300
+    x = np.random.uniform(1, 100, n)
+
+    y_hetero = 3 * x + np.random.normal(0, x * 0.5, n)  # variance croissante avec x
+    resultat_hetero = regression_econometrique(y_hetero, {"x": x})
+    assert resultat_hetero["heteroscedasticite"]["homoscedastique"] is False
+
+    y_homo = 3 * x + np.random.normal(0, 5, n)  # variance constante
+    resultat_homo = regression_econometrique(y_homo, {"x": x})
+    assert resultat_homo["heteroscedasticite"]["homoscedastique"] is True
+
+
+def test_elasticite_proche_de_la_valeur_theorique_connue():
+    """La formule d'élasticité au point moyen (β × X̄/Ȳ) doit retrouver une
+    valeur très proche de la valeur théorique calculable à l'avance pour une
+    relation linéaire construite : Y = 500 + 2X."""
+    np.random.seed(1003)
+    n = 300
+    prix = np.random.normal(100, 10, n)
+    quantite = 500 + 2 * prix + np.random.normal(0, 20, n)
+
+    resultat = regression_econometrique(quantite, {"prix": prix})
+    elasticite_estimee = resultat["elasticites"][0]["elasticite"]
+    elasticite_theorique = 2 * (np.mean(prix) / np.mean(quantite))
+    assert abs(elasticite_estimee - elasticite_theorique) < 0.05
+
+
+def test_elasticite_absente_si_variable_negative_ou_nulle():
+    """Une élasticité n'a pas de sens économique sur une variable pouvant
+    être négative ou nulle (ex. un score centré) — ne doit jamais être
+    rapportée dans ce cas, plutôt qu'un calcul trompeur."""
+    np.random.seed(1004)
+    n = 100
+    x_avec_negatifs = np.random.normal(0, 1, n)  # peut être négatif
+    y = 2 * x_avec_negatifs + np.random.normal(0, 0.5, n)
+    resultat = regression_econometrique(y, {"x": x_avec_negatifs})
+    assert resultat["elasticites"] is None
+
+
+def test_analyses_avancees_active_diagnostics_econometriques_seulement_en_branche_economique():
+    np.random.seed(2000)
+    n = 200
+    prix = np.random.normal(100, 15, n)
+    quantite = np.clip(800 - 3 * prix + np.random.normal(0, 30, n), 50, None)
+
+    questionnaire = {"sections": [
+        {"titre": "S1", "variable_associee": "Prix", "items": [{"code": "Q1", "type": "numerique"}]},
+        {"titre": "S2", "variable_associee": "Quantite", "items": [{"code": "Q2", "type": "numerique"}]},
+    ]}
+    variables = [{"nom": "Prix", "type": "indépendante"}, {"nom": "Quantite", "type": "dépendante"}]
+    lignes = [{"Q1": float(prix[i]), "Q2": float(quantite[i])} for i in range(n)]
+
+    resultat_eco = analyses_avancees(lignes, questionnaire, variables, branche="sciences_economiques")
+    reg_eco = resultat_eco["regressions"][0]
+    assert "elasticites" in reg_eco and reg_eco["elasticites"] is not None
+    assert reg_eco["elasticites"][0]["elasticite"] < 0  # loi de la demande : prix ↑ -> quantité ↓
+
+    resultat_humaines = analyses_avancees(lignes, questionnaire, variables, branche="sciences_humaines")
+    reg_humaines = resultat_humaines["regressions"][0]
+    assert "elasticites" not in reg_humaines
+    assert "vif" not in reg_humaines

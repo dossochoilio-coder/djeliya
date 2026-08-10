@@ -1843,7 +1843,7 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
                 # bloquant : si ça échoue (ex. données insuffisantes, modèle non
                 # convergent), les statistiques de base restent pleinement valides.
                 variables = (e.contenu.get("methodologie") or {}).get("variables", [])
-                resultats["analyses_avancees"] = analyses_avancees(lignes, e.contenu["questionnaire"], variables)
+                resultats["analyses_avancees"] = analyses_avancees(lignes, e.contenu["questionnaire"], variables, e.branche or "sciences_humaines")
             except Exception:  # noqa: BLE001
                 resultats["analyses_avancees"] = None
             statut, erreur = "termine", None
@@ -2821,6 +2821,30 @@ def creer_corpus(payload: CorpusIn, user: Utilisateur = Depends(utilisateur_cour
         ))
         session.commit()
         return {"id": corpus.id, "nom": corpus.nom, "code_invitation": corpus.code_invitation}
+    finally:
+        session.close()
+
+
+@app.delete("/api/corpus/{corpus_id}")
+def supprimer_corpus(corpus_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    """Supprime le corpus lui-même (et les adhésions de ses membres), mais
+    préserve les entretiens qui y étaient rattachés — chacun redevient un
+    entretien personnel de son propriétaire d'origine, jamais supprimé au
+    passage. Seul le propriétaire du corpus peut le supprimer."""
+    session = get_session()
+    try:
+        corpus = session.get(Corpus, corpus_id)
+        if not corpus:
+            raise HTTPException(404, "Corpus introuvable.")
+        if corpus.proprietaire_id != user.id:
+            raise HTTPException(403, "Seul le propriétaire du corpus peut le supprimer.")
+
+        session.query(Entretien).filter_by(corpus_id=corpus_id).update({"corpus_id": None})
+        session.query(Memo).filter_by(corpus_id=corpus_id).delete()
+        session.query(MembreCorpus).filter_by(corpus_id=corpus_id).delete()
+        session.delete(corpus)
+        session.commit()
+        return {"ok": True}
     finally:
         session.close()
 

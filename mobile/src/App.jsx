@@ -25,7 +25,7 @@ import {
 } from "./lib/db.js";
 import {
   checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
-  creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
+  creerCorpusDistant, listerCorpusDistant, supprimerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
   enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, couterCredits, moi,
   listerMemos, creerMemo, modifierMemo, supprimerMemo,
   exporterDocxEntretien, exporterXlsxEntretien, exporterDocxCorpus, exporterXlsxCorpus, exporterDocxGuide,
@@ -235,6 +235,16 @@ export default function App() {
     }
   };
 
+  const supprimerCorpus = async (corpusId) => {
+    try {
+      await supprimerCorpusDistant(settings.backendUrl, auth.token, corpusId);
+      await rafraichirCorpus();
+      showToast("Corpus supprimé");
+    } catch (e) {
+      showToast("Échec : " + e.message);
+    }
+  };
+
   const rejoindreCorpusHandler = async (code) => {
     await rejoindreCorpus(settings.backendUrl, auth.token, code);
     await rafraichirCorpus();
@@ -435,6 +445,7 @@ export default function App() {
         onOuvrirForfaits={() => push("forfaits")}
         onSelectCorpus={setCorpusSelectionne}
         onCreer={creerCorpus}
+        onSupprimer={supprimerCorpus}
         onRejoindre={rejoindreCorpusHandler}
         onOpenInterview={(id) => push("fiche", id)}
         onLancerAnalyse={lancerAnalyseCorpusHandler}

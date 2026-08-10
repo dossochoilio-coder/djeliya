@@ -517,6 +517,13 @@ export async function creerCorpusDistant(backendUrl, token, nom) {
   return res.json();
 }
 
+export async function supprimerCorpusDistant(backendUrl, token, corpusId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/corpus/${corpusId}`, { method: "DELETE", headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export async function listerCorpusDistant(backendUrl, token) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/corpus`, { headers: headersAuth(token) });

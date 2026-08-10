@@ -5,9 +5,10 @@ import AnalyseView from "../components/AnalyseView.jsx";
 
 const PALETTE = ["#E4B04A", "#7C9CF5", "#5FC6A8", "#D96D5F", "#C48FE0"];
 
-export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, couts, utilisateur, onOuvrirForfaits, onLancerAnalyse, onExporterDocx, onExporterXlsx, showToast }) {
+export default function Corpus({ corpusList, interviews, onCreer, onSupprimer, onRejoindre, onOpenInterview, onSelectCorpus, selectedId, corpusDetail, methodes, couts, utilisateur, onOuvrirForfaits, onLancerAnalyse, onExporterDocx, onExporterXlsx, showToast }) {
   const { t } = useT();
   const [creation, setCreation] = useState(false);
+  const [confirmationSuppression, setConfirmationSuppression] = useState(null);
   const [nom, setNom] = useState("");
   const [rejoindre, setRejoindre] = useState(false);
   const [code, setCode] = useState("");
@@ -199,7 +200,7 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
         ) : (
           <ul className="corpus-list">
             {enrichis.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} className={c.role === "proprietaire" ? "guide-row-avec-action" : undefined}>
                 <button className="corpus-card" onClick={() => onSelectCorpus(c.id)}>
                   <span className="corpus-bar" style={{ background: c.couleur }} />
                   <div className="corpus-info">
@@ -211,9 +212,33 @@ export default function Corpus({ corpusList, interviews, onCreer, onRejoindre, o
                     </span>
                   </div>
                 </button>
+                {c.role === "proprietaire" && (
+                  <button className="icon-btn sm icon-btn-danger" aria-label={t("corpus.supprimer")}
+                    onClick={() => setConfirmationSuppression(c.id)}>
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                      <path d="M4 6h12M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6m-7 0 .6 9.3a1.4 1.4 0 0 0 1.4 1.3h4a1.4 1.4 0 0 0 1.4-1.3L15 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                )}
               </li>
             ))}
           </ul>
+        )}
+
+        {confirmationSuppression && (
+          <div className="glossaire-form" style={{ borderColor: "#D96D5F" }}>
+            <span className="field-label" style={{ color: "#D96D5F" }}>{t("corpus.confirmerSuppressionTitre")}</span>
+            <p className="theme-desc">{t("corpus.confirmerSuppressionTexte")}</p>
+            <div className="field-inline">
+              <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => setConfirmationSuppression(null)}>
+                {t("credits.annuler")}
+              </button>
+              <button className="btn sm" style={{ flex: 1, background: "#D96D5F", color: "#1A1024" }}
+                onClick={() => { const id = confirmationSuppression; setConfirmationSuppression(null); onSupprimer(id); }}>
+                {t("etudeQuant.supprimerDefinitivement")}
+              </button>
+            </div>
+          </div>
         )}
 
         {sansCorpus.length > 0 && (

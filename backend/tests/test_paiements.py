@@ -9,7 +9,6 @@ import base64
 import json
 
 import app.main as m
-from app.db import get_session, Utilisateur
 
 
 def _cle_service_compte_factice() -> str:

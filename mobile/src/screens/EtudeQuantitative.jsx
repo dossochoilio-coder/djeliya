@@ -513,6 +513,11 @@ function AnalyseResume({ analyse, onExporter, email }) {
             <strong>{t("etudeQuant.mediationResume")}</strong> {m.independante} → {m.mediatrice} → {m.dependante} : {m.mediation_significative ? m.type_mediation : t("etudeQuant.mediationNonSignificative")}
           </p>
         ))}
+        {r.analyses_avancees?.regressions?.flatMap((reg) => reg.elasticites || []).map((e, i) => (
+          <p key={i} className="theme-desc">
+            <strong>{t("etudeQuant.elasticiteResume")}</strong> {e.nom} : {e.elasticite}
+          </p>
+        ))}
         {(r.analyses_avancees?.afe || r.analyses_avancees?.afc || r.analyses_avancees?.regressions?.length > 0 || r.analyses_avancees?.mediations?.length > 0) && (
           <p className="field-help" style={{ marginTop: 4 }}>{t("etudeQuant.avanceesDetailExport")}</p>
         )}

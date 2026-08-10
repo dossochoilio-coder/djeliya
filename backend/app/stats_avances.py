@@ -11,6 +11,9 @@ statistiques connues à l'avance, dans le même esprit que le reste de l'app.
 import numpy as np
 from scipy import stats as sp_stats
 import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.stattools import jarque_bera
 from factor_analyzer import FactorAnalyzer
 from factor_analyzer.factor_analyzer import calculate_kmo, calculate_bartlett_sphericity
 
@@ -190,6 +193,79 @@ def regression_multiple(y: np.ndarray, predicteurs: dict[str, np.ndarray]) -> di
     }
 
 
+# ----------------------------------------------------------------- diagnostics économétriques
+def regression_econometrique(y: np.ndarray, predicteurs: dict[str, np.ndarray]) -> dict:
+    """Régression multiple enrichie des diagnostics économétriques standards —
+    ce qui distingue une analyse économique d'une simple régression : la
+    multicolinéarité (VIF), l'hétéroscédasticité (test de Breusch-Pagan) et la
+    normalité des résidus (test de Jarque-Bera) conditionnent la validité même
+    des erreurs-types de la régression, pas un simple complément décoratif.
+    Calcule aussi les élasticités au point moyen, quand toutes les variables
+    concernées sont strictement positives (prix, quantité, revenu...) — sans
+    quoi une élasticité n'a pas de sens économique et n'est jamais rapportée."""
+    base = regression_multiple(y, predicteurs)
+    noms = list(predicteurs.keys())
+    X = np.column_stack([predicteurs[n] for n in noms])
+    X_const = sm.add_constant(X)
+    modele = sm.OLS(y, X_const).fit()
+    residus = np.asarray(modele.resid)
+
+    vif = None
+    if len(noms) >= 2:
+        vif = []
+        for i, nom in enumerate(noms):
+            v = variance_inflation_factor(X_const, i + 1)  # +1 : la constante occupe la position 0
+            vif.append({"nom": nom, "vif": round(float(v), 2), "problematique": bool(v > 10)})
+
+    try:
+        stat_bp, p_bp, _, _ = het_breuschpagan(residus, X_const)
+        heteroscedasticite = {
+            "statistique": round(float(stat_bp), 3), "p_valeur": round(float(p_bp), 4),
+            "homoscedastique": bool(p_bp >= 0.05),
+            "interpretation": (
+                "résidus homoscédastiques (p ≥ 0,05) — l'hypothèse d'homoscédasticité de l'OLS n'est pas rejetée"
+                if p_bp >= 0.05 else
+                "hétéroscédasticité détectée (p < 0,05) — les erreurs-types classiques peuvent être biaisées ; "
+                "des erreurs-types robustes (HC3) seraient recommandées pour une interprétation plus prudente"
+            ),
+        }
+    except Exception:  # noqa: BLE001
+        heteroscedasticite = None
+
+    try:
+        stat_jb, p_jb, skew, kurtosis = jarque_bera(residus)
+        normalite_residus = {
+            "statistique": round(float(stat_jb), 3), "p_valeur": round(float(p_jb), 4),
+            "normale": bool(p_jb >= 0.05), "asymetrie": round(float(skew), 3), "aplatissement": round(float(kurtosis), 3),
+        }
+    except Exception:  # noqa: BLE001
+        normalite_residus = None
+
+    elasticites = None
+    if np.all(y > 0) and all(np.all(predicteurs[n] > 0) for n in noms):
+        coefs = np.asarray(modele.params)
+        moyenne_y = float(np.mean(y))
+        if moyenne_y != 0:
+            elasticites = []
+            for i, nom in enumerate(noms):
+                moyenne_x = float(np.mean(predicteurs[nom]))
+                e = float(coefs[i + 1]) * (moyenne_x / moyenne_y)
+                elasticites.append({"nom": nom, "elasticite": round(e, 3), "interpretation": _interpretation_elasticite(e)})
+
+    return {**base, "vif": vif, "heteroscedasticite": heteroscedasticite,
+            "normalite_residus": normalite_residus, "elasticites": elasticites}
+
+
+def _interpretation_elasticite(e: float) -> str:
+    ae = abs(e)
+    qualificatif = "élastique" if ae > 1 else "unitaire" if ae == 1 else "inélastique"
+    sens = "positive" if e > 0 else "négative" if e < 0 else "nulle"
+    return (
+        f"élasticité {sens} {qualificatif} — une hausse de 1% de cette variable est associée à une "
+        f"variation d'environ {round(e, 2)}% de la variable dépendante, toutes choses égales par ailleurs"
+    )
+
+
 # ----------------------------------------------------------------- médiation (bootstrap)
 def mediation_bootstrap(x: np.ndarray, m: np.ndarray, y: np.ndarray, n_bootstrap: int = 2000, seed: int = 42) -> dict:
     """Test de médiation par bootstrap (méthode de Preacher & Hayes) : l'effet
@@ -245,10 +321,13 @@ def mediation_bootstrap(x: np.ndarray, m: np.ndarray, y: np.ndarray, n_bootstrap
 
 
 # ----------------------------------------------------------------- orchestration
-def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[dict]) -> dict:
+def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[dict], branche: str = "sciences_humaines") -> dict:
     """Orchestre AFE, AFC, régressions et médiations à partir des types de
     variables déclarés dans la méthodologie (indépendante/médiatrice/dépendante),
-    sans que l'utilisateur n'ait rien à configurer manuellement."""
+    sans que l'utilisateur n'ait rien à configurer manuellement. En branche
+    sciences économiques, les régressions sont enrichies des diagnostics
+    économétriques standards (VIF, hétéroscédasticité, normalité des résidus,
+    élasticités) — propres à ce type d'analyse, jamais rapportés autrement."""
     # Deux ensembles distincts : les scores (régression/médiation) acceptent les
     # variables à item numérique unique (revenu, prix...), courantes en sciences
     # économiques ; l'AFE/AFC, elles, n'ont de sens que sur des échelles à
@@ -301,7 +380,11 @@ def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[d
         preds = {n: scores[n] for n in predicteurs_possibles if n != dv}
         if len(preds) >= 1:
             try:
-                regressions.append({"dependante": dv, **regression_multiple(scores[dv], preds)})
+                if branche == "sciences_economiques":
+                    resultat_reg = regression_econometrique(scores[dv], preds)
+                else:
+                    resultat_reg = regression_multiple(scores[dv], preds)
+                regressions.append({"dependante": dv, **resultat_reg})
             except Exception as ex:  # noqa: BLE001
                 regressions.append({"dependante": dv, "erreur": str(ex)})
 

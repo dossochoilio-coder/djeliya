@@ -189,6 +189,12 @@ L = {
         "aq_reg_titre": "7. Régressions multiples",
         "aq_reg_intro": "Effet de chaque prédicteur sur la variable dépendante, en contrôlant simultanément les autres prédicteurs (coefficients standardisés, directement comparables entre eux).",
         "aq_reg_predicteur": "Prédicteur", "aq_reg_beta": "β standardisé", "aq_reg_p": "p", "aq_reg_ic": "IC95%",
+        "aq_vif_titre": "Diagnostic de multicolinéarité (VIF)",
+        "aq_vif_intro": "Un VIF supérieur à 10 signale une redondance forte entre prédicteurs, qui peut rendre les coefficients de régression instables et difficiles à interpréter individuellement.",
+        "aq_hetero_titre": "Hétéroscédasticité (test de Breusch-Pagan)",
+        "aq_normalite_resid_titre": "Normalité des résidus (test de Jarque-Bera)",
+        "aq_elasticite_titre": "Élasticités (au point moyen)",
+        "aq_elasticite_intro": "Variation en pourcentage de la variable dépendante associée à une hausse de 1% du prédicteur, toutes choses égales par ailleurs — calculée uniquement quand toutes les variables concernées sont strictement positives.",
         "aq_med_titre": "8. Tests de médiation (bootstrap)",
         "aq_med_intro": "Effet indirect (a × b) ré-estimé sur 2000 rééchantillonnages — la médiation est considérée significative lorsque l'intervalle de confiance à 95% exclut zéro (méthode de Preacher & Hayes).",
         "aq_med_chemin": "Chemin testé", "aq_med_indirect": "Effet indirect", "aq_med_ic": "IC95%", "aq_med_verdict": "Verdict",
@@ -347,6 +353,12 @@ L = {
         "aq_reg_titre": "7. Multiple regressions",
         "aq_reg_intro": "Effect of each predictor on the dependent variable, controlling simultaneously for the other predictors (standardized coefficients, directly comparable to each other).",
         "aq_reg_predicteur": "Predictor", "aq_reg_beta": "Standardized β", "aq_reg_p": "p", "aq_reg_ic": "95% CI",
+        "aq_vif_titre": "Multicollinearity diagnostic (VIF)",
+        "aq_vif_intro": "A VIF above 10 signals strong redundancy between predictors, which can make regression coefficients unstable and hard to interpret individually.",
+        "aq_hetero_titre": "Heteroskedasticity (Breusch-Pagan test)",
+        "aq_normalite_resid_titre": "Residual normality (Jarque-Bera test)",
+        "aq_elasticite_titre": "Elasticities (at the mean)",
+        "aq_elasticite_intro": "Percentage change in the dependent variable associated with a 1% increase in the predictor, all else equal — computed only when all variables involved are strictly positive.",
         "aq_med_titre": "8. Mediation tests (bootstrap)",
         "aq_med_intro": "Indirect effect (a × b) re-estimated over 2000 resamples — mediation is considered significant when the 95% confidence interval excludes zero (Preacher & Hayes method).",
         "aq_med_chemin": "Path tested", "aq_med_indirect": "Indirect effect", "aq_med_ic": "95% CI", "aq_med_verdict": "Verdict",
@@ -1476,6 +1488,37 @@ def generer_docx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
                 row[1].text = str(p["beta"]); row[2].text = str(p["p_valeur"])
                 row[3].text = f"[{p['ic95_bas']} ; {p['ic95_haut']}]"
 
+            if r.get("vif"):
+                p_vif = doc.add_paragraph(l["aq_vif_titre"])
+                p_vif.runs[0].bold = True
+                doc.add_paragraph(l["aq_vif_intro"])
+                tbl_vif = doc.add_table(rows=1, cols=3)
+                tbl_vif.style = "Light Grid Accent 1"
+                for i, h in enumerate([l["aq_reg_predicteur"], "VIF", "—"]):
+                    tbl_vif.rows[0].cells[i].text = h
+                for v in r["vif"]:
+                    row = tbl_vif.add_row().cells
+                    row[0].text = v["nom"]; row[1].text = str(v["vif"])
+                    row[2].text = "⚠" if v["problematique"] else "OK"
+
+            if r.get("heteroscedasticite"):
+                h = r["heteroscedasticite"]
+                p_h = doc.add_paragraph(f"{l['aq_hetero_titre']} : χ² = {h['statistique']}, p = {h['p_valeur']}")
+                p_h.runs[0].bold = True
+                doc.add_paragraph(h["interpretation"])
+
+            if r.get("normalite_residus"):
+                nr = r["normalite_residus"]
+                p_nr = doc.add_paragraph(f"{l['aq_normalite_resid_titre']} : p = {nr['p_valeur']} ({'normale' if nr['normale'] else 'non normale'})")
+                p_nr.runs[0].bold = True
+
+            if r.get("elasticites"):
+                p_el = doc.add_paragraph(l["aq_elasticite_titre"])
+                p_el.runs[0].bold = True
+                doc.add_paragraph(l["aq_elasticite_intro"])
+                for e in r["elasticites"]:
+                    doc.add_paragraph(f"{e['nom']} : {e['elasticite']} — {e['interpretation']}")
+
     if av.get("mediations"):
         doc.add_heading(l["aq_med_titre"], level=1)
         doc.add_paragraph(l["aq_med_intro"])
@@ -1732,8 +1775,39 @@ def generer_xlsx_analyse_quant(etude_data: dict, analyse_data: dict) -> io.Bytes
                 ws_reg.cell(ligne, 2, p["beta"]); ws_reg.cell(ligne, 3, p["p_valeur"])
                 ws_reg.cell(ligne, 4, p["ic95_bas"]); ws_reg.cell(ligne, 5, p["ic95_haut"])
                 ligne += 1
+
+            if reg.get("vif"):
+                ws_reg.cell(ligne, 1, l["aq_vif_titre"]).font = Font(bold=True, italic=True)
+                ligne += 1
+                for v in reg["vif"]:
+                    ws_reg.cell(ligne, 1, v["nom"]); ws_reg.cell(ligne, 2, v["vif"])
+                    ws_reg.cell(ligne, 3, "⚠" if v["problematique"] else "OK")
+                    ligne += 1
+
+            if reg.get("heteroscedasticite"):
+                h = reg["heteroscedasticite"]
+                ws_reg.cell(ligne, 1, l["aq_hetero_titre"]).font = Font(bold=True, italic=True)
+                ws_reg.cell(ligne, 2, f"χ²={h['statistique']}, p={h['p_valeur']}")
+                ligne += 1
+                ws_reg.cell(ligne, 1, h["interpretation"])
+                ligne += 1
+
+            if reg.get("normalite_residus"):
+                nr = reg["normalite_residus"]
+                ws_reg.cell(ligne, 1, l["aq_normalite_resid_titre"]).font = Font(bold=True, italic=True)
+                ws_reg.cell(ligne, 2, f"p={nr['p_valeur']} ({'normale' if nr['normale'] else 'non normale'})")
+                ligne += 1
+
+            if reg.get("elasticites"):
+                ws_reg.cell(ligne, 1, l["aq_elasticite_titre"]).font = Font(bold=True, italic=True)
+                ligne += 1
+                for e in reg["elasticites"]:
+                    ws_reg.cell(ligne, 1, e["nom"]); ws_reg.cell(ligne, 2, e["elasticite"])
+                    ws_reg.cell(ligne, 3, e["interpretation"])
+                    ligne += 1
             ligne += 1
         ws_reg.column_dimensions["A"].width = 24
+        ws_reg.column_dimensions["C"].width = 60
 
     if av.get("mediations"):
         ws_med = wb.create_sheet(l["aq_med_titre"][3:][:31])

@@ -25,6 +25,7 @@ jobs:
         run: |
           pip install ruff
           ruff check app --select E9,F
+          ruff check tests --select E9,F
           python -m compileall app
 
       - name: Exécuter la suite de tests automatisés
