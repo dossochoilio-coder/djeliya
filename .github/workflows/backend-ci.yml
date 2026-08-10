@@ -27,6 +27,11 @@ jobs:
           ruff check app --select E9,F
           python -m compileall app
 
+      - name: Exécuter la suite de tests automatisés
+        run: |
+          pip install -r requirements-dev.txt
+          pytest tests/ -v
+
       - name: Vérifier que l'image Docker se construit
         run: docker build -t djeliya-backend .
 

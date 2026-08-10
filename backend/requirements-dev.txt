@@ -1,0 +1,4 @@
+# Dépendances de développement uniquement — jamais installées en production
+# (le Dockerfile de déploiement n'installe que requirements.txt)
+-r requirements.txt
+pytest==9.1.1
