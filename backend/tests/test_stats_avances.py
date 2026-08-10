@@ -276,3 +276,67 @@ def test_analyses_avancees_active_diagnostics_econometriques_seulement_en_branch
     reg_humaines = resultat_humaines["regressions"][0]
     assert "elasticites" not in reg_humaines
     assert "vif" not in reg_humaines
+
+
+def test_options_permettent_de_ne_garder_que_les_correlations():
+    """Le chercheur qui ne veut que des corrélations doit pouvoir désactiver
+    AFE, AFC, régressions et médiations — sans que le moteur les calcule
+    quand même en silence."""
+    np.random.seed(70)
+    n = 250
+    x_latent = np.random.normal(3, 0.9, n)
+    m_latent = 0.55 * x_latent + np.random.normal(0, 0.6, n)
+    y_latent = 0.45 * m_latent + np.random.normal(0, 0.6, n)
+
+    questionnaire = {"sections": [
+        {"titre": "S1", "variable_associee": "Adoption", "items": [{"code": f"Q{i}", "type": "echelle_likert"} for i in range(1, 4)]},
+        {"titre": "S2", "variable_associee": "Confiance", "items": [{"code": f"Q{i}", "type": "echelle_likert"} for i in range(4, 7)]},
+        {"titre": "S3", "variable_associee": "Fidelite", "items": [{"code": f"Q{i}", "type": "echelle_likert"} for i in range(7, 10)]},
+    ]}
+    variables = [
+        {"nom": "Adoption", "type": "indépendante"},
+        {"nom": "Confiance", "type": "médiatrice"},
+        {"nom": "Fidelite", "type": "dépendante"},
+    ]
+    lignes = []
+    for i in range(n):
+        ligne = {}
+        for j in range(1, 4):
+            ligne[f"Q{j}"] = int(np.clip(round(x_latent[i] + np.random.normal(0, 0.4)), 1, 5))
+        for j in range(4, 7):
+            ligne[f"Q{j}"] = int(np.clip(round(m_latent[i] + np.random.normal(0, 0.4)), 1, 5))
+        for j in range(7, 10):
+            ligne[f"Q{j}"] = int(np.clip(round(y_latent[i] + np.random.normal(0, 0.4)), 1, 5))
+        lignes.append(ligne)
+
+    options_minimales = {"afe": False, "afc": False, "regressions": False, "mediations": False}
+    resultat = analyses_avancees(lignes, questionnaire, variables, options=options_minimales)
+    assert resultat["afe"] is None
+    assert resultat["afc"] is None
+    assert resultat["regressions"] == []
+    assert resultat["mediations"] == []
+
+    # Repli par défaut (aucune option fournie) : tout reste activé, comme avant ce changement
+    resultat_defaut = analyses_avancees(lignes, questionnaire, variables)
+    assert resultat_defaut["afe"] is not None
+    assert len(resultat_defaut["regressions"]) == 1
+    assert len(resultat_defaut["mediations"]) == 1
+
+
+def test_options_partielles_afe_seule():
+    np.random.seed(71)
+    n = 200
+    f1 = np.random.normal(0, 1, n)
+    items, noms = [], []
+    for i in range(3):
+        items.append(f1 * 0.8 + np.random.normal(0, 0.5, n))
+        noms.append(f"Q{i+1}")
+    questionnaire = {"sections": [
+        {"titre": "S1", "variable_associee": "Construit", "items": [{"code": n, "type": "echelle_likert"} for n in noms]},
+    ]}
+    variables = [{"nom": "Construit", "type": "indépendante"}]
+    lignes = [{noms[j]: int(np.clip(round(items[j][i]), 1, 5)) for j in range(3)} for i in range(n)]
+
+    resultat = analyses_avancees(lignes, questionnaire, variables, options={"afe": True, "afc": False, "regressions": False, "mediations": False})
+    assert resultat["afc"] is None
+    assert resultat["regressions"] == []

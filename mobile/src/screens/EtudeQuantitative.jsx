@@ -22,6 +22,11 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
   const [branche, setBranche] = useState("sciences_humaines");
   const [envoi, setEnvoi] = useState(false);
   const [importEnCours, setImportEnCours] = useState(false);
+  const [fichierEnAttente, setFichierEnAttente] = useState(null);
+  const [optionsAnalyse, setOptionsAnalyse] = useState({
+    inclure_afe: true, inclure_afc: true, inclure_regression: true,
+    inclure_mediation: true, inclure_passerelle: true, inclure_synthese: true,
+  });
   const [confirmationGeneration, setConfirmationGeneration] = useState(false);
   const [confirmationImport, setConfirmationImport] = useState(false);
   const [confirmationSuppression, setConfirmationSuppression] = useState(null);
@@ -126,12 +131,17 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
     }
   };
 
-  const importerDonnees = async (e) => {
+  const importerDonnees = (e) => {
     const fichier = e.target.files?.[0];
     if (!fichier) return;
+    setFichierEnAttente(fichier);
+  };
+
+  const lancerImport = async () => {
+    if (!fichierEnAttente) return;
     setImportEnCours(true);
     try {
-      const resultat = await importerDonneesQuant(settings.backendUrl, token, selection.id, fichier);
+      const resultat = await importerDonneesQuant(settings.backendUrl, token, selection.id, fichierEnAttente, optionsAnalyse);
       if (resultat.statut === "erreur") {
         showToast(t("etudeQuant.analyseEchec") + (resultat.erreur || ""));
       } else {
@@ -142,6 +152,7 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
       showToast(err.message || "");
     } finally {
       setImportEnCours(false);
+      setFichierEnAttente(null);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
@@ -159,6 +170,7 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
   /* ---------------- Vue détail ---------------- */
   if (selection) {
     const c = selection.contenu;
+    const aTexteLibre = c?.questionnaire?.sections?.some((s) => s.items?.some((it) => it.type === "texte_libre")) ?? false;
     return (
       <div className="screen">
         <header className="topbar">
@@ -313,6 +325,35 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
                   onVoirForfaits={onOuvrirForfaits}
                   onConfirmer={() => { setConfirmationImport(false); fileRef.current?.click(); }}
                 />
+              )}
+
+              {fichierEnAttente && (
+                <div className="glossaire-form">
+                  <span className="field-label">{t("etudeQuant.optionsAnalyseTitre")}</span>
+                  <p className="field-help">{fichierEnAttente.name}</p>
+                  {[
+                    ["inclure_afe", "optionAfe"], ["inclure_afc", "optionAfc"],
+                    ["inclure_regression", "optionRegression"], ["inclure_mediation", "optionMediation"],
+                    ...(aTexteLibre ? [["inclure_passerelle", "optionPasserelle"]] : []),
+                    ["inclure_synthese", "optionSynthese"],
+                  ].map(([cle, libelle]) => (
+                    <label key={cle} className="check-row">
+                      <input type="checkbox" checked={optionsAnalyse[cle]}
+                        onChange={(e) => setOptionsAnalyse((o) => ({ ...o, [cle]: e.target.checked }))} />
+                      <span>{t(`etudeQuant.${libelle}`)}</span>
+                    </label>
+                  ))}
+                  <p className="field-help">{t("etudeQuant.optionsAnalyseAide")}</p>
+                  <div className="field-inline">
+                    <button className="btn ghost sm" style={{ flex: 1 }}
+                      onClick={() => { setFichierEnAttente(null); if (fileRef.current) fileRef.current.value = ""; }}>
+                      {t("credits.annuler")}
+                    </button>
+                    <button className="btn primary sm" style={{ flex: 1 }} onClick={lancerImport} disabled={importEnCours}>
+                      {importEnCours ? t("etudeQuant.analyseEnCours") : t("etudeQuant.lancerAnalyse")}
+                    </button>
+                  </div>
+                </div>
               )}
 
               {analyses && analyses.length > 0 && (

@@ -321,13 +321,22 @@ def mediation_bootstrap(x: np.ndarray, m: np.ndarray, y: np.ndarray, n_bootstrap
 
 
 # ----------------------------------------------------------------- orchestration
-def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[dict], branche: str = "sciences_humaines") -> dict:
+def analyses_avancees(
+    lignes: list[dict], questionnaire: dict, variables: list[dict],
+    branche: str = "sciences_humaines", options: dict | None = None,
+) -> dict:
     """Orchestre AFE, AFC, régressions et médiations à partir des types de
     variables déclarés dans la méthodologie (indépendante/médiatrice/dépendante),
     sans que l'utilisateur n'ait rien à configurer manuellement. En branche
     sciences économiques, les régressions sont enrichies des diagnostics
     économétriques standards (VIF, hétéroscédasticité, normalité des résidus,
-    élasticités) — propres à ce type d'analyse, jamais rapportés autrement."""
+    élasticités) — propres à ce type d'analyse, jamais rapportés autrement.
+
+    Le chercheur qui ne veut que des corrélations ne doit jamais se voir
+    imposer une AFC ou une médiation qu'il n'a pas demandée — `options`
+    permet de désactiver sélectivement chaque analyse (afe, afc, regressions,
+    mediations). Par défaut (None), tout reste activé, pour la rétrocompatibilité."""
+    options = options or {"afe": True, "afc": True, "regressions": True, "mediations": True}
     # Deux ensembles distincts : les scores (régression/médiation) acceptent les
     # variables à item numérique unique (revenu, prix...), courantes en sciences
     # économiques ; l'AFE/AFC, elles, n'ont de sens que sur des échelles à
@@ -359,49 +368,54 @@ def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[d
             scores[variable] = np.array(lignes_completes).mean(axis=1)
 
     tous_codes = [c for codes in items_par_variable_likert.values() for c in codes]
-    lignes_afe = [
-        [float(l[c]) for c in tous_codes]
-        for l in lignes if all(c in l and l[c] not in (None, "") for c in tous_codes)
-    ] if tous_codes else []
-    afe = afe_diagnostics(np.array(lignes_afe), tous_codes) if len(lignes_afe) >= 10 else None
+    afe = None
+    if options.get("afe", True):
+        lignes_afe = [
+            [float(l[c]) for c in tous_codes]
+            for l in lignes if all(c in l and l[c] not in (None, "") for c in tous_codes)
+        ] if tous_codes else []
+        afe = afe_diagnostics(np.array(lignes_afe), tous_codes) if len(lignes_afe) >= 10 else None
 
-    donnees_dict = {c: np.array([float(l[c]) for l in lignes if c in l and l[c] not in (None, "")]) for c in tous_codes}
-    try:
-        afc = afc_ajustement(donnees_dict, items_par_variable_likert) if len(items_par_variable_likert) >= 2 else None
-    except Exception as ex:  # noqa: BLE001
-        afc = {"erreur": f"L'AFC n'a pas pu être calculée : {ex}"}
+    afc = None
+    if options.get("afc", True):
+        donnees_dict = {c: np.array([float(l[c]) for l in lignes if c in l and l[c] not in (None, "")]) for c in tous_codes}
+        try:
+            afc = afc_ajustement(donnees_dict, items_par_variable_likert) if len(items_par_variable_likert) >= 2 else None
+        except Exception as ex:  # noqa: BLE001
+            afc = {"erreur": f"L'AFC n'a pas pu être calculée : {ex}"}
 
     types_par_nom = {v["nom"]: v.get("type") for v in variables}
     dependantes = [n for n, t in types_par_nom.items() if t == "dépendante" and n in scores]
     predicteurs_possibles = [n for n, t in types_par_nom.items() if t in ("indépendante", "médiatrice") and n in scores]
 
     regressions = []
-    for dv in dependantes:
-        preds = {n: scores[n] for n in predicteurs_possibles if n != dv}
-        if len(preds) >= 1:
-            try:
-                if branche == "sciences_economiques":
-                    resultat_reg = regression_econometrique(scores[dv], preds)
-                else:
-                    resultat_reg = regression_multiple(scores[dv], preds)
-                regressions.append({"dependante": dv, **resultat_reg})
-            except Exception as ex:  # noqa: BLE001
-                regressions.append({"dependante": dv, "erreur": str(ex)})
-
-    independantes = [n for n, t in types_par_nom.items() if t == "indépendante" and n in scores]
-    mediatrices = [n for n, t in types_par_nom.items() if t == "médiatrice" and n in scores]
+    if options.get("regressions", True):
+        for dv in dependantes:
+            preds = {n: scores[n] for n in predicteurs_possibles if n != dv}
+            if len(preds) >= 1:
+                try:
+                    if branche == "sciences_economiques":
+                        resultat_reg = regression_econometrique(scores[dv], preds)
+                    else:
+                        resultat_reg = regression_multiple(scores[dv], preds)
+                    regressions.append({"dependante": dv, **resultat_reg})
+                except Exception as ex:  # noqa: BLE001
+                    regressions.append({"dependante": dv, "erreur": str(ex)})
 
     mediations = []
-    for iv in independantes:
-        for med in mediatrices:
-            for dv in dependantes:
-                if iv == med or med == dv or iv == dv:
-                    continue
-                try:
-                    resultat = mediation_bootstrap(scores[iv], scores[med], scores[dv])
-                    mediations.append({"independante": iv, "mediatrice": med, "dependante": dv, **resultat})
-                except Exception as ex:  # noqa: BLE001
-                    mediations.append({"independante": iv, "mediatrice": med, "dependante": dv, "erreur": str(ex)})
+    if options.get("mediations", True):
+        independantes = [n for n, t in types_par_nom.items() if t == "indépendante" and n in scores]
+        mediatrices = [n for n, t in types_par_nom.items() if t == "médiatrice" and n in scores]
+        for iv in independantes:
+            for med in mediatrices:
+                for dv in dependantes:
+                    if iv == med or med == dv or iv == dv:
+                        continue
+                    try:
+                        resultat = mediation_bootstrap(scores[iv], scores[med], scores[dv])
+                        mediations.append({"independante": iv, "mediatrice": med, "dependante": dv, **resultat})
+                    except Exception as ex:  # noqa: BLE001
+                        mediations.append({"independante": iv, "mediatrice": med, "dependante": dv, "erreur": str(ex)})
 
     return {"afe": afe, "afc": afc, "regressions": regressions, "mediations": mediations}
 

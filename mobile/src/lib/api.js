@@ -323,10 +323,14 @@ export async function listerAnalysesQuant(backendUrl, token, etudeId) {
   return res.json();
 }
 
-export async function importerDonneesQuant(backendUrl, token, etudeId, fichier) {
+export async function importerDonneesQuant(backendUrl, token, etudeId, fichier, options = {}) {
   const base = clean(backendUrl);
   const form = new FormData();
   form.append("fichier", fichier, fichier.name || "donnees.xlsx");
+  const cles = ["inclure_afe", "inclure_afc", "inclure_regression", "inclure_mediation", "inclure_passerelle", "inclure_synthese"];
+  for (const cle of cles) {
+    if (cle in options) form.append(cle, options[cle] ? "true" : "false");
+  }
   const res = await fetch(`${base}/api/etudes-quantitatives/${etudeId}/donnees`, {
     method: "POST", body: form, headers: headersAuth(token),
   });

@@ -1454,6 +1454,7 @@ def _analyse_quant_vers_dict(a: AnalyseQuantitative) -> dict:
         "resultats": a.resultats, "erreur": a.erreur, "modele": a.modele,
         "synthese_interpretative": a.synthese_interpretative, "synthese_statut": a.synthese_statut,
         "passerelle_qual_quant": a.passerelle_qual_quant, "passerelle_statut": a.passerelle_statut,
+        "options_analyse": a.options_analyse,
         "texte_en_cours": a.texte_en_cours,
         "cree_le": a.cree_le.isoformat() if a.cree_le else None,
     }
@@ -1800,7 +1801,13 @@ def _reparer_codes_questionnaire_si_necessaire(e: "EtudeQuantitative", session) 
 
 
 @app.post("/api/etudes-quantitatives/{etude_id}/donnees")
-async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...), user: Utilisateur = Depends(utilisateur_courant)):
+async def importer_donnees_quant(
+    etude_id: str, fichier: UploadFile = File(...),
+    inclure_afe: bool = Form(True), inclure_afc: bool = Form(True),
+    inclure_regression: bool = Form(True), inclure_mediation: bool = Form(True),
+    inclure_passerelle: bool = Form(True), inclure_synthese: bool = Form(True),
+    user: Utilisateur = Depends(utilisateur_courant),
+):
     session = get_session()
     try:
         e = session.get(EtudeQuantitative, etude_id)
@@ -1843,11 +1850,17 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
                 # bloquant : si ça échoue (ex. données insuffisantes, modèle non
                 # convergent), les statistiques de base restent pleinement valides.
                 variables = (e.contenu.get("methodologie") or {}).get("variables", [])
-                resultats["analyses_avancees"] = analyses_avancees(lignes, e.contenu["questionnaire"], variables, e.branche or "sciences_humaines")
+                options_avancees = {
+                    "afe": inclure_afe, "afc": inclure_afc,
+                    "regressions": inclure_regression, "mediations": inclure_mediation,
+                }
+                resultats["analyses_avancees"] = analyses_avancees(
+                    lignes, e.contenu["questionnaire"], variables, e.branche or "sciences_humaines", options_avancees,
+                )
             except Exception:  # noqa: BLE001
                 resultats["analyses_avancees"] = None
             statut, erreur = "termine", None
-            synthese_statut = "en_cours"
+            synthese_statut = "en_cours" if inclure_synthese else "non_demandee"
         except Exception as ex:  # noqa: BLE001
             resultats, statut, erreur = None, "erreur", str(ex)
             if not user.est_admin:
@@ -1863,7 +1876,11 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
             id=analyse_id, etude_id=etude_id, proprietaire_id=user.id,
             nom_fichier=fichier.filename or "donnees.xlsx", statut=statut,
             resultats=resultats, erreur=erreur, synthese_statut=synthese_statut,
-            passerelle_statut="en_cours" if statut == "termine" else None,
+            passerelle_statut=("en_cours" if inclure_passerelle else "non_demandee") if statut == "termine" else None,
+            options_analyse={
+                "afe": inclure_afe, "afc": inclure_afc, "regressions": inclure_regression,
+                "mediations": inclure_mediation, "passerelle": inclure_passerelle, "synthese": inclure_synthese,
+            },
         )
         session.add(a)
         session.commit()
@@ -1874,6 +1891,7 @@ async def importer_donnees_quant(etude_id: str, fichier: UploadFile = File(...),
 
     if synthese_statut == "en_cours":
         threading.Thread(target=_run_synthese_quant, args=(analyse_id, etude_id, langue_etude), daemon=True).start()
+    if inclure_passerelle and statut == "termine":
         threading.Thread(target=_run_passerelle_qual_quant, args=(analyse_id, etude_id, lignes, langue_etude), daemon=True).start()
     return resultat_dict
 

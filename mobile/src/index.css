@@ -300,6 +300,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .subsection-title { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ivoire-dim); margin: 4px 0 8px; }
 .field-inline { display: flex; gap: 8px; }
 .field-inline .field-input { flex: 1; }
+.check-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; color: #E8E6F0; }
+.check-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: #E4B04A; flex-shrink: 0; }
 
 /* ---- Corpus ---- */
 .corpus-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
