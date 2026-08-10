@@ -117,7 +117,11 @@ def analyser_donnees(lignes: list[dict], questionnaire: dict) -> dict:
         for item in section.get("items", []):
             code = item["code"]
             tous_items[code] = item
-            if variable and item.get("type") == "echelle_likert":
+            # Les items numériques (revenu, prix, quantité...) sont des indicateurs
+            # économiques légitimes à part entière, pas seulement les échelles de
+            # Likert — sans ce second type, une variable économique à item unique
+            # ne serait jamais incluse dans les corrélations/régressions.
+            if variable and item.get("type") in ("echelle_likert", "numerique"):
                 items_par_variable.setdefault(variable, []).append(code)
 
     n_repondants = len(lignes)
@@ -170,8 +174,6 @@ def analyser_donnees(lignes: list[dict], questionnaire: dict) -> dict:
     scores_composites: dict[str, np.ndarray] = {}
     normalite_composites: dict[str, dict] = {}
     for variable, codes in items_par_variable.items():
-        if len(codes) < 2:
-            continue
         lignes_completes = [
             [float(l[c]) for c in codes]
             for l in lignes
@@ -180,33 +182,52 @@ def analyser_donnees(lignes: list[dict], questionnaire: dict) -> dict:
         if len(lignes_completes) < 3:
             continue
         matrice = np.array(lignes_completes)
-        alpha = cronbach_alpha(matrice)
-        item_total = correlation_item_total_corrigee(matrice)
-        alpha_supprime = alpha_si_item_supprime(matrice)
-
         score_composite = matrice.mean(axis=1)
         stat_sw, p_sw, est_normale = test_normalite(score_composite)
 
-        fiabilite.append({
-            "variable": variable, "nb_items": len(codes), "n": len(lignes_completes),
-            "alpha_cronbach": round(alpha, 3) if alpha is not None else None,
-            "interpretation": interpretation_alpha(alpha),
-            "moyenne_composite": round(float(score_composite.mean()), 2),
-            "ecart_type_composite": round(float(score_composite.std(ddof=1)), 2) if len(score_composite) > 1 else None,
-            "detail_items": [
-                {
-                    "code": codes[i],
-                    "correlation_item_total": round(item_total[i], 3) if item_total[i] is not None else None,
-                    "alpha_si_supprime": round(alpha_supprime[i], 3) if alpha_supprime[i] is not None else None,
-                }
-                for i in range(len(codes))
-            ],
-            "normalite_score": {
-                "statistique_shapiro": round(stat_sw, 3) if stat_sw is not None else None,
-                "p_valeur": round(p_sw, 4) if p_sw is not None else None,
-                "distribution_normale": est_normale,
-            },
-        })
+        if len(codes) >= 2:
+            alpha = cronbach_alpha(matrice)
+            item_total = correlation_item_total_corrigee(matrice)
+            alpha_supprime = alpha_si_item_supprime(matrice)
+            fiabilite.append({
+                "variable": variable, "nb_items": len(codes), "n": len(lignes_completes),
+                "alpha_cronbach": round(alpha, 3) if alpha is not None else None,
+                "interpretation": interpretation_alpha(alpha),
+                "moyenne_composite": round(float(score_composite.mean()), 2),
+                "ecart_type_composite": round(float(score_composite.std(ddof=1)), 2) if len(score_composite) > 1 else None,
+                "detail_items": [
+                    {
+                        "code": codes[i],
+                        "correlation_item_total": round(item_total[i], 3) if item_total[i] is not None else None,
+                        "alpha_si_supprime": round(alpha_supprime[i], 3) if alpha_supprime[i] is not None else None,
+                    }
+                    for i in range(len(codes))
+                ],
+                "normalite_score": {
+                    "statistique_shapiro": round(stat_sw, 3) if stat_sw is not None else None,
+                    "p_valeur": round(p_sw, 4) if p_sw is not None else None,
+                    "distribution_normale": est_normale,
+                },
+            })
+        else:
+            # Indicateur à item unique (typique des variables économiques
+            # numériques : revenu, prix, quantité...) — aucun alpha de Cronbach
+            # calculable avec un seul item, mais la variable reste pleinement
+            # exploitable pour les corrélations, régressions et médiations.
+            fiabilite.append({
+                "variable": variable, "nb_items": 1, "n": len(lignes_completes),
+                "alpha_cronbach": None,
+                "interpretation": "non applicable (indicateur à item unique)",
+                "moyenne_composite": round(float(score_composite.mean()), 2),
+                "ecart_type_composite": round(float(score_composite.std(ddof=1)), 2) if len(score_composite) > 1 else None,
+                "detail_items": [],
+                "normalite_score": {
+                    "statistique_shapiro": round(stat_sw, 3) if stat_sw is not None else None,
+                    "p_valeur": round(p_sw, 4) if p_sw is not None else None,
+                    "distribution_normale": est_normale,
+                },
+            })
+
         scores_composites[variable] = score_composite
         normalite_composites[variable] = est_normale
 

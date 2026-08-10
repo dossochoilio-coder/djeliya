@@ -19,6 +19,7 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
   const [formulaire, setFormulaire] = useState(false);
   const [theme, setTheme] = useState("");
   const [question, setQuestion] = useState("");
+  const [branche, setBranche] = useState("sciences_humaines");
   const [envoi, setEnvoi] = useState(false);
   const [importEnCours, setImportEnCours] = useState(false);
   const [confirmationGeneration, setConfirmationGeneration] = useState(false);
@@ -79,8 +80,8 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
     if (!th) { showToast(t("etudeQuant.themeRequis")); return; }
     setEnvoi(true);
     try {
-      const r = await creerEtudeQuant(settings.backendUrl, token, { theme: th, questionRecherche: question.trim(), langue });
-      setFormulaire(false); setTheme(""); setQuestion("");
+      const r = await creerEtudeQuant(settings.backendUrl, token, { theme: th, questionRecherche: question.trim(), langue, branche });
+      setFormulaire(false); setTheme(""); setQuestion(""); setBranche("sciences_humaines");
       setSelection({ id: r.id, statut: "en_cours", theme: th, question_recherche: question.trim() });
       charger();
     } catch (e) {
@@ -168,6 +169,11 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
           <span style={{ width: 36 }} />
         </header>
         <div className="content">
+          {selection.branche === "sciences_economiques" && (
+            <span className="lang-tag" style={{ color: "#7C9CF5", borderColor: "#7C9CF5", alignSelf: "flex-start" }}>
+              {t("etudeQuant.brancheEconomiques")}
+            </span>
+          )}
           {selection.statut === "en_cours" && (
             <>
               <div className="pending-card">
@@ -360,6 +366,22 @@ export default function EtudeQuantitative({ settings, token, couts, utilisateur,
       <div className="content">
         {formulaire && (
           <div className="glossaire-form">
+            <label className="field">
+              <span className="field-label">{t("etudeQuant.branche")}</span>
+              <div className="field-inline">
+                <button className={`btn sm ${branche === "sciences_humaines" ? "primary" : "ghost"}`} style={{ flex: 1 }}
+                  onClick={() => setBranche("sciences_humaines")}>
+                  {t("etudeQuant.brancheHumaines")}
+                </button>
+                <button className={`btn sm ${branche === "sciences_economiques" ? "primary" : "ghost"}`} style={{ flex: 1 }}
+                  onClick={() => setBranche("sciences_economiques")}>
+                  {t("etudeQuant.brancheEconomiques")}
+                </button>
+              </div>
+              <span className="field-help">
+                {branche === "sciences_economiques" ? t("etudeQuant.brancheEconomiquesAide") : t("etudeQuant.brancheHumainesAide")}
+              </span>
+            </label>
             <label className="field">
               <span className="field-label">{t("etudeQuant.theme")}</span>
               <input className="field-input" value={theme} onChange={(e) => setTheme(e.target.value)}

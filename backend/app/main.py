@@ -857,12 +857,39 @@ def _nettoyer_texte_utilisateur(texte: str) -> str:
     return texte
 
 
-def _prompt_etude_base(theme: str, question_recherche: str, langue: str) -> str:
+def _prompt_etude_base(theme: str, question_recherche: str, langue: str, branche: str = "sciences_humaines") -> str:
     consigne_langue = "Rédige l'intégralité en anglais." if langue == "en" else "Rédige l'intégralité en français."
+
+    if branche == "sciences_economiques":
+        consigne_branche = (
+            "Tu conduis cette étude comme économiste appliqué (économie de la consommation, économie du "
+            "ménage, économie comportementale, économie du travail ou économie industrielle selon le "
+            "thème). Mobilise des cadres théoriques et notions propres à la science économique : théorie "
+            "du consommateur, théorie de l'offre et de la demande, rationalité (limitée ou non), coûts de "
+            "transaction, asymétrie d'information, élasticité, économie comportementale, théorie des jeux, "
+            "économie du développement, etc. selon la pertinence du thème — PAS des théories de "
+            "psychologie sociale ou de comportement organisationnel, sauf si le thème le justifie "
+            "explicitement (économie comportementale).\n\n"
+            "Important sur la nature des variables : en économie appliquée, une variable est très souvent "
+            "un INDICATEUR NUMÉRIQUE UNIQUE (revenu mensuel, prix payé, quantité consommée, part du "
+            "budget, taux, durée, montant) plutôt qu'un construit psychométrique mesuré par plusieurs "
+            "questions d'accord/désaccord. N'impose PAS une batterie de 5 items Likert à chaque variable "
+            "— une variable économique bien opérationnalisée par un seul item numérique ou une seule "
+            "question à choix (tranche de revenu, catégorie de dépense) est tout à fait légitime et "
+            "même préférable à une échelle artificielle.\n\n"
+        )
+    else:
+        consigne_branche = (
+            "Tu conduis cette étude comme chercheur en sciences humaines et sociales (psychologie, "
+            "sociologie, sciences de gestion, sciences de l'éducation selon le thème). Chaque construit "
+            "théorique est mesuré par une échelle multi-items (généralement de type Likert), permettant "
+            "d'en évaluer la fiabilité (alpha de Cronbach) et la validité factorielle.\n\n"
+        )
+
     return f"""Tu es méthodologue quantitatif et directeur de recherche, de niveau recherche doctorale, \
 expert en sciences de gestion, économie, sociologie ou sciences connexes selon le thème fourni.
 
-Thème de recherche : {theme}
+{consigne_branche}Thème de recherche : {theme}
 Question de recherche : {question_recherche or "non précisée — déduis un axe pertinent à partir du thème"}
 
 {consigne_langue}
@@ -957,7 +984,7 @@ def _texte_en_direct(session, e: "EtudeQuantitative"):
     return _callback
 
 
-def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, payeur_id: str):
+def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue: str, branche: str, payeur_id: str):
     """Génère l'étude en 4 étapes indépendantes (cadre théorique, méthodologie,
     questionnaire, note méthodologique), chacune avec sa propre marge de tokens —
     un thème riche produit trop de contenu pour tenir en un seul appel sans risquer
@@ -965,7 +992,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
     session = get_session()
     contenu: dict = {}
     try:
-        base = _prompt_etude_base(theme, question_recherche, langue)
+        base = _prompt_etude_base(theme, question_recherche, langue, branche)
 
         e = session.get(EtudeQuantitative, etude_id)
         consigne_integrite = (
@@ -1045,10 +1072,15 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
         # génération (structure + contenu détaillé) sur un seul appel volumineux.
         instructions_plan = (
             "Conçois le PLAN du questionnaire mesurant ces variables (titres de sections uniquement, "
-            "pas encore les questions) : une section par construit mesuré par échelle de Likert, plus "
+            "pas encore les questions) : une section par variable/construit, plus "
             "une section sociodémographique/de contrôle si pertinent (âge, sexe, ancienneté, catégorie "
             "professionnelle...) — cette dernière ne mesure PAS un construit théorique par échelle et "
             "ne doit donc PAS recevoir de « variable_associee ». Limite stricte : 6 sections maximum."
+            + (
+                " Pour les sections mesurant une variable économique par un indicateur numérique unique "
+                "(revenu, prix, quantité, montant...), une section peut ne contenir qu'UN seul item."
+                if branche == "sciences_economiques" else ""
+            )
         )
 
         def _verifier_plan(r):
@@ -1070,8 +1102,18 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
             instructions_items = (
                 f"Rédige les items de la section « {section.get('titre', '')} » du questionnaire "
                 + (
-                    f"mesurant le construit « {section['variable_associee']} » par échelle de Likert à "
-                    "5 points (3 à 5 items)."
+                    (
+                        f"mesurant la variable « {section['variable_associee']} »."
+                        + (
+                            " Si cette variable est un indicateur économique numérique (revenu, prix, "
+                            "quantité, montant, taux, durée...), un SEUL item numérique bien formulé "
+                            "suffit (type \"numerique\") — ne fabrique pas artificiellement plusieurs "
+                            "questions redondantes. Si elle se prête à une échelle de Likert (perception, "
+                            "attitude, satisfaction), utilise 3 à 5 items \"echelle_likert\" comme d'habitude."
+                            if branche == "sciences_economiques"
+                            else " par échelle de Likert à 5 points (3 à 5 items)."
+                        )
+                    )
                     if section.get("variable_associee")
                     else (
                         "— section sociodémographique/de contrôle (ex. âge, sexe, ancienneté, catégorie "
@@ -1172,6 +1214,7 @@ def _run_etude_quant(etude_id: str, theme: str, question_recherche: str, langue:
 def _etude_quant_vers_dict(e: EtudeQuantitative) -> dict:
     return {
         "id": e.id, "theme": e.theme, "question_recherche": e.question_recherche,
+        "branche": e.branche or "sciences_humaines",
         "langue": e.langue, "statut": e.statut, "etape": e.etape, "contenu": e.contenu, "erreur": e.erreur,
         "texte_en_cours": e.texte_en_cours,
         "modele": e.modele, "cree_le": e.cree_le.isoformat() if e.cree_le else None,
@@ -1182,6 +1225,7 @@ class EtudeQuantIn(BaseModel):
     theme: str
     question_recherche: str = ""
     langue: str = "fr"
+    branche: str = "sciences_humaines"
 
 
 @app.get("/api/etudes-quantitatives")
@@ -1213,6 +1257,7 @@ def creer_etude_quant(payload: EtudeQuantIn, user: Utilisateur = Depends(utilisa
     theme = _nettoyer_texte_utilisateur(payload.theme.strip())
     question_recherche = _nettoyer_texte_utilisateur(payload.question_recherche.strip())
     langue = payload.langue if payload.langue in ("fr", "en") else "fr"
+    branche = payload.branche if payload.branche in ("sciences_humaines", "sciences_economiques") else "sciences_humaines"
     session = get_session()
     try:
         if not user.email_verifie:
@@ -1228,7 +1273,7 @@ def creer_etude_quant(payload: EtudeQuantIn, user: Utilisateur = Depends(utilisa
             ))
         etude_id = uuid.uuid4().hex[:16]
         e = EtudeQuantitative(
-            id=etude_id, proprietaire_id=user.id, theme=theme,
+            id=etude_id, proprietaire_id=user.id, theme=theme, branche=branche,
             question_recherche=question_recherche, langue=langue, statut="en_cours",
         )
         session.add(e)
@@ -1236,7 +1281,7 @@ def creer_etude_quant(payload: EtudeQuantIn, user: Utilisateur = Depends(utilisa
     finally:
         session.close()
 
-    threading.Thread(target=_run_etude_quant, args=(etude_id, theme, question_recherche, langue, user.id), daemon=True).start()
+    threading.Thread(target=_run_etude_quant, args=(etude_id, theme, question_recherche, langue, branche, user.id), daemon=True).start()
     return {"id": etude_id, "statut": "en_cours"}
 
 
@@ -1381,7 +1426,7 @@ def _construire_prompt_synthese_quant(etude: "EtudeQuantitative", resultats: dic
     if av.get("afc") and not av["afc"].get("erreur"):
         c = av["afc"]
         afc_txt = f"CFI = {c['cfi']}, TLI = {c['tli']}, RMSEA = {c['rmsea']} — {c['interpretation']}."
-    elif av.get("afc", {}).get("erreur"):
+    elif (av.get("afc") or {}).get("erreur"):
         afc_txt = f"Non convergente ({av['afc']['erreur']})."
 
     regressions_txt = "\n".join(

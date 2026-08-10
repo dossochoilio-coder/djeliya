@@ -253,12 +253,12 @@ export async function detailEtudeQuant(backendUrl, token, etudeId) {
   return res.json();
 }
 
-export async function creerEtudeQuant(backendUrl, token, { theme, questionRecherche, langue }) {
+export async function creerEtudeQuant(backendUrl, token, { theme, questionRecherche, langue, branche }) {
   const base = clean(backendUrl);
   const res = await fetch(`${base}/api/etudes-quantitatives`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headersAuth(token) },
-    body: JSON.stringify({ theme, question_recherche: questionRecherche || "", langue: langue || "fr" }),
+    body: JSON.stringify({ theme, question_recherche: questionRecherche || "", langue: langue || "fr", branche: branche || "sciences_humaines" }),
   });
   if (!res.ok) throw new Error(await lireErreur(res));
   return res.json();

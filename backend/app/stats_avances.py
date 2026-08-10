@@ -195,8 +195,18 @@ def mediation_bootstrap(x: np.ndarray, m: np.ndarray, y: np.ndarray, n_bootstrap
     significativité s'évalue par l'intervalle de confiance à 95% obtenu — la
     médiation est significative si cet intervalle exclut zéro. Cette méthode ne
     suppose pas la normalité de la distribution de l'effet indirect, contrairement
-    aux approches plus anciennes (test de Sobel)."""
+    aux approches plus anciennes (test de Sobel).
+
+    Les trois variables sont standardisées (z-scores) avant tout calcul : sans
+    cela, un indicateur à grande échelle brute (ex. un revenu en FCFA, courant
+    en sciences économiques) combiné à une échelle Likert 1-5 produirait un
+    effet indirect numériquement écrasé (arrondi à 0,000) alors que la relation
+    est bien réelle — les coefficients standardisés restent interprétables
+    quelle que soit l'unité d'origine de chaque variable."""
     n = len(x)
+    x = (x - x.mean()) / x.std(ddof=1)
+    m = (m - m.mean()) / m.std(ddof=1)
+    y = (y - y.mean()) / y.std(ddof=1)
     rng = np.random.default_rng(seed)
 
     def _chemins(x_, m_, y_):
@@ -237,19 +247,29 @@ def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[d
     """Orchestre AFE, AFC, régressions et médiations à partir des types de
     variables déclarés dans la méthodologie (indépendante/médiatrice/dépendante),
     sans que l'utilisateur n'ait rien à configurer manuellement."""
-    items_par_variable: dict[str, list[str]] = {}
+    # Deux ensembles distincts : les scores (régression/médiation) acceptent les
+    # variables à item numérique unique (revenu, prix...), courantes en sciences
+    # économiques ; l'AFE/AFC, elles, n'ont de sens que sur des échelles à
+    # plusieurs items Likert mesurant le même construit — jamais sur un indicateur
+    # numérique isolé, qui n'a pas de structure factorielle à valider.
+    items_par_variable_tous: dict[str, list[str]] = {}
+    items_par_variable_likert: dict[str, list[str]] = {}
     for section in questionnaire.get("sections", []):
         variable = section.get("variable_associee")
-        if variable:
-            items_par_variable[variable] = [
-                it["code"] for it in section.get("items", []) if it.get("type") == "echelle_likert"
-            ]
-    items_par_variable = {k: v for k, v in items_par_variable.items() if len(v) >= 2}
-    if not items_par_variable:
+        if not variable:
+            continue
+        items_likert = [it["code"] for it in section.get("items", []) if it.get("type") == "echelle_likert"]
+        items_scorables = [it["code"] for it in section.get("items", []) if it.get("type") in ("echelle_likert", "numerique")]
+        if items_scorables:
+            items_par_variable_tous[variable] = items_scorables
+        if len(items_likert) >= 2:
+            items_par_variable_likert[variable] = items_likert
+
+    if not items_par_variable_tous:
         return {"afe": None, "afc": None, "regressions": [], "mediations": []}
 
     scores: dict[str, np.ndarray] = {}
-    for variable, codes in items_par_variable.items():
+    for variable, codes in items_par_variable_tous.items():
         lignes_completes = [
             [float(l[c]) for c in codes]
             for l in lignes if all(c in l and l[c] not in (None, "") for c in codes)
@@ -257,16 +277,16 @@ def analyses_avancees(lignes: list[dict], questionnaire: dict, variables: list[d
         if len(lignes_completes) >= 10:
             scores[variable] = np.array(lignes_completes).mean(axis=1)
 
-    tous_codes = [c for codes in items_par_variable.values() for c in codes]
+    tous_codes = [c for codes in items_par_variable_likert.values() for c in codes]
     lignes_afe = [
         [float(l[c]) for c in tous_codes]
         for l in lignes if all(c in l and l[c] not in (None, "") for c in tous_codes)
-    ]
+    ] if tous_codes else []
     afe = afe_diagnostics(np.array(lignes_afe), tous_codes) if len(lignes_afe) >= 10 else None
 
     donnees_dict = {c: np.array([float(l[c]) for l in lignes if c in l and l[c] not in (None, "")]) for c in tous_codes}
     try:
-        afc = afc_ajustement(donnees_dict, items_par_variable) if len(items_par_variable) >= 2 else None
+        afc = afc_ajustement(donnees_dict, items_par_variable_likert) if len(items_par_variable_likert) >= 2 else None
     except Exception as ex:  # noqa: BLE001
         afc = {"erreur": f"L'AFC n'a pas pu être calculée : {ex}"}
 

@@ -185,6 +185,7 @@ class EtudeQuantitative(Base):
     id: Mapped[str] = mapped_column(primary_key=True)
     proprietaire_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
     theme: Mapped[str] = mapped_column()
+    branche: Mapped[str] = mapped_column(default="sciences_humaines")  # sciences_humaines | sciences_economiques
     question_recherche: Mapped[str] = mapped_column(default="")
     langue: Mapped[str] = mapped_column(default="fr")
     statut: Mapped[str] = mapped_column(default="en_cours")  # en_cours | termine | erreur
@@ -297,7 +298,7 @@ _COLONNES_ATTENDUES = {
         "analyse_langue": "VARCHAR",
     },
     "entretiens": {"analyse_methode": "VARCHAR", "analyse_langue": "VARCHAR"},
-    "etudes_quantitatives": {"etape": "VARCHAR", "texte_en_cours": "TEXT"},
+    "etudes_quantitatives": {"etape": "VARCHAR", "texte_en_cours": "TEXT", "branche": "VARCHAR"},
     "analyses_quantitatives": {"synthese_interpretative": "{json_type}", "synthese_statut": "VARCHAR", "texte_en_cours": "TEXT"},
 }
 
