@@ -109,6 +109,38 @@ class Entretien(Base):
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Memo(Base):
+    """Mémo de réflexivité — note du chercheur sur ses choix méthodologiques,
+    ses biais possibles, ses interprétations émergentes. Rattachable à un
+    entretien ou à un corpus entier. Pratique standard des logiciels d'analyse
+    qualitative (NVivo, ATLAS.ti, MAXQDA), absente des outils IA-native
+    concurrents — c'est justement ce qui rassure un jury académique."""
+    __tablename__ = "memos"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    auteur_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"), index=True)
+    entretien_id: Mapped[str | None] = mapped_column(ForeignKey("entretiens.id"), nullable=True, index=True)
+    corpus_id: Mapped[str | None] = mapped_column(ForeignKey("corpus.id"), nullable=True, index=True)
+    contenu: Mapped[str] = mapped_column(Text)
+    cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    modifie_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class HistoriqueSegment(Base):
+    """Trace chaque correction manuelle d'un segment de transcription — jamais
+    un simple écrasement silencieux. Un jury (ou le chercheur lui-même, des
+    mois plus tard) peut ainsi voir exactement ce que l'IA avait transcrit à
+    l'origine, ce qui a été corrigé, par qui et quand — la piste d'audit que
+    les outils IA-native concurrents n'offrent pas."""
+    __tablename__ = "historique_segments"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    entretien_id: Mapped[str] = mapped_column(ForeignKey("entretiens.id"), index=True)
+    segment_index: Mapped[int] = mapped_column()
+    texte_avant: Mapped[str] = mapped_column(Text)
+    texte_apres: Mapped[str] = mapped_column(Text)
+    auteur_id: Mapped[str] = mapped_column(ForeignKey("utilisateurs.id"))
+    horodatage: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Codage(Base):
     """Un codage indépendant d'un segment par un chercheur, pour le calcul de fiabilité inter-codeurs."""
     __tablename__ = "codages"

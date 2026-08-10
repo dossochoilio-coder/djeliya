@@ -27,6 +27,7 @@ import {
   checkHealth, createTranscription, getTranscription, lancerAnalyse, enregistrerSegment,
   creerCorpusDistant, listerCorpusDistant, rejoindreCorpus, detailCorpus, lancerAnalyseCorpus,
   enregistrerCodage, listerCodages, fiabiliteInterCodeurs, envoyerContribution, fetchMethodes, couterCredits, moi,
+  listerMemos, creerMemo, modifierMemo, supprimerMemo,
   exporterDocxEntretien, exporterXlsxEntretien, exporterDocxCorpus, exporterXlsxCorpus, exporterDocxGuide,
 } from "./lib/api.js";
 import { partagerFichierBinaire } from "./lib/export.js";
@@ -370,6 +371,10 @@ export default function App() {
         onListerCodages={() => listerCodages(settings.backendUrl, auth.token, interview.jobId)}
         onFiabilite={() => fiabiliteInterCodeurs(settings.backendUrl, auth.token, interview.jobId)}
         onContribuer={(avant, apres) => contribuerCorrection(interview.langueDetectee || interview.langue, avant, apres)}
+        onListerMemos={() => listerMemos(settings.backendUrl, auth.token, { entretienId: interview.jobId })}
+        onCreerMemo={(contenu) => creerMemo(settings.backendUrl, auth.token, { contenu, entretienId: interview.jobId })}
+        onModifierMemo={(memoId, contenu) => modifierMemo(settings.backendUrl, auth.token, memoId, { contenu, entretienId: interview.jobId })}
+        onSupprimerMemo={(memoId) => supprimerMemo(settings.backendUrl, auth.token, memoId)}
         onExporterDocx={() => exporterEntretien(interview, "docx")}
         onExporterXlsx={() => exporterEntretien(interview, "xlsx")}
         showToast={showToast}

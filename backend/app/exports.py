@@ -70,6 +70,11 @@ L = {
         "analyse_qualitative": "2. Analyse qualitative",
         "methode": "Méthode : ", "modele": "Modèle : ",
         "demarche_methodologique": "Démarche méthodologique",
+        "memos_titre": "3. Mémos de réflexivité",
+        "memos_intro": "Notes du chercheur sur ses choix méthodologiques, ses interprétations émergentes ou des biais possibles — consignées au fil de l'analyse, jamais modifiées rétroactivement sans laisser de trace.",
+        "audit_titre": "4. Piste d'audit des corrections",
+        "audit_intro": "Chaque correction manuelle apportée à la transcription générée par l'IA, avec le texte d'origine, le texte corrigé, l'auteur et la date — pour une traçabilité complète face à un comité ou un jury.",
+        "audit_segment": "Segment", "audit_avant": "Texte original (IA)", "audit_apres": "Texte corrigé", "audit_auteur": "Par", "audit_date": "Le",
         "structure_resultats": "Structure des résultats",
         "synthese_interpretative": "Synthèse interprétative",
         "limites_analyse": "Limites de l'analyse automatique",
@@ -218,6 +223,11 @@ L = {
         "analyse_qualitative": "2. Qualitative analysis",
         "methode": "Method: ", "modele": "Model: ",
         "demarche_methodologique": "Methodological approach",
+        "memos_titre": "3. Reflexivity memos",
+        "memos_intro": "Researcher's notes on methodological choices, emerging interpretations, or possible biases — logged throughout the analysis, never modified retroactively without a trace.",
+        "audit_titre": "4. Correction audit trail",
+        "audit_intro": "Every manual correction made to the AI-generated transcript, with the original text, the corrected text, the author, and the date — for full traceability before a committee or panel.",
+        "audit_segment": "Segment", "audit_avant": "Original text (AI)", "audit_apres": "Corrected text", "audit_auteur": "By", "audit_date": "On",
         "structure_resultats": "Findings structure",
         "synthese_interpretative": "Interpretive summary",
         "limites_analyse": "Limits of the automated analysis",
@@ -635,6 +645,34 @@ def generer_docx_entretien(entretien: dict) -> io.BytesIO:
         if methode and methode in REFERENCES_APA:
             doc.add_heading(l["reference"], level=2)
             doc.add_paragraph(REFERENCES_APA[methode])
+
+    memos = entretien.get("memos") or []
+    if memos:
+        doc.add_heading(l["memos_titre"], level=1)
+        p_intro = doc.add_paragraph(l["memos_intro"])
+        p_intro.runs[0].italic = True
+        for memo in memos:
+            date_txt = memo["cree_le"][:10] if memo.get("cree_le") else "—"
+            p_meta = doc.add_paragraph(f"{date_txt} — {memo.get('auteur_email', '—')}")
+            p_meta.runs[0].bold = True
+            doc.add_paragraph(memo["contenu"])
+
+    corrections = entretien.get("historique_corrections") or []
+    if corrections:
+        doc.add_heading(l["audit_titre"], level=1)
+        p_intro2 = doc.add_paragraph(l["audit_intro"])
+        p_intro2.runs[0].italic = True
+        tbl = doc.add_table(rows=1, cols=5)
+        tbl.style = "Light Grid Accent 1"
+        for i, h in enumerate([l["audit_segment"], l["audit_avant"], l["audit_apres"], l["audit_auteur"], l["audit_date"]]):
+            tbl.rows[0].cells[i].text = h
+        for corr in corrections:
+            row = tbl.add_row().cells
+            row[0].text = str(corr["segment_index"] + 1)
+            row[1].text = corr["texte_avant"]
+            row[2].text = corr["texte_apres"]
+            row[3].text = corr["auteur_email"]
+            row[4].text = corr["horodatage"][:10] if corr.get("horodatage") else "—"
 
     _numero_page(doc, langue)
     buf = io.BytesIO()

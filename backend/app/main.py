@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from .db import (
     init_db, get_session, Utilisateur, Corpus, MembreCorpus, Entretien, Codage,
     ContributionLangue, Forfait, MouvementCredit, GuideEntretien, Commande, AchatGooglePlay,
-    EtudeQuantitative, AnalyseQuantitative, ADMIN_EMAIL,
+    EtudeQuantitative, AnalyseQuantitative, Memo, HistoriqueSegment, ADMIN_EMAIL,
 )
 from .auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_jeton, utilisateur_courant
 from .email_utils import envoyer_code_verification, envoyer_code_reinitialisation, EMAIL_CONFIGURE
@@ -224,6 +224,106 @@ def _verifier_acces(session, entretien: Entretien, user: Utilisateur):
         if membre:
             return
     raise HTTPException(403, "Tu n'as pas accès à cet entretien.")
+
+
+def _verifier_acces_corpus(session, corpus_id: str, user: Utilisateur):
+    if session.query(MembreCorpus).filter_by(corpus_id=corpus_id, utilisateur_id=user.id).first():
+        return
+    raise HTTPException(403, "Tu n'as pas accès à ce corpus.")
+
+
+class MemoIn(BaseModel):
+    contenu: str
+    entretien_id: str | None = None
+    corpus_id: str | None = None
+
+
+def _memo_vers_dict(m: Memo, auteur_email: str) -> dict:
+    return {
+        "id": m.id, "contenu": m.contenu, "auteur_email": auteur_email,
+        "entretien_id": m.entretien_id, "corpus_id": m.corpus_id,
+        "cree_le": m.cree_le.isoformat() if m.cree_le else None,
+        "modifie_le": m.modifie_le.isoformat() if m.modifie_le else None,
+    }
+
+
+@app.post("/api/memos")
+def creer_memo(payload: MemoIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if not payload.contenu.strip():
+        raise HTTPException(422, "Le contenu du mémo est requis.")
+    if not payload.entretien_id and not payload.corpus_id:
+        raise HTTPException(422, "Un mémo doit être rattaché à un entretien ou à un corpus.")
+    session = get_session()
+    try:
+        if payload.entretien_id:
+            e = session.get(Entretien, payload.entretien_id)
+            if not e:
+                raise HTTPException(404, "Entretien introuvable.")
+            _verifier_acces(session, e, user)
+        if payload.corpus_id:
+            _verifier_acces_corpus(session, payload.corpus_id, user)
+
+        memo = Memo(
+            id=uuid.uuid4().hex[:16], auteur_id=user.id,
+            entretien_id=payload.entretien_id, corpus_id=payload.corpus_id,
+            contenu=_nettoyer_texte_utilisateur(payload.contenu.strip()),
+        )
+        session.add(memo)
+        session.commit()
+        return _memo_vers_dict(memo, user.email)
+    finally:
+        session.close()
+
+
+@app.get("/api/memos")
+def lister_memos(entretien_id: str | None = None, corpus_id: str | None = None, user: Utilisateur = Depends(utilisateur_courant)):
+    if not entretien_id and not corpus_id:
+        raise HTTPException(422, "Précise un entretien_id ou un corpus_id.")
+    session = get_session()
+    try:
+        if entretien_id:
+            e = session.get(Entretien, entretien_id)
+            if not e:
+                raise HTTPException(404, "Entretien introuvable.")
+            _verifier_acces(session, e, user)
+            memos = session.query(Memo, Utilisateur).join(Utilisateur, Memo.auteur_id == Utilisateur.id).filter(Memo.entretien_id == entretien_id).order_by(Memo.cree_le.desc()).all()
+        else:
+            _verifier_acces_corpus(session, corpus_id, user)
+            memos = session.query(Memo, Utilisateur).join(Utilisateur, Memo.auteur_id == Utilisateur.id).filter(Memo.corpus_id == corpus_id).order_by(Memo.cree_le.desc()).all()
+        return [_memo_vers_dict(m, u.email) for m, u in memos]
+    finally:
+        session.close()
+
+
+@app.put("/api/memos/{memo_id}")
+def modifier_memo(memo_id: str, payload: MemoIn, user: Utilisateur = Depends(utilisateur_courant)):
+    if not payload.contenu.strip():
+        raise HTTPException(422, "Le contenu du mémo est requis.")
+    session = get_session()
+    try:
+        memo = session.get(Memo, memo_id)
+        if not memo or memo.auteur_id != user.id:
+            raise HTTPException(404, "Mémo introuvable.")
+        memo.contenu = _nettoyer_texte_utilisateur(payload.contenu.strip())
+        memo.modifie_le = datetime.now(timezone.utc)
+        session.commit()
+        return _memo_vers_dict(memo, user.email)
+    finally:
+        session.close()
+
+
+@app.delete("/api/memos/{memo_id}")
+def supprimer_memo(memo_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    session = get_session()
+    try:
+        memo = session.get(Memo, memo_id)
+        if not memo or memo.auteur_id != user.id:
+            raise HTTPException(404, "Mémo introuvable.")
+        session.delete(memo)
+        session.commit()
+        return {"ok": True}
+    finally:
+        session.close()
 
 
 def _generer_code_invitation() -> str:
@@ -2877,7 +2977,9 @@ def obtenir_transcription(entretien_id: str, user: Utilisateur = Depends(utilisa
 @app.post("/api/transcriptions/{entretien_id}/segments/{index}")
 def corriger_segment(entretien_id: str, index: int, payload: dict, user: Utilisateur = Depends(utilisateur_courant)):
     """Corrige UN SEUL segment de façon atomique (jamais tout le tableau d'un coup),
-    pour que deux corrections rapprochées ne puissent jamais s'écraser l'une l'autre."""
+    pour que deux corrections rapprochées ne puissent jamais s'écraser l'une l'autre.
+    Conserve systématiquement l'historique de la correction (texte avant/après, auteur,
+    horodatage) — jamais un simple écrasement silencieux, pour la piste d'audit."""
     session = get_session()
     try:
         e = session.get(Entretien, entretien_id)
@@ -2887,10 +2989,50 @@ def corriger_segment(entretien_id: str, index: int, payload: dict, user: Utilisa
         segments = list(e.segments or [])
         if index < 0 or index >= len(segments):
             raise HTTPException(422, "Segment introuvable.")
-        segments[index] = payload.get("segment", segments[index])
+
+        texte_avant = (segments[index] or {}).get("text", "")
+        nouveau_segment = payload.get("segment", segments[index])
+        texte_apres = (nouveau_segment or {}).get("text", "")
+
+        if texte_avant != texte_apres:
+            session.add(HistoriqueSegment(
+                id=uuid.uuid4().hex[:16], entretien_id=entretien_id, segment_index=index,
+                texte_avant=texte_avant, texte_apres=texte_apres, auteur_id=user.id,
+            ))
+
+        segments[index] = nouveau_segment
         e.segments = segments
         session.commit()
         return {"ok": True}
+    finally:
+        session.close()
+
+
+@app.get("/api/transcriptions/{entretien_id}/historique")
+def historique_corrections(entretien_id: str, user: Utilisateur = Depends(utilisateur_courant)):
+    """Piste d'audit des corrections manuelles apportées à la transcription —
+    ce que l'IA avait produit à l'origine, ce qui a été corrigé, par qui, quand."""
+    session = get_session()
+    try:
+        e = session.get(Entretien, entretien_id)
+        if not e:
+            raise HTTPException(404, "Entretien introuvable.")
+        _verifier_acces(session, e, user)
+        corrections = (
+            session.query(HistoriqueSegment, Utilisateur)
+            .join(Utilisateur, HistoriqueSegment.auteur_id == Utilisateur.id)
+            .filter(HistoriqueSegment.entretien_id == entretien_id)
+            .order_by(HistoriqueSegment.horodatage.asc())
+            .all()
+        )
+        return [
+            {
+                "id": h.id, "segment_index": h.segment_index, "texte_avant": h.texte_avant,
+                "texte_apres": h.texte_apres, "auteur_email": u.email,
+                "horodatage": h.horodatage.isoformat() if h.horodatage else None,
+            }
+            for h, u in corrections
+        ]
     finally:
         session.close()
 
@@ -2904,6 +3046,19 @@ def export_docx_entretien(entretien_id: str, user: Utilisateur = Depends(utilisa
             raise HTTPException(404, "Entretien introuvable.")
         _verifier_acces(session, e, user)
         data = _entretien_vers_dict(e)
+        data["memos"] = [
+            _memo_vers_dict(m, u.email)
+            for m, u in session.query(Memo, Utilisateur).join(Utilisateur, Memo.auteur_id == Utilisateur.id)
+            .filter(Memo.entretien_id == entretien_id).order_by(Memo.cree_le.asc()).all()
+        ]
+        data["historique_corrections"] = [
+            {
+                "segment_index": h.segment_index, "texte_avant": h.texte_avant, "texte_apres": h.texte_apres,
+                "auteur_email": u.email, "horodatage": h.horodatage.isoformat() if h.horodatage else None,
+            }
+            for h, u in session.query(HistoriqueSegment, Utilisateur).join(Utilisateur, HistoriqueSegment.auteur_id == Utilisateur.id)
+            .filter(HistoriqueSegment.entretien_id == entretien_id).order_by(HistoriqueSegment.horodatage.asc()).all()
+        ]
     finally:
         session.close()
     buf = generer_docx_entretien(data)

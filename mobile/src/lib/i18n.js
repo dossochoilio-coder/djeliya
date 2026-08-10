@@ -62,6 +62,10 @@ export const TRADUCTIONS = {
 
     ficheEntretien: {
       transcription: "Transcription", analyse: "Analyse", codageEquipe: "Codage d'équipe",
+      memos: "Mémos", memosNouveau: "Nouveau mémo de réflexivité",
+      memosPlaceholder: "Ex. Le répondant a semblé hésiter sur les questions financières — biais social possible à noter.",
+      memosAjouter: "Ajouter le mémo", memosVide: "Aucun mémo pour l'instant — note ici tes choix méthodologiques, tes interprétations émergentes ou des biais possibles.",
+      memosModifie: "modifié", memosModifier: "Modifier", memosEnregistrer: "Enregistrer", memosSupprimer: "Supprimer",
       corpusAssigne: "Corpus : ", aucunCorpusAssigne: "Aucun corpus assigné", modifier: "modifier",
       audioIndisponible: "Audio indisponible sur cet appareil. La transcription reste consultable.",
       aucuneParole: "Aucune parole détectée dans cet audio.",
@@ -352,6 +356,10 @@ export const TRADUCTIONS = {
 
     ficheEntretien: {
       transcription: "Transcript", analyse: "Analysis", codageEquipe: "Team coding",
+      memos: "Memos", memosNouveau: "New reflexivity memo",
+      memosPlaceholder: "E.g. The respondent seemed to hesitate on financial questions — possible social desirability bias to note.",
+      memosAjouter: "Add memo", memosVide: "No memos yet — note your methodological choices, emerging interpretations, or possible biases here.",
+      memosModifie: "edited", memosModifier: "Edit", memosEnregistrer: "Save", memosSupprimer: "Delete",
       corpusAssigne: "Corpus: ", aucunCorpusAssigne: "No corpus assigned", modifier: "change",
       audioIndisponible: "Audio unavailable on this device. The transcript remains readable.",
       aucuneParole: "No speech detected in this audio.",

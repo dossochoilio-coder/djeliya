@@ -186,6 +186,43 @@ async function telechargerFichier(url, token) {
   throw derniereErreur;
 }
 
+export async function creerMemo(backendUrl, token, { contenu, entretienId, corpusId }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/memos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ contenu, entretien_id: entretienId || null, corpus_id: corpusId || null }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function listerMemos(backendUrl, token, { entretienId, corpusId }) {
+  const base = clean(backendUrl);
+  const param = entretienId ? `entretien_id=${entretienId}` : `corpus_id=${corpusId}`;
+  const res = await fetch(`${base}/api/memos?${param}`, { headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function modifierMemo(backendUrl, token, memoId, { contenu, entretienId, corpusId }) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/memos/${memoId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...headersAuth(token) },
+    body: JSON.stringify({ contenu, entretien_id: entretienId || null, corpus_id: corpusId || null }),
+  });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
+export async function supprimerMemo(backendUrl, token, memoId) {
+  const base = clean(backendUrl);
+  const res = await fetch(`${base}/api/memos/${memoId}`, { method: "DELETE", headers: headersAuth(token) });
+  if (!res.ok) throw new Error(await lireErreur(res));
+  return res.json();
+}
+
 export function exporterDocxEntretien(backendUrl, token, jobId) {
   return telechargerFichier(`${clean(backendUrl)}/api/transcriptions/${jobId}/export/docx`, token);
 }

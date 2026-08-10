@@ -3,12 +3,12 @@ import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { getAudioBlob } from "../lib/db.js";
 import { computePeaks } from "../lib/waveform.js";
-import { LANGS, STATUTS, fmtTime } from "../lib/constants.js";
+import { LANGS, STATUTS, fmtTime, fmtDate } from "../lib/constants.js";
 import { useT } from "../lib/i18n.js";
 import { messageAffichable, mailtoSignalement } from "../lib/erreurs.js";
 import AnalyseView from "../components/AnalyseView.jsx";
 
-export default function FicheEntretien({ interview, corpusList, methodes, couts, utilisateur, onOuvrirForfaits, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onExporterDocx, onExporterXlsx, showToast }) {
+export default function FicheEntretien({ interview, corpusList, methodes, couts, utilisateur, onOuvrirForfaits, onRetour, onUpdate, onCorrigerSegments, onSupprimer, onRelancer, onLancerAnalyse, onEnregistrerCodage, onListerCodages, onFiabilite, onContribuer, onListerMemos, onCreerMemo, onModifierMemo, onSupprimerMemo, onExporterDocx, onExporterXlsx, showToast }) {
   const { t, langue } = useT();
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioIntrouvable, setAudioIntrouvable] = useState(false);
@@ -236,7 +236,14 @@ export default function FicheEntretien({ interview, corpusList, methodes, couts,
               onClick={() => setVue("analyse")}>{t("ficheEntretien.analyse")}</button>
             <button className={"vue-opt" + (vue === "codage" ? " vue-actif" : "")}
               onClick={() => setVue("codage")}>{t("ficheEntretien.codageEquipe")}</button>
+            <button className={"vue-opt" + (vue === "memos" ? " vue-actif" : "")}
+              onClick={() => setVue("memos")}>{t("ficheEntretien.memos")}</button>
           </div>
+        )}
+
+        {vue === "memos" && interview.statut === "termine" && (
+          <MemosView onLister={onListerMemos} onCreer={onCreerMemo} onModifier={onModifierMemo}
+            onSupprimer={onSupprimerMemo} utilisateur={utilisateur} showToast={showToast} />
         )}
 
         {vue === "codage" && interview.statut === "termine" && (
@@ -476,5 +483,108 @@ function Mot({ m, onSave }) {
         {m.mot}
       </button>{" "}
     </span>
+  );
+}
+
+function MemosView({ onLister, onCreer, onModifier, onSupprimer, utilisateur, showToast }) {
+  const { t } = useT();
+  const [memos, setMemos] = useState(null);
+  const [nouveauContenu, setNouveauContenu] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  const [edition, setEdition] = useState(null);
+  const [brouillonEdition, setBrouillonEdition] = useState("");
+
+  useEffect(() => {
+    onLister().then(setMemos).catch(() => setMemos([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const ajouter = async () => {
+    const contenu = nouveauContenu.trim();
+    if (!contenu) return;
+    setEnvoi(true);
+    try {
+      const memo = await onCreer(contenu);
+      setMemos((liste) => [memo, ...(liste || [])]);
+      setNouveauContenu("");
+    } catch (e) {
+      showToast(e.message || "");
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const enregistrerEdition = async (memoId) => {
+    const contenu = brouillonEdition.trim();
+    if (!contenu) return;
+    try {
+      const memo = await onModifier(memoId, contenu);
+      setMemos((liste) => liste.map((m) => (m.id === memoId ? memo : m)));
+      setEdition(null);
+    } catch (e) {
+      showToast(e.message || "");
+    }
+  };
+
+  const supprimer = async (memoId) => {
+    try {
+      await onSupprimer(memoId);
+      setMemos((liste) => liste.filter((m) => m.id !== memoId));
+    } catch (e) {
+      showToast(e.message || "");
+    }
+  };
+
+  return (
+    <div className="glossaire-form">
+      <span className="field-label">{t("ficheEntretien.memosNouveau")}</span>
+      <textarea className="field-input" rows={3} value={nouveauContenu}
+        onChange={(e) => setNouveauContenu(e.target.value)}
+        placeholder={t("ficheEntretien.memosPlaceholder")} />
+      <button className="btn primary sm" onClick={ajouter} disabled={envoi || !nouveauContenu.trim()}>
+        {envoi ? "…" : t("ficheEntretien.memosAjouter")}
+      </button>
+
+      {memos === null ? (
+        <div className="pending-card"><span className="spinner" />{t("admin.chargement")}</div>
+      ) : memos.length === 0 ? (
+        <p className="field-help">{t("ficheEntretien.memosVide")}</p>
+      ) : (
+        <ul className="gloss-list">
+          {memos.map((m) => (
+            <li key={m.id} className="gloss-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span className="field-help">{fmtDate(m.cree_le)} — {m.auteur_email}{m.modifie_le ? ` (${t("ficheEntretien.memosModifie")})` : ""}</span>
+              </div>
+              {edition === m.id ? (
+                <>
+                  <textarea className="field-input" rows={3} value={brouillonEdition}
+                    onChange={(e) => setBrouillonEdition(e.target.value)} />
+                  <div className="field-inline">
+                    <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => setEdition(null)}>{t("credits.annuler")}</button>
+                    <button className="btn sm" style={{ flex: 1 }} onClick={() => enregistrerEdition(m.id)}>{t("ficheEntretien.memosEnregistrer")}</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="theme-desc" style={{ margin: 0 }}>{m.contenu}</p>
+                  {m.auteur_email === utilisateur?.email && (
+                    <div style={{ display: "flex", gap: 14 }}>
+                      <button className="link-btn" style={{ fontSize: 12 }}
+                        onClick={() => { setEdition(m.id); setBrouillonEdition(m.contenu); }}>
+                        {t("ficheEntretien.memosModifier")}
+                      </button>
+                      <button className="link-btn" style={{ fontSize: 12, color: "#D96D5F" }} onClick={() => supprimer(m.id)}>
+                        {t("ficheEntretien.memosSupprimer")}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
